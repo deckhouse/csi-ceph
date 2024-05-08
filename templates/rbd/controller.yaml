@@ -12,7 +12,7 @@
 
 
 {{- $csiDriverName := "rbd.csi.ceph.com" }}
-{{- $csiControllerImage := include "helm_lib_module_image" (list . "csiceph") }}
+{{- $csiControllerImage := include "helm_lib_module_image" (list . "csiСeph") }}
 
 ### rbd_csi_controller_args
 
