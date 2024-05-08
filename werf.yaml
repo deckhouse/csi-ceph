@@ -1,4 +1,4 @@
-project: sds-local-volume
+project: csi-ceph
 configVersion: 1
 ---
 {{ tpl (.Files.Get ".werf/images.yaml") $ }}
