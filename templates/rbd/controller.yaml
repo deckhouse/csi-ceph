@@ -2,6 +2,9 @@
 ### controller
 ###
 
+{{- $csiDriverName := "rbd.csi.ceph.com" }}
+{{- $csiControllerImage := include "helm_lib_module_image" (list . "csiСeph") }}
+
 {{- $deployRBDController := false }}
 
 {{- range $cr := .Values.csiCeph.internal.crs }}
@@ -9,10 +12,6 @@
     {{- $deployRBDController = true }}
   {{- end }}
 {{- end }}
-
-
-{{- $csiDriverName := "rbd.csi.ceph.com" }}
-{{- $csiControllerImage := include "helm_lib_module_image" (list . "csiСeph") }}
 
 ### rbd_csi_controller_args
 
