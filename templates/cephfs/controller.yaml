@@ -4,7 +4,7 @@
 
 {{- $deployCephFSController := false }}
 
-{{- range $cr := .Values.cephCsi.internal.crs }}
+{{- range $cr := .Values.csiCeph.internal.crs }}
   {{- if $cr.spec.cephfs }}
     {{- $deployCephFSController = true }}
   {{- end }}

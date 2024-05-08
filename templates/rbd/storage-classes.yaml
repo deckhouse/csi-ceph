@@ -1,4 +1,4 @@
-{{- range $cr := .Values.cephCsi.internal.crs }}
+{{- range $cr := .Values.csiCeph.internal.crs }}
   {{- if $cr.spec.rbd }}
     {{- range $sc := $cr.spec.rbd.storageClasses }}
 ---
