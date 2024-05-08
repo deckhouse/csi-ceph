@@ -12,7 +12,7 @@
 
 
 {{- $csiDriverName := "cephfs.csi.ceph.com" }}
-{{- $csiControllerImage := include "helm_lib_module_image" (list . "cephcsi") }}
+{{- $csiControllerImage := include "helm_lib_module_image" (list . "csiCeph") }}
 
 ### cephfs_csi_controller_args
 
