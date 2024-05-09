@@ -3,7 +3,7 @@
 ###
 
 {{- $csiDriverName := "cephfs.csi.ceph.com" }}
-{{- $csiControllerImage := .Values.global.modulesImages.digests }}
+{{- $csiControllerImage := .Values.global.modulesImages.digests.csiCeph.csiCeph }}
 
 {{- $deployCephFSController := false }}
 
