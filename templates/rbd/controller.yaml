@@ -2,42 +2,8 @@
 ### controller
 ###
 
-{{- define "test_lib_module_image" }}
-  {{- $context := index . 0 }} {{- /* Template context with .Values, .Chart, etc */ -}}
-  {{- $containerName := index . 1 | trimAll "\"" }} {{- /* Container name */ -}}
-  {{- $moduleName := (include "helm_lib_module_camelcase_name" $context) }}
-  {{- if ge (len .) 3 }}
-  {{- $moduleName = (include "helm_lib_module_camelcase_name" (index . 2)) }} {{- /* Optional module name */ -}}
-  {{- end }}
-  {{- $imageDigest := index $context.Values.global.modulesImages.digests $moduleName $containerName }}
-  {{- printf "%s" $imageDigest }}
-  {{- if not $imageDigest }}
-  {{- $error := (printf "Image %s.%s has no digest" $moduleName $containerName ) }}
-  {{- fail $error }}
-  {{- end }}
-  {{- $registryBase := $context.Values.global.modulesImages.registry.base }}
-  {{- /*  handle external modules registry */}}
-  {{- if index $context.Values $moduleName }}
-    {{- if index $context.Values $moduleName "registry" }}
-      {{- if index $context.Values $moduleName "registry" "base" }}
-        {{- $host := trimAll "/" (index $context.Values $moduleName "registry" "base") }}
-        {{- $path := trimAll "/" $context.Chart.Name }}
-        {{- $registryBase = join "/" (list $host $path) }}
-      {{- end }}
-    {{- end }}
-  {{- end }}
-  {{- printf "%s@%s" $registryBase $imageDigest }}
-{{- end }}
-
-{{- $csiDriverName := "rbd.csi.ceph.com" }}
-{{- $csiControllerImage := .Values.global.modulesImages.digests.csiCeph.csiCeph }}
-
-{{- $moduleName := (include "helm_lib_module_camelcase_name" .) }}
-{{- index .Values.global.modulesImages.digests $moduleName }}
-{{- $csiControllerImage }}
-{{- $csiControllerImage1 := include "helm_lib_module_image" (list . "csiCeph") }}
-
 {{- $deployRBDController := false }}
+{{- $csiControllerImage := include "helm_lib_module_image" (list . "csiCeph") }}
 
 {{- range $cr := .Values.csiCeph.internal.crs }}
   {{- if $cr.spec.rbd }}
