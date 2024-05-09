@@ -35,7 +35,7 @@
 {{- $moduleName := (include "helm_lib_module_camelcase_name" .) }}
 {{- index .Values.global.modulesImages.digests $moduleName }}
 {{- $csiControllerImage }}
-{{- $csiControllerImage1 := include "test_lib_module_image" (list . "csiCeph") }}
+{{- $csiControllerImage1 := include "helm_lib_module_image" (list . "csiCeph") }}
 
 {{- $deployRBDController := false }}
 
