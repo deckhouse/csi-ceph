@@ -2,10 +2,10 @@
 ### controller
 ###
 
+{{- $deployCephFSController := false }}
+
 {{- $csiDriverName := "cephfs.csi.ceph.com" }}
 {{- $csiControllerImage := include "helm_lib_module_image" (list . "csiCeph") }}
-
-{{- $deployCephFSController := false }}
 
 {{- range $cr := .Values.csiCeph.internal.crs }}
   {{- if $cr.spec.cephfs }}
