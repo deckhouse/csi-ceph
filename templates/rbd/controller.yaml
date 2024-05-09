@@ -5,6 +5,8 @@
 {{- $csiDriverName := "rbd.csi.ceph.com" }}
 {{- $csiControllerImage := .Values.global.modulesImages.digests }}
 
+{{- $csiControllerImage }}
+
 {{- $deployRBDController := false }}
 
 {{- range $cr := .Values.csiCeph.internal.crs }}
