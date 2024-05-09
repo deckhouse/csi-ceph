@@ -5,6 +5,8 @@
 {{- $csiDriverName := "rbd.csi.ceph.com" }}
 {{- $csiControllerImage := .Values.global.modulesImages.digests.csiCeph.csiCeph }}
 
+{{- $moduleName := (include "helm_lib_module_camelcase_name" .) }}
+{{- index .Values.global.modulesImages.digests $moduleName }}
 {{- $csiControllerImage }}
 
 {{- $deployRBDController := false }}
