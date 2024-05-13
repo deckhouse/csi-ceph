@@ -3,14 +3,17 @@
 ###
 
 ## {{- $deployRBDController := false }}
+{{- if .Values.csiCeph.cephfsEnabled }}
+
+
 {{- $csiDriverName := "rbd.csi.ceph.com" }}
 {{- $csiControllerImage := include "helm_lib_module_image" (list . "csiCeph") }}
 
-{{- range $cr := .Values.csiCeph.internal.crs }}
-  {{- if $cr.spec.rbd }}
-    {{- $deployRBDController = true }}
-  {{- end }}
-{{- end }}
+#{{- range $cr := .Values.csiCeph.internal.crs }}
+#  {{- if $cr.spec.rbd }}
+#    {{- $deployRBDController = true }}
+#  {{- end }}
+#{{- end }}
 
 ### rbd_csi_controller_args
 
@@ -138,24 +141,24 @@
       mountPath: /tmp/csi/keys
 {{- end }}
 
-{{- if $deployRBDController }}
+#{{- if $deployRBDController }}
 
-  {{- $csiControllerConfig := dict }}
-  {{- $_ := set $csiControllerConfig "fullname" "csi-controller-rbd" }}
-  {{- $_ := set $csiControllerConfig "topologyEnabled" false }}
+#  {{- $csiControllerConfig := dict }}
+#  {{- $_ := set $csiControllerConfig "fullname" "csi-controller-rbd" }}
+#  {{- $_ := set $csiControllerConfig "topologyEnabled" false }}
 
-  {{- $_ := set $csiControllerConfig "controllerImage" $csiControllerImage }}
-  {{- $_ := set $csiControllerConfig "additionalControllerArgs" (include "rbd_csi_controller_args" . | fromYamlArray) }}
-  {{- $_ := set $csiControllerConfig "additionalControllerEnvs" (include "rbd_csi_controller_envs" (list $csiDriverName) | fromYamlArray) }}
-  {{- $_ := set $csiControllerConfig "additionalControllerVolumes" (include "rbd_csi_controller_volumes" . | fromYamlArray) }}
-  {{- $_ := set $csiControllerConfig "additionalControllerVolumeMounts" (include "rbd_csi_controller_volume_mounts" . | fromYamlArray) }}
-  {{- $_ := set $csiControllerConfig "additionalContainers" (include "rbd_csi_additional_containers" (list $csiDriverName $csiControllerImage) | fromYamlArray) }}
+#  {{- $_ := set $csiControllerConfig "controllerImage" $csiControllerImage }}
+#  {{- $_ := set $csiControllerConfig "additionalControllerArgs" (include "rbd_csi_controller_args" . | fromYamlArray) }}
+#  {{- $_ := set $csiControllerConfig "additionalControllerEnvs" (include "rbd_csi_controller_envs" (list $csiDriverName) | fromYamlArray) }}
+#  {{- $_ := set $csiControllerConfig "additionalControllerVolumes" (include "rbd_csi_controller_volumes" . | fromYamlArray) }}
+#  {{- $_ := set $csiControllerConfig "additionalControllerVolumeMounts" (include "rbd_csi_controller_volume_mounts" . | fromYamlArray) }}
+#  {{- $_ := set $csiControllerConfig "additionalContainers" (include "rbd_csi_additional_containers" (list $csiDriverName $csiControllerImage) | fromYamlArray) }}
 
-  {{- $_ := set $csiControllerConfig "livenessProbePort" 9908 }}
+#  {{- $_ := set $csiControllerConfig "livenessProbePort" 9908 }}
 
-  {{- include "helm_lib_csi_controller_manifests" (list . $csiControllerConfig) }}
+#  {{- include "helm_lib_csi_controller_manifests" (list . $csiControllerConfig) }}
 
-{{- end }}
+# {{- end }}
 
 ###
 ### node
@@ -249,19 +252,19 @@
 {{- end }}
 
 
-{{- if $deployRBDController }}
+# {{- if $deployRBDController }}
 
-  {{- $csiNodeConfig := dict }}
-  {{- $_ := set $csiNodeConfig "nodeImage" $csiControllerImage }}
-  {{- $_ := set $csiNodeConfig "driverFQDN" $csiDriverName }}
-  {{- $_ := set $csiNodeConfig "fullname" "csi-node-rbd" }}
-  {{- $_ := set $csiNodeConfig "serviceAccount" "csi" }}
+#  {{- $csiNodeConfig := dict }}
+#  {{- $_ := set $csiNodeConfig "nodeImage" $csiControllerImage }}
+#  {{- $_ := set $csiNodeConfig "driverFQDN" $csiDriverName }}
+#  {{- $_ := set $csiNodeConfig "fullname" "csi-node-rbd" }}
+#  {{- $_ := set $csiNodeConfig "serviceAccount" "csi" }}
 
-  {{- $_ := set $csiNodeConfig "additionalNodeArgs" (include "rbd_csi_node_args" . | fromYamlArray) }}
-  {{- $_ := set $csiNodeConfig "additionalNodeEnvs" (include "rbd_csi_node_envs" (list $csiDriverName) | fromYamlArray) }}
-  {{- $_ := set $csiNodeConfig "additionalNodeVolumes" (include "rbd_csi_node_volumes" . | fromYamlArray) }}
-  {{- $_ := set $csiNodeConfig "additionalNodeVolumeMounts" (include "rbd_csi_node_volume_mounts" . | fromYamlArray) }}
+#  {{- $_ := set $csiNodeConfig "additionalNodeArgs" (include "rbd_csi_node_args" . | fromYamlArray) }}
+#  {{- $_ := set $csiNodeConfig "additionalNodeEnvs" (include "rbd_csi_node_envs" (list $csiDriverName) | fromYamlArray) }}
+#  {{- $_ := set $csiNodeConfig "additionalNodeVolumes" (include "rbd_csi_node_volumes" . | fromYamlArray) }}
+#  {{- $_ := set $csiNodeConfig "additionalNodeVolumeMounts" (include "rbd_csi_node_volume_mounts" . | fromYamlArray) }}
 
-  {{- include "helm_lib_csi_node_manifests" (list . $csiNodeConfig) }}
+#  {{- include "helm_lib_csi_node_manifests" (list . $csiNodeConfig) }}
 
 {{- end }}

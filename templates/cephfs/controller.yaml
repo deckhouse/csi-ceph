@@ -3,15 +3,16 @@
 ###
 
 ## {{- $deployCephFSController := false }}
+{{- if .Values.csiCeph.cephfsEnabled }}
 
 {{- $csiDriverName := "cephfs.csi.ceph.com" }}
 {{- $csiControllerImage := include "helm_lib_module_image" (list . "csiCeph") }}
 
-{{- range $cr := .Values.csiCeph.internal.crs }}
-  {{- if $cr.spec.cephfs }}
-    {{- $deployCephFSController = true }}
-  {{- end }}
-{{- end }}
+#{{- range $cr := .Values.csiCeph.internal.crs }}
+#  {{- if $cr.spec.cephfs }}
+##    {{- $deployCephFSController = true }}
+#  {{- end }}
+#{{- end }}
 
 ### cephfs_csi_controller_args
 
@@ -98,23 +99,23 @@
 {{- end }}
 
 
-{{- if $deployCephFSController }}
+##{{- if $deployCephFSController }}
 
-  {{- $csiControllerConfig := dict }}
-  {{- $_ := set $csiControllerConfig "fullname" "csi-controller-cephfs" }}
-  {{- $_ := set $csiControllerConfig "topologyEnabled" false }}
+##  {{- $csiControllerConfig := dict }}
+##  {{- $_ := set $csiControllerConfig "fullname" "csi-controller-cephfs" }}
+##  {{- $_ := set $csiControllerConfig "topologyEnabled" false }}
 
-  {{- $_ := set $csiControllerConfig "controllerImage" $csiControllerImage }}
-  {{- $_ := set $csiControllerConfig "additionalControllerArgs" (include "cephfs_csi_controller_args" . | fromYamlArray) }}
-  {{- $_ := set $csiControllerConfig "additionalControllerEnvs" (include "cephfs_csi_controller_envs" (list $csiDriverName) | fromYamlArray) }}
-  {{- $_ := set $csiControllerConfig "additionalControllerVolumes" (include "cephfs_csi_controller_volumes" . | fromYamlArray) }}
-  {{- $_ := set $csiControllerConfig "additionalControllerVolumeMounts" (include "cephfs_csi_controller_volume_mounts" . | fromYamlArray) }}
+##  {{- $_ := set $csiControllerConfig "controllerImage" $csiControllerImage }}
+##  {{- $_ := set $csiControllerConfig "additionalControllerArgs" (include "cephfs_csi_controller_args" . | fromYamlArray) }}
+##  {{- $_ := set $csiControllerConfig "additionalControllerEnvs" (include "cephfs_csi_controller_envs" (list $csiDriverName) | fromYamlArray) }}
+##  {{- $_ := set $csiControllerConfig "additionalControllerVolumes" (include "cephfs_csi_controller_volumes" . | fromYamlArray) }}
+##  {{- $_ := set $csiControllerConfig "additionalControllerVolumeMounts" (include "cephfs_csi_controller_volume_mounts" . | fromYamlArray) }}
 
-  {{- $_ := set $csiControllerConfig "livenessProbePort" 9808 }}
+##  {{- $_ := set $csiControllerConfig "livenessProbePort" 9808 }}
 
-  {{- include "helm_lib_csi_controller_manifests" (list . $csiControllerConfig) }}
+##  {{- include "helm_lib_csi_controller_manifests" (list . $csiControllerConfig) }}
 
-{{- end }}
+## {{- end }}
 
 ###
 ### node
@@ -211,19 +212,19 @@
 {{- end }}
 
 
-{{- if $deployCephFSController }}
+#{{- if $deployCephFSController }}
 
-  {{- $csiNodeConfig := dict }}
-  {{- $_ := set $csiNodeConfig "nodeImage" $csiControllerImage }}
-  {{- $_ := set $csiNodeConfig "driverFQDN" $csiDriverName }}
-  {{- $_ := set $csiNodeConfig "fullname" "csi-node-cephfs" }}
-  {{- $_ := set $csiNodeConfig "serviceAccount" "csi" }}
+#  {{- $csiNodeConfig := dict }}
+#  {{- $_ := set $csiNodeConfig "nodeImage" $csiControllerImage }}
+#  {{- $_ := set $csiNodeConfig "driverFQDN" $csiDriverName }}
+#  {{- $_ := set $csiNodeConfig "fullname" "csi-node-cephfs" }}
+#  {{- $_ := set $csiNodeConfig "serviceAccount" "csi" }}
 
-  {{- $_ := set $csiNodeConfig "additionalNodeArgs" (include "cephfs_csi_node_args" . | fromYamlArray) }}
-  {{- $_ := set $csiNodeConfig "additionalNodeEnvs" (include "cephfs_csi_node_envs" (list $csiDriverName) | fromYamlArray) }}
-  {{- $_ := set $csiNodeConfig "additionalNodeVolumes" (include "cephfs_csi_node_volumes" . | fromYamlArray) }}
-  {{- $_ := set $csiNodeConfig "additionalNodeVolumeMounts" (include "cephfs_csi_node_volume_mounts" . | fromYamlArray) }}
+#  {{- $_ := set $csiNodeConfig "additionalNodeArgs" (include "cephfs_csi_node_args" . | fromYamlArray) }}
+#  {{- $_ := set $csiNodeConfig "additionalNodeEnvs" (include "cephfs_csi_node_envs" (list $csiDriverName) | fromYamlArray) }}
+#  {{- $_ := set $csiNodeConfig "additionalNodeVolumes" (include "cephfs_csi_node_volumes" . | fromYamlArray) }}
+#  {{- $_ := set $csiNodeConfig "additionalNodeVolumeMounts" (include "cephfs_csi_node_volume_mounts" . | fromYamlArray) }}
 
-  {{- include "helm_lib_csi_node_manifests" (list . $csiNodeConfig) }}
+#  {{- include "helm_lib_csi_node_manifests" (list . $csiNodeConfig) }}
 
 {{- end }}
