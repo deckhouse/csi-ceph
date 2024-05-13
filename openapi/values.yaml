@@ -6,6 +6,9 @@ properties:
     type: object
     default: {}
     properties:
+      customWebhookCert:
+        type: object
+        default: {}
       crs:
         type: array
         default: []
