@@ -5,7 +5,6 @@
 ## {{- $deployRBDController := false }}
 {{- if .Values.csiCeph.rbdEnabled }}
 
-
 {{- $csiDriverName := "rbd.csi.ceph.com" }}
 {{- $csiControllerImage := include "helm_lib_module_image" (list . "csiCeph") }}
 
