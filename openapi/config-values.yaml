@@ -1,8 +1,8 @@
 type: object
 required:
-  cephfsEnabled
-  rbdEnabled
-  properties:
+  - cephfsEnabled
+  - rbdEnabled
+properties:
     cephfsEnabled:
       type: boolean
       default: true
