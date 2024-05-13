@@ -12,7 +12,7 @@
 #  {{- if $cr.spec.rbd }}
 #    {{- $deployRBDController = true }}
 #  {{- end }}
-{{- end }}
+#{{- end }}
 
 ### rbd_csi_controller_args
 
