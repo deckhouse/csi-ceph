@@ -3,7 +3,7 @@
 ###
 
 ## {{- $deployRBDController := false }}
-{{- if .Values.csiCeph.cephfsEnabled }}
+{{- if .Values.csiCeph.rbdEnabled }}
 
 
 {{- $csiDriverName := "rbd.csi.ceph.com" }}
