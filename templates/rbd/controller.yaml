@@ -72,20 +72,20 @@
 {{- $csiDriverName := index . 0 }}
 {{- $csiControllerImage := index . 1 }}
 - name: rbdplugin
-image: {{ $csiControllerImage }}
-args:
-  - "--nodeid=$(NODE_ID)"
-  - "--type=rbd"
-  - "--controllerserver=true"
-  - "--pidlimit=-1"
-  - "--endpoint=$(CSI_ENDPOINT)"
-  - "--v=5"
-  - "--drivername=$(DRIVER_NAME)"
-  - "--rbdhardmaxclonedepth=8"
-  - "--rbdsoftmaxclonedepth=4"
-  - "--maxsnapshotsonimage=450"
-  - "--minsnapshotsonimage=250"
-env:
+  image: {{ $csiControllerImage }}
+  args:
+    - "--nodeid=$(NODE_ID)"
+    - "--type=rbd"
+    - "--controllerserver=true"
+    - "--pidlimit=-1"
+    - "--endpoint=$(CSI_ENDPOINT)"
+    - "--v=5"
+    - "--drivername=$(DRIVER_NAME)"
+    - "--rbdhardmaxclonedepth=8"
+    - "--rbdsoftmaxclonedepth=4"
+    - "--maxsnapshotsonimage=450"
+    - "--minsnapshotsonimage=250"
+  env:
   - name: POD_IP
     valueFrom:
       fieldRef:
@@ -98,29 +98,29 @@ env:
         fieldPath: spec.nodeName
   - name: CSI_ENDPOINT
     value: "unix:///csi/csi.sock"
-securityContext:
-  privileged: true
-  capabilities:
-    add: ["SYS_ADMIN"]
-  allowPrivilegeEscalation: true
-volumeMounts:
-  - name: socket-dir
-    mountPath: /csi
-  - mountPath: /dev
-    name: host-dev
-  - mountPath: /sys
-    name: host-sys
-  - mountPath: /lib/modules
-    name: lib-modules
-    readOnly: true
-  - name: ceph-csi-config
-    mountPath: /etc/ceph-csi-config/
-  - name: etc-ceph-dir
-    mountPath: /etc/ceph/
-  # - name: ceph-config
-  #   mountPath: /etc/ceph/
-  - name: keys-tmp-dir
-    mountPath: /tmp/csi/keys
+  securityContext:
+    privileged: true
+    capabilities:
+      add: ["SYS_ADMIN"]
+    allowPrivilegeEscalation: true
+  volumeMounts:
+    - name: socket-dir
+      mountPath: /csi
+    - mountPath: /dev
+      name: host-dev
+    - mountPath: /sys
+      name: host-sys
+    - mountPath: /lib/modules
+      name: lib-modules
+      readOnly: true
+    - name: ceph-csi-config
+      mountPath: /etc/ceph-csi-config/
+    - name: etc-ceph-dir
+      mountPath: /etc/ceph/
+    # - name: ceph-config
+    #   mountPath: /etc/ceph/
+    - name: keys-tmp-dir
+      mountPath: /tmp/csi/keys
 {{- end }}
 
 
