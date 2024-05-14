@@ -2,6 +2,13 @@
 ### controller
 ###
 
+  {{- define "rbd_csi_controller_args" }}
+- "--type=controller"
+- "--v=5"
+- "--drivername=$(DRIVER_NAME)"
+- "--drivernamespace=$(DRIVER_NAMESPACE)"
+  {{- end }}
+
 
 {{- if .Values.csiCeph.rbdEnabled }}
 
@@ -11,12 +18,7 @@
 
   ### rbd_csi_controller_args
 
-  {{- define "rbd_csi_controller_args" }}
-  - "--type=controller"
-  - "--v=5"
-  - "--drivername=$(DRIVER_NAME)"
-  - "--drivernamespace=$(DRIVER_NAMESPACE)"
-  {{- end }}
+
 
 
   ### rbd_csi_controller_envs
