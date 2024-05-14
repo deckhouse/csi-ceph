@@ -203,9 +203,6 @@
 
 {{- include "helm_lib_csi_controller_manifests" (list . $csiControllerConfig) }}
 
-{{- end }}
-
-
 
 {{- $csiNodeConfig := dict }}
 {{- $_ := set $csiNodeConfig "nodeImage" $csiControllerImage }}
