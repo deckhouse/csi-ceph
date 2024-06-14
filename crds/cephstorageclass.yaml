@@ -28,9 +28,7 @@ spec:
             spec:
               type: object
               required:
-                - clusterName
-                - allowVolumeExpansion
-                - pool
+                - clusterConnectionName
                 - reclaimPolicy
                 - type
               oneOf:
@@ -39,24 +37,9 @@ spec:
                 - required:
                     - cephfs
               properties:
-                clusterName:
+                clusterConnectionName:
                   description: |
-                    Name of the CephCluster custom resource.
-                  type: string
-                  x-kubernetes-validations:
-                    - rule: self == oldSelf
-                      message: Value is immutable.
-                  minLength: 1
-                allowVolumeExpansion:
-                  description: |
-                    AllowVolumeExpansion is a flag that enables or disables volume expansion for the storage class.
-                  type: boolean
-                  x-kubernetes-validations:
-                    - rule: self == oldSelf
-                      message: Value is immutable.
-                pool:
-                  description: |
-                    Name of the Ceph pool.
+                    Name of the CephClusterConnection custom resource.
                   type: string
                   x-kubernetes-validations:
                     - rule: self == oldSelf
@@ -92,10 +75,19 @@ spec:
                     CephFS specific parameters.
                   required:
                     - fsName
+                    - pool
                   properties:
                     fsName:
                       description: |
                         Name of the CephFS file system.
+                      type: string
+                      x-kubernetes-validations:
+                        - rule: self == oldSelf
+                          message: Value is immutable.
+                      minLength: 1
+                    pool:
+                      description: |
+                        Name of the Ceph pool.
                       type: string
                       x-kubernetes-validations:
                         - rule: self == oldSelf
@@ -106,22 +98,25 @@ spec:
                   description: |
                     Rados Block Device specific parameters.
                   required:
-                    - defaultFSType
+                    - pool
                   properties:
                     defaultFSType:
                       description: |
                         Default file system type for the Rados Block Device.
                       type: string
+                      default: ext4
                       x-kubernetes-validations:
                         - rule: self == oldSelf
                           message: Value is immutable.
                       minLength: 1
-                mountOptions:
-                  description: |
-                    Mount options.
-                  type: array
-                  items:
-                    type: string
+                    pool:
+                      description: |
+                        Name of the Ceph pool.
+                      type: string
+                      x-kubernetes-validations:
+                        - rule: self == oldSelf
+                          message: Value is immutable.
+                      minLength: 1
             status:
               type: object
               description: |

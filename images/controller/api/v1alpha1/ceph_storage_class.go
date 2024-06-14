@@ -23,6 +23,10 @@ const (
 	CephStorageClassTypeCephFS = "cephfs"
 )
 
+var (
+	DefaultMountOptions = []string{"discard"}
+)
+
 type CephStorageClass struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -38,22 +42,21 @@ type CephStorageClassList struct {
 }
 
 type CephStorageClassSpec struct {
-	ClusterName          string                  `json:"clusterName"`
-	ReclaimPolicy        string                  `json:"reclaimPolicy"`
-	AllowVolumeExpansion string                  `json:"allowVolumeExpansion"`
-	Pool                 string                  `json:"pool"`
-	Type                 string                  `json:"type"`
-	RBD                  *CephStorageClassRBD    `json:"rbd,omitempty"`
-	CephFS               *CephStorageClassCephFS `json:"cephfs,omitempty"`
-	MountOptions         []string                `json:"mountOptions,omitempty"`
+	ClusterConnectionName string                  `json:"clusterConnectionName"`
+	ReclaimPolicy         string                  `json:"reclaimPolicy"`
+	Type                  string                  `json:"type"`
+	RBD                   *CephStorageClassRBD    `json:"rbd,omitempty"`
+	CephFS                *CephStorageClassCephFS `json:"cephfs,omitempty"`
 }
 
 type CephStorageClassRBD struct {
 	DefaultFSType string `json:"defaultFSType"`
+	Pool          string `json:"pool"`
 }
 
 type CephStorageClassCephFS struct {
 	FSName string `json:"fsName,omitempty"`
+	Pool   string `json:"pool"`
 }
 
 type CephStorageClassStatus struct {

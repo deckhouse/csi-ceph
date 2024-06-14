@@ -20,27 +20,27 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-type CephCluster struct {
+type CephClusterConnection struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
-	Spec              CephClusterSpec    `json:"spec"`
-	Status            *CephClusterStatus `json:"status,omitempty"`
+	Spec              CephClusterConnectionSpec    `json:"spec"`
+	Status            *CephClusterConnectionStatus `json:"status,omitempty"`
 }
 
-type CephClusterList struct {
+type CephClusterConnectionList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata"`
-	Items           []CephCluster `json:"items"`
+	Items           []CephClusterConnection `json:"items"`
 }
 
-type CephClusterSpec struct {
+type CephClusterConnectionSpec struct {
 	ClusterID string   `json:"clusterID"`
 	UserID    string   `json:"userID"`
 	UserKey   string   `json:"userKey"`
 	Monitors  []string `json:"monitors"`
 }
 
-type CephClusterStatus struct {
+type CephClusterConnectionStatus struct {
 	Phase  string `json:"phase,omitempty"`
 	Reason string `json:"reason,omitempty"`
 }

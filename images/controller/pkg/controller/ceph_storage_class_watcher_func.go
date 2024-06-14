@@ -23,7 +23,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
-	"strconv"
+	"strings"
 
 	"slices"
 
@@ -39,11 +39,11 @@ func ReconcileStorageClassCreateFunc(
 	log logger.Logger,
 	scList *v1.StorageClassList,
 	cephSC *storagev1alpha1.CephStorageClass,
-	controllerNamespace string,
+	controllerNamespace, clusterID string,
 ) (bool, error) {
 	log.Debug(fmt.Sprintf("[reconcileStorageClassCreateFunc] starts for CephStorageClass %q", cephSC.Name))
 	log.Debug(fmt.Sprintf("[reconcileStorageClassCreateFunc] starts storage class configuration for the CephStorageClass, name: %s", cephSC.Name))
-	newSC, err := ConfigureStorageClass(cephSC, controllerNamespace)
+	newSC, err := ConfigureStorageClass(cephSC, controllerNamespace, clusterID)
 	if err != nil {
 		err = fmt.Errorf("[reconcileStorageClassCreateFunc] unable to configure a Storage Class for the CephStorageClass %s: %w", cephSC.Name, err)
 		upError := updateCephStorageClassPhase(ctx, cl, cephSC, FailedStatusPhase, err.Error())
@@ -84,7 +84,7 @@ func reconcileStorageClassUpdateFunc(
 	log logger.Logger,
 	scList *v1.StorageClassList,
 	cephSC *storagev1alpha1.CephStorageClass,
-	controllerNamespace string,
+	controllerNamespace, clusterID string,
 ) (bool, error) {
 
 	log.Debug(fmt.Sprintf("[reconcileStorageClassUpdateFunc] starts for CephStorageClass %q", cephSC.Name))
@@ -111,7 +111,7 @@ func reconcileStorageClassUpdateFunc(
 	log.Debug(fmt.Sprintf("[reconcileStorageClassUpdateFunc] successfully found a storage class for the CephStorageClass, name: %s", cephSC.Name))
 
 	log.Trace(fmt.Sprintf("[reconcileStorageClassUpdateFunc] storage class: %+v", oldSC))
-	newSC, err := ConfigureStorageClass(cephSC, controllerNamespace)
+	newSC, err := ConfigureStorageClass(cephSC, controllerNamespace, clusterID)
 	if err != nil {
 		err = fmt.Errorf("[reconcileStorageClassUpdateFunc] unable to configure a Storage Class for the CephStorageClass %s: %w", cephSC.Name, err)
 		upError := updateCephStorageClassPhase(ctx, cl, cephSC, FailedStatusPhase, err.Error())
@@ -153,7 +153,7 @@ func reconcileStorageClassUpdateFunc(
 	return false, nil
 }
 
-func IdentifyReconcileFuncForStorageClass(log logger.Logger, scList *v1.StorageClassList, cephSC *storagev1alpha1.CephStorageClass, controllerNamespace string) (reconcileType string, err error) {
+func IdentifyReconcileFuncForStorageClass(log logger.Logger, scList *v1.StorageClassList, cephSC *storagev1alpha1.CephStorageClass, controllerNamespace, clusterID string) (reconcileType string, err error) {
 	if shouldReconcileByDeleteFunc(cephSC) {
 		return DeleteReconcile, nil
 	}
@@ -162,7 +162,7 @@ func IdentifyReconcileFuncForStorageClass(log logger.Logger, scList *v1.StorageC
 		return CreateReconcile, nil
 	}
 
-	should, err := shouldReconcileStorageClassByUpdateFunc(log, scList, cephSC, controllerNamespace)
+	should, err := shouldReconcileStorageClassByUpdateFunc(log, scList, cephSC, controllerNamespace, clusterID)
 	if err != nil {
 		return "", err
 	}
@@ -187,7 +187,7 @@ func shouldReconcileStorageClassByCreateFunc(scList *v1.StorageClassList, cephSC
 	return true
 }
 
-func shouldReconcileStorageClassByUpdateFunc(log logger.Logger, scList *v1.StorageClassList, cephSC *storagev1alpha1.CephStorageClass, controllerNamespace string) (bool, error) {
+func shouldReconcileStorageClassByUpdateFunc(log logger.Logger, scList *v1.StorageClassList, cephSC *storagev1alpha1.CephStorageClass, controllerNamespace, clusterID string) (bool, error) {
 	if cephSC.DeletionTimestamp != nil {
 		return false, nil
 	}
@@ -195,7 +195,7 @@ func shouldReconcileStorageClassByUpdateFunc(log logger.Logger, scList *v1.Stora
 	for _, oldSC := range scList.Items {
 		if oldSC.Name == cephSC.Name {
 			if slices.Contains(allowedProvisioners, oldSC.Provisioner) {
-				newSC, err := ConfigureStorageClass(cephSC, controllerNamespace)
+				newSC, err := ConfigureStorageClass(cephSC, controllerNamespace, clusterID)
 				if err != nil {
 					return false, err
 				}
@@ -276,85 +276,19 @@ func reconcileStorageClassDeleteFunc(
 	return false, nil
 }
 
-func shouldReconcileByDeleteFunc(cephSC *storagev1alpha1.CephStorageClass) bool {
-	if cephSC.DeletionTimestamp != nil {
-		return true
-	}
-
-	return false
-}
-
-func removeFinalizerIfExists(ctx context.Context, cl client.Client, obj metav1.Object, finalizerName string) (bool, error) {
-	removed := false
-	finalizers := obj.GetFinalizers()
-	for i, f := range finalizers {
-		if f == finalizerName {
-			finalizers = append(finalizers[:i], finalizers[i+1:]...)
-			removed = true
-			break
-		}
-	}
-
-	if removed {
-		obj.SetFinalizers(finalizers)
-		err := cl.Update(ctx, obj.(client.Object))
-		if err != nil {
-			return false, err
-		}
-	}
-
-	return removed, nil
-}
-
-func addFinalizerIfNotExists(ctx context.Context, cl client.Client, obj metav1.Object, finalizerName string) (bool, error) {
-	added := false
-	finalizers := obj.GetFinalizers()
-	if !slices.Contains(finalizers, finalizerName) {
-		finalizers = append(finalizers, finalizerName)
-		added = true
-	}
-
-	if added {
-		obj.SetFinalizers(finalizers)
-		err := cl.Update(ctx, obj.(client.Object))
-		if err != nil {
-			return false, err
-		}
-	}
-	return true, nil
-}
-
-func ConfigureStorageClass(cephSC *storagev1alpha1.CephStorageClass, controllerNamespace string) (*v1.StorageClass, error) {
-	if cephSC.Spec.ReclaimPolicy == "" {
-		err := fmt.Errorf("CephStorageClass %q: the ReclaimPolicy field is empty", cephSC.Name)
-		return nil, err
-	}
-
-	if cephSC.Spec.AllowVolumeExpansion == "" {
-		err := fmt.Errorf("CephStorageClass %q: the AllowVolumeExpansion field is empty", cephSC.Name)
-		return nil, err
-	}
-
-	provisioner, err := GetStorageClassProvisioner(cephSC)
-	if err != nil {
-		err = fmt.Errorf("CephStorageClass %q: unable to get a provisioner: %w", cephSC.Name, err)
-		return nil, err
-	}
-
-	allowVolumeExpansion, err := strconv.ParseBool(cephSC.Spec.AllowVolumeExpansion)
-	if err != nil {
-		err = fmt.Errorf("CephStorageClass %q: the AllowVolumeExpansion field is not a boolean value: %w", cephSC.Name, err)
-		return nil, err
-	}
-
+func ConfigureStorageClass(cephSC *storagev1alpha1.CephStorageClass, controllerNamespace, clusterID string) (*v1.StorageClass, error) {
+	provisioner := GetStorageClassProvisioner(cephSC)
+	allowVolumeExpansion := true
 	reclaimPolicy := corev1.PersistentVolumeReclaimPolicy(cephSC.Spec.ReclaimPolicy)
-	volumeBindingMode := v1.VolumeBindingWaitForFirstConsumer
+	volumeBindingMode := v1.VolumeBindingImmediate
 
-	params, err := GetStoragecClassParams(cephSC, controllerNamespace)
+	params, err := GetStoragecClassParams(cephSC, controllerNamespace, clusterID)
 	if err != nil {
 		err = fmt.Errorf("CephStorageClass %q: unable to get a storage class parameters: %w", cephSC.Name, err)
 		return nil, err
 	}
+
+	mountOpt := storagev1alpha1.DefaultMountOptions
 
 	sc := &v1.StorageClass{
 		TypeMeta: metav1.TypeMeta{
@@ -367,64 +301,34 @@ func ConfigureStorageClass(cephSC *storagev1alpha1.CephStorageClass, controllerN
 			Finalizers: []string{CephStorageClassControllerFinalizerName},
 		},
 		Parameters:           params,
-		MountOptions:         cephSC.Spec.MountOptions,
 		Provisioner:          provisioner,
 		ReclaimPolicy:        &reclaimPolicy,
 		VolumeBindingMode:    &volumeBindingMode,
 		AllowVolumeExpansion: &allowVolumeExpansion,
+		MountOptions:         mountOpt,
 	}
 
 	return sc, nil
 }
 
-func GetStorageClassProvisioner(cephSC *storagev1alpha1.CephStorageClass) (string, error) {
-	if cephSC.Spec.Type == "" {
-		err := fmt.Errorf("CephStorageClass %q: the Type field is empty", cephSC.Name)
-		return "", err
-	}
-
-	if cephSC.Spec.Type == storagev1alpha1.CephStorageClassTypeRBD && cephSC.Spec.RBD == nil {
-		err := fmt.Errorf("CephStorageClass %q type is %q, but the rbd field is empty", cephSC.Name, storagev1alpha1.CephStorageClassTypeRBD)
-		return "", err
-	}
-
-	if cephSC.Spec.Type == storagev1alpha1.CephStorageClassTypeCephFS && cephSC.Spec.CephFS == nil {
-		err := fmt.Errorf("CephStorageClass %q type is %q, but the cephfs field is empty", cephSC.Name, storagev1alpha1.CephStorageClassTypeCephFS)
-		return "", err
-	}
-
+func GetStorageClassProvisioner(cephSC *storagev1alpha1.CephStorageClass) string {
 	provisioner := ""
 	switch cephSC.Spec.Type {
 	case storagev1alpha1.CephStorageClassTypeRBD:
 		provisioner = CephStorageClassRBDProvisioner
 	case storagev1alpha1.CephStorageClassTypeCephFS:
 		provisioner = CephStorageClassCephFSProvisioner
-	default:
-		err := fmt.Errorf("CephStorageClass %q: the Type field is not valid: %s", cephSC.Name, cephSC.Spec.Type)
-		return "", err
 	}
 
-	return provisioner, nil
+	return provisioner
 
 }
 
-func GetStoragecClassParams(cephSC *storagev1alpha1.CephStorageClass, controllerNamespace string) (map[string]string, error) {
-
-	if cephSC.Spec.ClusterName == "" {
-		err := errors.New("CephStorageClass ClusterName is empty")
-		return nil, err
-	}
-
-	if cephSC.Spec.Pool == "" {
-		err := errors.New("CephStorageClass Pool is empty")
-		return nil, err
-	}
-
-	secretName := fmt.Sprintf("csi-ceph-secret-for-%s", cephSC.Spec.ClusterName)
+func GetStoragecClassParams(cephSC *storagev1alpha1.CephStorageClass, controllerNamespace, clusterID string) (map[string]string, error) {
+	secretName := SecretForCephClusterConnectionPrefix + cephSC.Spec.ClusterConnectionName
 
 	params := map[string]string{
-		"clusterID": cephSC.Spec.ClusterName,
-		"pool":      cephSC.Spec.Pool,
+		"clusterID": clusterID,
 		"csi.storage.k8s.io/provisioner-secret-name":            secretName,
 		"csi.storage.k8s.io/provisioner-secret-namespace":       controllerNamespace,
 		"csi.storage.k8s.io/controller-expand-secret-name":      secretName,
@@ -436,10 +340,12 @@ func GetStoragecClassParams(cephSC *storagev1alpha1.CephStorageClass, controller
 	if cephSC.Spec.Type == storagev1alpha1.CephStorageClassTypeRBD {
 		params["imageFeatures"] = "layering"
 		params["csi.storage.k8s.io/fstype"] = cephSC.Spec.RBD.DefaultFSType
+		params["pool"] = cephSC.Spec.RBD.Pool
 	}
 
 	if cephSC.Spec.Type == storagev1alpha1.CephStorageClassTypeCephFS {
 		params["fsName"] = cephSC.Spec.CephFS.FSName
+		params["pool"] = cephSC.Spec.CephFS.Pool
 	}
 
 	return params, nil
@@ -546,4 +452,88 @@ func deleteStorageClass(ctx context.Context, cl client.Client, sc *v1.StorageCla
 	}
 
 	return nil
+}
+
+func validateCephStorageClassSpec(cephSC *storagev1alpha1.CephStorageClass) (bool, string) {
+	if cephSC.DeletionTimestamp != nil {
+		return true, ""
+	}
+
+	var (
+		failedMsgBuilder strings.Builder
+		validationPassed = true
+	)
+
+	failedMsgBuilder.WriteString("Validation of CephStorageClass failed: ")
+
+	if cephSC.Spec.ClusterConnectionName == "" {
+		validationPassed = false
+		failedMsgBuilder.WriteString("the spec.clusterConnectionName field is empty")
+	}
+
+	if cephSC.Spec.ReclaimPolicy == "" {
+		validationPassed = false
+		failedMsgBuilder.WriteString("the spec.reclaimPolicy field is empty")
+	}
+
+	if cephSC.Spec.Type == "" {
+		validationPassed = false
+		failedMsgBuilder.WriteString("the spec.type field is empty")
+	}
+
+	switch cephSC.Spec.Type {
+	case storagev1alpha1.CephStorageClassTypeRBD:
+		if cephSC.Spec.RBD == nil {
+			validationPassed = false
+			failedMsgBuilder.WriteString("the spec.rbd field is empty")
+		}
+
+		if cephSC.Spec.RBD.DefaultFSType == "" {
+			validationPassed = false
+			failedMsgBuilder.WriteString("the spec.rbd.defaultFSType field is empty")
+		}
+
+		if cephSC.Spec.RBD.Pool == "" {
+			validationPassed = false
+			failedMsgBuilder.WriteString("the spec.rbd.pool field is empty")
+		}
+	case storagev1alpha1.CephStorageClassTypeCephFS:
+		if cephSC.Spec.CephFS == nil {
+			validationPassed = false
+			failedMsgBuilder.WriteString("the spec.cephfs field is empty")
+		}
+
+		if cephSC.Spec.CephFS.FSName == "" {
+			validationPassed = false
+			failedMsgBuilder.WriteString("the spec.cephfs.fsName field is empty")
+		}
+
+		if cephSC.Spec.CephFS.Pool == "" {
+			validationPassed = false
+			failedMsgBuilder.WriteString("the spec.cephfs.pool field is empty")
+		}
+	default:
+		validationPassed = false
+		failedMsgBuilder.WriteString(fmt.Sprintf("the spec.type field is not valid: %s. Allowed values: %s, %s", cephSC.Spec.Type, storagev1alpha1.CephStorageClassTypeRBD, storagev1alpha1.CephStorageClassTypeCephFS))
+	}
+
+	return validationPassed, failedMsgBuilder.String()
+}
+
+func getClusterID(ctx context.Context, cl client.Client, cephSC *storagev1alpha1.CephStorageClass) (string, error) {
+	clusterConnectionName := cephSC.Spec.ClusterConnectionName
+	clusterConnection := &storagev1alpha1.CephClusterConnection{}
+	err := cl.Get(ctx, client.ObjectKey{Namespace: cephSC.Namespace, Name: clusterConnectionName}, clusterConnection)
+	if err != nil {
+		err = fmt.Errorf("[getClusterID] CephStorageClass %q: unable to get a CephClusterConnection %q: %w", cephSC.Name, clusterConnectionName, err)
+		return "", err
+	}
+
+	clusterID := clusterConnection.Spec.ClusterID
+	if clusterID == "" {
+		err = fmt.Errorf("[getClusterID] CephStorageClass %q: the CephClusterConnection %q has an empty spec.clusterID field", cephSC.Name, clusterConnectionName)
+		return "", err
+	}
+
+	return clusterID, nil
 }
