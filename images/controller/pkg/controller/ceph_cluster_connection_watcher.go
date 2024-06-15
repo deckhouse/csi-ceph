@@ -41,7 +41,7 @@ import (
 )
 
 const (
-	// This value used as a name for the controller and the value for managed-by label.
+	// This value used as a name for the controller AND the value for managed-by label.
 	CephClusterConnectionCtrlName                = "ceph-cluster-controller"
 	CephClusterConnectionControllerFinalizerName = "storage.deckhouse.io/ceph-cluster-controller"
 	StorageManagedLabelKey                       = "storage.deckhouse.io/managed-by"
