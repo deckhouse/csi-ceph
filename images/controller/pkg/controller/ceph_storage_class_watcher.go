@@ -53,8 +53,8 @@ const (
 	CephStorageClassManagedLabelKey         = "storage.deckhouse.io/managed-by"
 	CephStorageClassManagedLabelValue       = "ceph-storage-class-controller"
 
-	FailedStatusPhase  = "Failed"
-	CreatedStatusPhase = "Created"
+	PhaseFailed  = "Failed"
+	PhaseCreated = "Created"
 
 	CreateReconcile = "Create"
 	UpdateReconcile = "Update"
@@ -94,9 +94,21 @@ func RunCephStorageClassWatcherController(
 				return reconcile.Result{}, err
 			}
 
-			shouldRequeue, err := RunStorageClassEventReconcile(ctx, cl, log, scList, cephSC, cfg.ControllerNamespace)
+			shouldRequeue, msg, err := RunStorageClassEventReconcile(ctx, cl, log, scList, cephSC, cfg.ControllerNamespace)
+			log.Info(fmt.Sprintf("[CephStorageClassReconciler] CephStorageClass %s has been reconciled with message: %s", cephSC.Name, msg))
+			phase := PhaseCreated
 			if err != nil {
 				log.Error(err, fmt.Sprintf("[CephStorageClassReconciler] an error occured while reconciles the CephStorageClass, name: %s", cephSC.Name))
+				phase = PhaseFailed
+			}
+
+			if msg != "" {
+				log.Debug(fmt.Sprintf("[CephStorageClassReconciler] Update the CephStorageClass %s with %s status phase and message: %s", cephSC.Name, phase, msg))
+				upErr := updateCephStorageClassPhase(ctx, cl, cephSC, phase, msg)
+				if upErr != nil {
+					log.Error(upErr, fmt.Sprintf("[CephStorageClassReconciler] unable to update the CephStorageClass %s: %s", cephSC.Name, upErr.Error()))
+					shouldRequeue = true
+				}
 			}
 
 			if shouldRequeue {
@@ -155,64 +167,52 @@ func RunCephStorageClassWatcherController(
 	return c, nil
 }
 
-func RunStorageClassEventReconcile(ctx context.Context, cl client.Client, log logger.Logger, scList *v1.StorageClassList, cephSC *v1alpha1.CephStorageClass, controllerNamespace string) (shouldRequeue bool, err error) {
+func RunStorageClassEventReconcile(ctx context.Context, cl client.Client, log logger.Logger, scList *v1.StorageClassList, cephSC *v1alpha1.CephStorageClass, controllerNamespace string) (shouldRequeue bool, msg string, err error) {
+	log.Debug(fmt.Sprintf("[RunStorageClassEventReconcile] starts reconciliataion of CephStorageClass, name: %s", cephSC.Name))
+	valid, msg := validateCephStorageClassSpec(cephSC)
+	if !valid {
+		return false, msg, err
+	}
+	log.Debug(fmt.Sprintf("[RunStorageClassEventReconcile] CephStorageClass %s has valid spec", cephSC.Name))
+
 	added, err := addFinalizerIfNotExists(ctx, cl, cephSC, CephStorageClassControllerFinalizerName)
 	if err != nil {
 		err = fmt.Errorf("[RunStorageClassEventReconcile] unable to add a finalizer %s to the CephStorageClass %s: %w", CephStorageClassControllerFinalizerName, cephSC.Name, err)
-		return true, err
+		return true, err.Error(), err
 	}
 	log.Debug(fmt.Sprintf("[RunStorageClassEventReconcile] finalizer %s was added to the CephStorageClass %s: %t", CephStorageClassControllerFinalizerName, cephSC.Name, added))
-
-	valid, msg := validateCephStorageClassSpec(cephSC)
-	if !valid {
-		err = fmt.Errorf("[RunStorageClassEventReconcile] CephStorageClass %s has invalid spec: %s", cephSC.Name, msg)
-		upErr := updateCephStorageClassPhase(ctx, cl, cephSC, FailedStatusPhase, msg)
-		if upErr != nil {
-			upErr = fmt.Errorf("[RunStorageClassEventReconcile] unable to update the CephStorageClass %s: %w", cephSC.Name, upErr)
-			err = errors.Join(err, upErr)
-		}
-		return false, err
-	}
 
 	clusterID, err := getClusterID(ctx, cl, cephSC)
 	if err != nil {
 		err = fmt.Errorf("[RunStorageClassEventReconcile] unable to get clusterID for CephStorageClass %s: %w", cephSC.Name, err)
-		upErr := updateCephStorageClassPhase(ctx, cl, cephSC, FailedStatusPhase, err.Error())
-		if upErr != nil {
-			upErr = fmt.Errorf("[RunStorageClassEventReconcile] unable to update the CephStorageClass %s: %w", cephSC.Name, upErr)
-			err = errors.Join(err, upErr)
-		}
-		return true, err
+		return true, err.Error(), err
 	}
 
 	reconcileTypeForStorageClass, err := IdentifyReconcileFuncForStorageClass(log, scList, cephSC, controllerNamespace, clusterID)
 	if err != nil {
 		err = fmt.Errorf("[RunStorageClassEventReconcile] error occured while identifying the reconcile function for StorageClass %s: %w", cephSC.Name, err)
-		return true, err
+		return true, err.Error(), err
 	}
 
 	shouldRequeue = false
-	log.Debug(fmt.Sprintf("[RunStorageClassEventReconcile] reconcile operation for StorageClass %q: %q", cephSC.Name, reconcileTypeForStorageClass))
+	log.Debug(fmt.Sprintf("[RunStorageClassEventReconcile] Successfully identified the reconcile type for StorageClass %s: %s", cephSC.Name, reconcileTypeForStorageClass))
 	switch reconcileTypeForStorageClass {
 	case CreateReconcile:
-		log.Debug(fmt.Sprintf("[RunStorageClassEventReconcile] CreateReconcile starts reconciliataion of StorageClass, name: %s", cephSC.Name))
-		shouldRequeue, err = RunStorageClassEventReconcile(ctx, cl, log, scList, cephSC, controllerNamespace)
+		shouldRequeue, msg, err = reconcileStorageClassCreateFunc(ctx, cl, log, scList, cephSC, controllerNamespace, clusterID)
 	case UpdateReconcile:
-		log.Debug(fmt.Sprintf("[RunStorageClassEventReconcile] UpdateReconcile starts reconciliataion of StorageClass, name: %s", cephSC.Name))
-		shouldRequeue, err = reconcileStorageClassUpdateFunc(ctx, cl, log, scList, cephSC, controllerNamespace, clusterID)
+		shouldRequeue, msg, err = reconcileStorageClassUpdateFunc(ctx, cl, log, scList, cephSC, controllerNamespace, clusterID)
 	case DeleteReconcile:
-		log.Debug(fmt.Sprintf("[RunStorageClassEventReconcile] DeleteReconcile starts reconciliataion of StorageClass, name: %s", cephSC.Name))
-		shouldRequeue, err = reconcileStorageClassDeleteFunc(ctx, cl, log, scList, cephSC)
+		shouldRequeue, msg, err = reconcileStorageClassDeleteFunc(ctx, cl, log, scList, cephSC)
 	default:
 		log.Debug(fmt.Sprintf("[RunStorageClassEventReconcile] StorageClass for CephStorageClass %s should not be reconciled", cephSC.Name))
+		msg = "Successfully reconciled"
 	}
 	log.Debug(fmt.Sprintf("[RunStorageClassEventReconcile] ends reconciliataion of StorageClass, name: %s, shouldRequeue: %t, err: %v", cephSC.Name, shouldRequeue, err))
 
 	if err != nil || shouldRequeue {
-		return shouldRequeue, err
+		return shouldRequeue, msg, err
 	}
 
 	log.Debug(fmt.Sprintf("[RunStorageClassEventReconcile] Finish all reconciliations for CephStorageClass %q.", cephSC.Name))
-	return false, nil
-
+	return false, msg, nil
 }

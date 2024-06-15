@@ -163,7 +163,7 @@ func reconcileSecretCreateFunc(ctx context.Context, cl client.Client, log logger
 	err = cl.Create(ctx, newSecret)
 	if err != nil {
 		err = fmt.Errorf("[reconcileSecretCreateFunc] unable to create a Secret %s for CephClusterConnection %s: %w", newSecret.Name, cephClusterConnection.Name, err)
-		upError := updateCephClusterConnectionPhase(ctx, cl, cephClusterConnection, FailedStatusPhase, err.Error())
+		upError := updateCephClusterConnectionPhase(ctx, cl, cephClusterConnection, PhaseFailed, err.Error())
 		if upError != nil {
 			upError = fmt.Errorf("[reconcileSecretCreateFunc] unable to update the CephClusterConnection %s: %w", cephClusterConnection.Name, upError)
 			err = errors.Join(err, upError)
@@ -187,7 +187,7 @@ func reconcileSecretUpdateFunc(ctx context.Context, cl client.Client, log logger
 
 	if oldSecret == nil {
 		err := fmt.Errorf("[reconcileSecretUpdateFunc] unable to find a secret %s for the CephClusterConnection %s", secretName, cephClusterConnection.Name)
-		upError := updateCephClusterConnectionPhase(ctx, cl, cephClusterConnection, FailedStatusPhase, err.Error())
+		upError := updateCephClusterConnectionPhase(ctx, cl, cephClusterConnection, PhaseFailed, err.Error())
 		if upError != nil {
 			upError = fmt.Errorf("[reconcileSecretUpdateFunc] unable to update the CephClusterConnection %s: %w", cephClusterConnection.Name, upError)
 			err = errors.Join(err, upError)
@@ -205,7 +205,7 @@ func reconcileSecretUpdateFunc(ctx context.Context, cl client.Client, log logger
 	err = cl.Update(ctx, newSecret)
 	if err != nil {
 		err = fmt.Errorf("[reconcileSecretUpdateFunc] unable to update the Secret %s for CephClusterConnection %s: %w", newSecret.Name, cephClusterConnection.Name, err)
-		upError := updateCephClusterConnectionPhase(ctx, cl, cephClusterConnection, FailedStatusPhase, err.Error())
+		upError := updateCephClusterConnectionPhase(ctx, cl, cephClusterConnection, PhaseFailed, err.Error())
 		if upError != nil {
 			upError = fmt.Errorf("[reconcileSecretUpdateFunc] unable to update the CephClusterConnection %s: %w", cephClusterConnection.Name, upError)
 			err = errors.Join(err, upError)
@@ -237,7 +237,7 @@ func reconcileSecretDeleteFunc(ctx context.Context, cl client.Client, log logger
 		_, err := removeFinalizerIfExists(ctx, cl, secret, CephClusterConnectionControllerFinalizerName)
 		if err != nil {
 			err = fmt.Errorf("[reconcileSecretDeleteFunc] unable to remove a finalizer %s from the Secret %s: %w", CephClusterConnectionControllerFinalizerName, secret.Name, err)
-			upErr := updateCephClusterConnectionPhase(ctx, cl, cephClusterConnection, FailedStatusPhase, fmt.Sprintf("Unable to remove a finalizer, err: %s", err.Error()))
+			upErr := updateCephClusterConnectionPhase(ctx, cl, cephClusterConnection, PhaseFailed, fmt.Sprintf("Unable to remove a finalizer, err: %s", err.Error()))
 			if upErr != nil {
 				upErr = fmt.Errorf("[reconcileSecretDeleteFunc] unable to update the CephClusterConnection %s: %w", cephClusterConnection.Name, upErr)
 				err = errors.Join(err, upErr)
@@ -248,7 +248,7 @@ func reconcileSecretDeleteFunc(ctx context.Context, cl client.Client, log logger
 		err = cl.Delete(ctx, secret)
 		if err != nil {
 			err = fmt.Errorf("[reconcileSecretDeleteFunc] unable to delete a secret %s: %w", secret.Name, err)
-			upErr := updateCephClusterConnectionPhase(ctx, cl, cephClusterConnection, FailedStatusPhase, fmt.Sprintf("Unable to delete a secret, err: %s", err.Error()))
+			upErr := updateCephClusterConnectionPhase(ctx, cl, cephClusterConnection, PhaseFailed, fmt.Sprintf("Unable to delete a secret, err: %s", err.Error()))
 			if upErr != nil {
 				upErr = fmt.Errorf("[reconcileSecretDeleteFunc] unable to update the CephClusterConnection %s: %w", cephClusterConnection.Name, upErr)
 				err = errors.Join(err, upErr)

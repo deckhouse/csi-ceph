@@ -20,7 +20,6 @@ import (
 	"context"
 	storagev1alpha1 "d8-controller/api/v1alpha1"
 	"d8-controller/pkg/logger"
-	"errors"
 	"fmt"
 	"reflect"
 	"strings"
@@ -32,126 +31,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
-
-func ReconcileStorageClassCreateFunc(
-	ctx context.Context,
-	cl client.Client,
-	log logger.Logger,
-	scList *v1.StorageClassList,
-	cephSC *storagev1alpha1.CephStorageClass,
-	controllerNamespace, clusterID string,
-) (bool, error) {
-	log.Debug(fmt.Sprintf("[reconcileStorageClassCreateFunc] starts for CephStorageClass %q", cephSC.Name))
-	log.Debug(fmt.Sprintf("[reconcileStorageClassCreateFunc] starts storage class configuration for the CephStorageClass, name: %s", cephSC.Name))
-	newSC, err := ConfigureStorageClass(cephSC, controllerNamespace, clusterID)
-	if err != nil {
-		err = fmt.Errorf("[reconcileStorageClassCreateFunc] unable to configure a Storage Class for the CephStorageClass %s: %w", cephSC.Name, err)
-		upError := updateCephStorageClassPhase(ctx, cl, cephSC, FailedStatusPhase, err.Error())
-		if upError != nil {
-			upError = fmt.Errorf("[reconcileStorageClassCreateFunc] unable to update the CephStorageClass %s: %w", cephSC.Name, upError)
-			err = errors.Join(err, upError)
-		}
-		return false, err
-	}
-
-	log.Debug(fmt.Sprintf("[reconcileStorageClassCreateFunc] successfully configurated storage class for the CephStorageClass, name: %s", cephSC.Name))
-	log.Trace(fmt.Sprintf("[reconcileStorageClassCreateFunc] storage class: %+v", newSC))
-
-	created, err := createStorageClassIfNotExists(ctx, cl, scList, newSC)
-	if err != nil {
-		err = fmt.Errorf("[reconcileStorageClassCreateFunc] unable to create a Storage Class %s: %w", newSC.Name, err)
-		upError := updateCephStorageClassPhase(ctx, cl, cephSC, FailedStatusPhase, err.Error())
-		if upError != nil {
-			upError = fmt.Errorf("[reconcileStorageClassCreateFunc] unable to update the CephStorageClass %s: %w", cephSC.Name, upError)
-			err = errors.Join(err, upError)
-		}
-		return true, err
-	}
-	log.Debug(fmt.Sprintf("[reconcileStorageClassCreateFunc] a storage class %s was created: %t", newSC.Name, created))
-	if created {
-		log.Info(fmt.Sprintf("[reconcileStorageClassCreateFunc] successfully create storage class, name: %s", newSC.Name))
-	} else {
-		log.Warning(fmt.Sprintf("[reconcileLSCCreateFunc] Storage class %s already exists. Adding event to requeue.", newSC.Name))
-		return true, nil
-	}
-
-	return false, nil
-}
-
-func reconcileStorageClassUpdateFunc(
-	ctx context.Context,
-	cl client.Client,
-	log logger.Logger,
-	scList *v1.StorageClassList,
-	cephSC *storagev1alpha1.CephStorageClass,
-	controllerNamespace, clusterID string,
-) (bool, error) {
-
-	log.Debug(fmt.Sprintf("[reconcileStorageClassUpdateFunc] starts for CephStorageClass %q", cephSC.Name))
-
-	var oldSC *v1.StorageClass
-	for _, s := range scList.Items {
-		if s.Name == cephSC.Name {
-			oldSC = &s
-			break
-		}
-	}
-
-	if oldSC == nil {
-		err := fmt.Errorf("a storage class %s does not exist", cephSC.Name)
-		err = fmt.Errorf("[reconcileStorageClassUpdateFunc] unable to find a storage class for the CephStorageClass %s: %w", cephSC.Name, err)
-		upError := updateCephStorageClassPhase(ctx, cl, cephSC, FailedStatusPhase, err.Error())
-		if upError != nil {
-			upError = fmt.Errorf("[reconcileStorageClassUpdateFunc] unable to update the CephStorageClass %s: %w", cephSC.Name, upError)
-			err = errors.Join(err, upError)
-		}
-		return true, err
-	}
-
-	log.Debug(fmt.Sprintf("[reconcileStorageClassUpdateFunc] successfully found a storage class for the CephStorageClass, name: %s", cephSC.Name))
-
-	log.Trace(fmt.Sprintf("[reconcileStorageClassUpdateFunc] storage class: %+v", oldSC))
-	newSC, err := ConfigureStorageClass(cephSC, controllerNamespace, clusterID)
-	if err != nil {
-		err = fmt.Errorf("[reconcileStorageClassUpdateFunc] unable to configure a Storage Class for the CephStorageClass %s: %w", cephSC.Name, err)
-		upError := updateCephStorageClassPhase(ctx, cl, cephSC, FailedStatusPhase, err.Error())
-		if upError != nil {
-			upError = fmt.Errorf("[reconcileStorageClassUpdateFunc] unable to update the CephStorageClass %s: %w", cephSC.Name, upError)
-			err = errors.Join(err, upError)
-		}
-		return false, err
-	}
-
-	diff, err := GetSCDiff(oldSC, newSC)
-	if err != nil {
-		err = fmt.Errorf("[reconcileStorageClassUpdateFunc] error occured while identifying the difference between the existed StorageClass %s and the new one: %w", newSC.Name, err)
-		upError := updateCephStorageClassPhase(ctx, cl, cephSC, FailedStatusPhase, err.Error())
-		if upError != nil {
-			upError = fmt.Errorf("[reconcileStorageClassUpdateFunc] unable to update the CephStorageClass %s: %w", cephSC.Name, upError)
-			err = errors.Join(err, upError)
-		}
-		return true, err
-	}
-
-	if diff != "" {
-		log.Info(fmt.Sprintf("[reconcileStorageClassUpdateFunc] current Storage Class LVMVolumeGroups do not match CephStorageClass ones. The Storage Class %s will be recreated with new ones", cephSC.Name))
-
-		err = recreateStorageClass(ctx, cl, oldSC, newSC)
-		if err != nil {
-			err = fmt.Errorf("[reconcileStorageClassUpdateFunc] unable to recreate a Storage Class %s: %w", newSC.Name, err)
-			upError := updateCephStorageClassPhase(ctx, cl, cephSC, FailedStatusPhase, err.Error())
-			if upError != nil {
-				upError = fmt.Errorf("[reconcileStorageClassUpdateFunc] unable to update the CephStorageClass %s: %w", cephSC.Name, upError)
-				err = errors.Join(err, upError)
-			}
-			return true, err
-		}
-
-		log.Info(fmt.Sprintf("[reconcileStorageClassUpdateFunc] a Storage Class %s was successfully recreated", newSC.Name))
-	}
-
-	return false, nil
-}
 
 func IdentifyReconcileFuncForStorageClass(log logger.Logger, scList *v1.StorageClassList, cephSC *storagev1alpha1.CephStorageClass, controllerNamespace, clusterID string) (reconcileType string, err error) {
 	if shouldReconcileByDeleteFunc(cephSC) {
@@ -210,7 +89,7 @@ func shouldReconcileStorageClassByUpdateFunc(log logger.Logger, scList *v1.Stora
 					return true, nil
 				}
 
-				if cephSC.Status != nil && cephSC.Status.Phase == FailedStatusPhase {
+				if cephSC.Status != nil && cephSC.Status.Phase == PhaseFailed {
 					return true, nil
 				}
 
@@ -227,14 +106,105 @@ func shouldReconcileStorageClassByUpdateFunc(log logger.Logger, scList *v1.Stora
 	return false, err
 }
 
+func reconcileStorageClassCreateFunc(
+	ctx context.Context,
+	cl client.Client,
+	log logger.Logger,
+	scList *v1.StorageClassList,
+	cephSC *storagev1alpha1.CephStorageClass,
+	controllerNamespace, clusterID string,
+) (shouldRequeue bool, msg string, err error) {
+	log.Debug(fmt.Sprintf("[reconcileStorageClassCreateFunc] starts for CephStorageClass %q", cephSC.Name))
+
+	log.Debug(fmt.Sprintf("[reconcileStorageClassCreateFunc] starts storage class configuration for the CephStorageClass, name: %s", cephSC.Name))
+	newSC, err := ConfigureStorageClass(cephSC, controllerNamespace, clusterID)
+	if err != nil {
+		err = fmt.Errorf("[reconcileStorageClassCreateFunc] unable to configure a Storage Class for the CephStorageClass %s: %w", cephSC.Name, err)
+		return false, err.Error(), err
+	}
+
+	log.Debug(fmt.Sprintf("[reconcileStorageClassCreateFunc] successfully configurated storage class for the CephStorageClass, name: %s", cephSC.Name))
+	log.Trace(fmt.Sprintf("[reconcileStorageClassCreateFunc] storage class: %+v", newSC))
+
+	created, err := createStorageClassIfNotExists(ctx, cl, scList, newSC)
+	if err != nil {
+		err = fmt.Errorf("[reconcileStorageClassCreateFunc] unable to create a Storage Class %s: %w", newSC.Name, err)
+		return true, err.Error(), err
+	}
+
+	log.Debug(fmt.Sprintf("[reconcileStorageClassCreateFunc] a storage class %s was created: %t", newSC.Name, created))
+	if created {
+		log.Info(fmt.Sprintf("[reconcileStorageClassCreateFunc] successfully create storage class, name: %s", newSC.Name))
+	} else {
+		err = fmt.Errorf("[reconcileStorageClassCreateFunc] Storage class %s already exists", newSC.Name)
+		return true, err.Error(), err
+	}
+
+	return false, "Successfully created", nil
+}
+
+func reconcileStorageClassUpdateFunc(
+	ctx context.Context,
+	cl client.Client,
+	log logger.Logger,
+	scList *v1.StorageClassList,
+	cephSC *storagev1alpha1.CephStorageClass,
+	controllerNamespace, clusterID string,
+) (shouldRequeue bool, msg string, err error) {
+	log.Debug(fmt.Sprintf("[reconcileStorageClassUpdateFunc] starts for CephStorageClass %q", cephSC.Name))
+
+	var oldSC *v1.StorageClass
+	for _, s := range scList.Items {
+		if s.Name == cephSC.Name {
+			oldSC = &s
+			break
+		}
+	}
+
+	if oldSC == nil {
+		err = fmt.Errorf("[reconcileStorageClassUpdateFunc] unable to find a storage class for the CephStorageClass %s: %w", cephSC.Name, err)
+		return true, err.Error(), err
+	}
+
+	log.Debug(fmt.Sprintf("[reconcileStorageClassUpdateFunc] successfully found a storage class for the CephStorageClass, name: %s", cephSC.Name))
+	log.Trace(fmt.Sprintf("[reconcileStorageClassUpdateFunc] storage class: %+v", oldSC))
+
+	newSC, err := ConfigureStorageClass(cephSC, controllerNamespace, clusterID)
+	if err != nil {
+		err = fmt.Errorf("[reconcileStorageClassUpdateFunc] unable to configure a Storage Class for the CephStorageClass %s: %w", cephSC.Name, err)
+		return false, err.Error(), err
+	}
+
+	diff, err := GetSCDiff(oldSC, newSC)
+	if err != nil {
+		err = fmt.Errorf("[reconcileStorageClassUpdateFunc] error occured while identifying the difference between the existed StorageClass %s and the new one: %w", newSC.Name, err)
+		return true, err.Error(), err
+	}
+
+	if diff != "" {
+		log.Info(fmt.Sprintf("[reconcileStorageClassUpdateFunc] current Storage Class LVMVolumeGroups do not match CephStorageClass ones. The Storage Class %s will be recreated with new ones", cephSC.Name))
+
+		err = recreateStorageClass(ctx, cl, oldSC, newSC)
+		if err != nil {
+			err = fmt.Errorf("[reconcileStorageClassUpdateFunc] unable to recreate a Storage Class %s: %w", newSC.Name, err)
+			return true, err.Error(), err
+		}
+
+		log.Info(fmt.Sprintf("[reconcileStorageClassUpdateFunc] a Storage Class %s was successfully recreated", newSC.Name))
+	}
+
+	return false, "Successfully updated", nil
+}
+
 func reconcileStorageClassDeleteFunc(
 	ctx context.Context,
 	cl client.Client,
 	log logger.Logger,
 	scList *v1.StorageClassList,
 	cephSC *storagev1alpha1.CephStorageClass,
-) (bool, error) {
-	log.Debug(fmt.Sprintf("[reconcileStorageClassDeleteFunc] tries to find a storage class for the CephStorageClass %s", cephSC.Name))
+) (shouldRequeue bool, msg string, err error) {
+	log.Debug(fmt.Sprintf("[reconcileStorageClassDeleteFunc] starts for CephStorageClass %q", cephSC.Name))
+
 	var sc *v1.StorageClass
 	for _, s := range scList.Items {
 		if s.Name == cephSC.Name {
@@ -242,6 +212,7 @@ func reconcileStorageClassDeleteFunc(
 			break
 		}
 	}
+
 	if sc == nil {
 		log.Info(fmt.Sprintf("[reconcileStorageClassDeleteFunc] no storage class found for the CephStorageClass, name: %s", cephSC.Name))
 	}
@@ -250,30 +221,22 @@ func reconcileStorageClassDeleteFunc(
 		log.Info(fmt.Sprintf("[reconcileStorageClassDeleteFunc] successfully found a storage class for the CephStorageClass %s", cephSC.Name))
 		log.Debug(fmt.Sprintf("[reconcileStorageClassDeleteFunc] starts identifying a provisioner for the storage class %s", sc.Name))
 
-		if slices.Contains(allowedProvisioners, sc.Provisioner) {
-			log.Info(fmt.Sprintf("[reconcileStorageClassDeleteFunc] the storage class %s provisioner %s belongs to allowed provisioners: %v", sc.Name, sc.Provisioner, allowedProvisioners))
-
-			err := deleteStorageClass(ctx, cl, sc)
-			if err != nil {
-				err = fmt.Errorf("[reconcileStorageClassDeleteFunc] unable to delete a storage class %s: %w", sc.Name, err)
-				upErr := updateCephStorageClassPhase(ctx, cl, cephSC, FailedStatusPhase, fmt.Sprintf("Unable to delete a storage class, err: %s", err.Error()))
-				if upErr != nil {
-					upErr = fmt.Errorf("[reconcileStorageClassDeleteFunc] unable to update the CephStorageClass %s: %w", cephSC.Name, upErr)
-					err = errors.Join(err, upErr)
-				}
-				return true, err
-			}
-			log.Info(fmt.Sprintf("[reconcileStorageClassDeleteFunc] successfully deleted a storage class, name: %s", sc.Name))
-		}
-
 		if !slices.Contains(allowedProvisioners, sc.Provisioner) {
-			log.Info(fmt.Sprintf("[reconcileStorageClassDeleteFunc] the storage class %s provisioner %s does not belong to allowed provisioners: %v", sc.Name, sc.Provisioner, allowedProvisioners))
-
+			err = fmt.Errorf("[reconcileStorageClassDeleteFunc] a storage class %s with provisioner %s does not belong to allowed provisioners: %v", sc.Name, sc.Provisioner, allowedProvisioners)
+			return true, err.Error(), err
 		}
+
+		log.Info(fmt.Sprintf("[reconcileStorageClassDeleteFunc] the storage class %s provisioner %s belongs to allowed provisioners: %v", sc.Name, sc.Provisioner, allowedProvisioners))
+		err := deleteStorageClass(ctx, cl, sc)
+		if err != nil {
+			err = fmt.Errorf("[reconcileStorageClassDeleteFunc] unable to delete a storage class %s: %w", sc.Name, err)
+			return true, err.Error(), err
+		}
+		log.Info(fmt.Sprintf("[reconcileStorageClassDeleteFunc] successfully deleted a storage class, name: %s", sc.Name))
 	}
 
 	log.Debug("[reconcileStorageClassDeleteFunc] ends the reconciliation")
-	return false, nil
+	return false, "", nil
 }
 
 func ConfigureStorageClass(cephSC *storagev1alpha1.CephStorageClass, controllerNamespace, clusterID string) (*v1.StorageClass, error) {
