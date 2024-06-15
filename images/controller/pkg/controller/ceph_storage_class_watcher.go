@@ -20,6 +20,7 @@ import (
 	"context"
 	v1alpha1 "d8-controller/api/v1alpha1"
 	"d8-controller/pkg/config"
+	"d8-controller/pkg/internal"
 	"d8-controller/pkg/logger"
 	"errors"
 	"fmt"
@@ -41,7 +42,8 @@ import (
 )
 
 const (
-	CephStorageClassCtrlName = "ceph-storage-class-controller"
+	// This value used as a name for the controller AND the value for managed-by label.
+	CephStorageClassCtrlName = "d8-ceph-storage-class-controller"
 
 	StorageClassKind       = "StorageClass"
 	StorageClassAPIVersion = "storage.k8s.io/v1"
@@ -52,13 +54,6 @@ const (
 	CephStorageClassControllerFinalizerName = "storage.deckhouse.io/ceph-storage-class-controller"
 	CephStorageClassManagedLabelKey         = "storage.deckhouse.io/managed-by"
 	CephStorageClassManagedLabelValue       = "ceph-storage-class-controller"
-
-	PhaseFailed  = "Failed"
-	PhaseCreated = "Created"
-
-	CreateReconcile = "Create"
-	UpdateReconcile = "Update"
-	DeleteReconcile = "Delete"
 )
 
 var (
@@ -96,10 +91,10 @@ func RunCephStorageClassWatcherController(
 
 			shouldRequeue, msg, err := RunStorageClassEventReconcile(ctx, cl, log, scList, cephSC, cfg.ControllerNamespace)
 			log.Info(fmt.Sprintf("[CephStorageClassReconciler] CephStorageClass %s has been reconciled with message: %s", cephSC.Name, msg))
-			phase := PhaseCreated
+			phase := v1alpha1.PhaseCreated
 			if err != nil {
 				log.Error(err, fmt.Sprintf("[CephStorageClassReconciler] an error occured while reconciles the CephStorageClass, name: %s", cephSC.Name))
-				phase = PhaseFailed
+				phase = v1alpha1.PhaseFailed
 			}
 
 			if msg != "" {
@@ -171,6 +166,7 @@ func RunStorageClassEventReconcile(ctx context.Context, cl client.Client, log lo
 	log.Debug(fmt.Sprintf("[RunStorageClassEventReconcile] starts reconciliataion of CephStorageClass, name: %s", cephSC.Name))
 	valid, msg := validateCephStorageClassSpec(cephSC)
 	if !valid {
+		err = fmt.Errorf("[RunStorageClassEventReconcile] CephStorageClass %s has invalid spec: %s", cephSC.Name, msg)
 		return false, msg, err
 	}
 	log.Debug(fmt.Sprintf("[RunStorageClassEventReconcile] CephStorageClass %s has valid spec", cephSC.Name))
@@ -197,11 +193,11 @@ func RunStorageClassEventReconcile(ctx context.Context, cl client.Client, log lo
 	shouldRequeue = false
 	log.Debug(fmt.Sprintf("[RunStorageClassEventReconcile] Successfully identified the reconcile type for StorageClass %s: %s", cephSC.Name, reconcileTypeForStorageClass))
 	switch reconcileTypeForStorageClass {
-	case CreateReconcile:
+	case internal.CreateReconcile:
 		shouldRequeue, msg, err = reconcileStorageClassCreateFunc(ctx, cl, log, scList, cephSC, controllerNamespace, clusterID)
-	case UpdateReconcile:
+	case internal.UpdateReconcile:
 		shouldRequeue, msg, err = reconcileStorageClassUpdateFunc(ctx, cl, log, scList, cephSC, controllerNamespace, clusterID)
-	case DeleteReconcile:
+	case internal.DeleteReconcile:
 		shouldRequeue, msg, err = reconcileStorageClassDeleteFunc(ctx, cl, log, scList, cephSC)
 	default:
 		log.Debug(fmt.Sprintf("[RunStorageClassEventReconcile] StorageClass for CephStorageClass %s should not be reconciled", cephSC.Name))

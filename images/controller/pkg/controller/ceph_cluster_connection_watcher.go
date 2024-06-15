@@ -20,6 +20,7 @@ import (
 	"context"
 	v1alpha1 "d8-controller/api/v1alpha1"
 	"d8-controller/pkg/config"
+	"d8-controller/pkg/internal"
 	"d8-controller/pkg/logger"
 	"errors"
 	"fmt"
@@ -42,11 +43,8 @@ import (
 
 const (
 	// This value used as a name for the controller AND the value for managed-by label.
-	CephClusterConnectionCtrlName                = "ceph-cluster-controller"
+	CephClusterConnectionCtrlName                = "d8-ceph-cluster-controller"
 	CephClusterConnectionControllerFinalizerName = "storage.deckhouse.io/ceph-cluster-controller"
-	StorageManagedLabelKey                       = "storage.deckhouse.io/managed-by"
-
-	SecretForCephClusterConnectionPrefix = "csi-ceph-secret-for-"
 )
 
 func RunCephClusterConnectionWatcherController(
@@ -78,9 +76,21 @@ func RunCephClusterConnectionWatcherController(
 				return reconcile.Result{}, err
 			}
 
-			shouldRequeue, err := RunCephClusterConnectionEventReconcile(ctx, cl, log, secretList, cephClusterConnection, cfg.ControllerNamespace)
+			shouldRequeue, msg, err := RunCephClusterConnectionEventReconcile(ctx, cl, log, secretList, cephClusterConnection, cfg.ControllerNamespace)
+			log.Info(fmt.Sprintf("[CephClusterConnectionReconciler] CeohClusterConnection %s has been reconciled with message: %s", cephClusterConnection.Name, msg))
+			phase := v1alpha1.PhaseCreated
 			if err != nil {
 				log.Error(err, fmt.Sprintf("[CephClusterConnectionReconciler] an error occured while reconciles the CephClusterConnection, name: %s", cephClusterConnection.Name))
+				phase = v1alpha1.PhaseFailed
+			}
+
+			if msg != "" {
+				log.Debug(fmt.Sprintf("[CephClusterConnectionReconciler] update the CephClusterConnection %s with the phase %s and message: %s", cephClusterConnection.Name, phase, msg))
+				upErr := updateCephClusterConnectionPhase(ctx, cl, cephClusterConnection, phase, msg)
+				if upErr != nil {
+					log.Error(upErr, fmt.Sprintf("[CephClusterConnectionReconciler] unable to update the CephClusterConnection %s: %s", cephClusterConnection.Name, upErr.Error()))
+					shouldRequeue = true
+				}
 			}
 
 			if shouldRequeue {
@@ -139,52 +149,56 @@ func RunCephClusterConnectionWatcherController(
 	return c, nil
 }
 
-func RunCephClusterConnectionEventReconcile(ctx context.Context, cl client.Client, log logger.Logger, secretList *corev1.SecretList, cephClusterConnection *v1alpha1.CephClusterConnection, controllerNamespace string) (shouldRequeue bool, err error) {
-	err = validateCephClusterConnectionSpec(cephClusterConnection)
-	if err != nil {
-		log.Error(err, fmt.Sprintf("[RunCephClusterConnectionEventReconcile] an error occured while validating the CephClusterConnection %q", cephClusterConnection.Name))
-		upError := updateCephClusterConnectionPhase(ctx, cl, cephClusterConnection, v1alpha1.PhaseFailed, err.Error())
-		if upError != nil {
-			upError = fmt.Errorf("[RunCephClusterConnectionEventReconcile] unable to update the CephClusterConnection %s: %w", cephClusterConnection.Name, upError)
-			err = errors.Join(err, upError)
-		}
-		return false, err
+func RunCephClusterConnectionEventReconcile(ctx context.Context, cl client.Client, log logger.Logger, secretList *corev1.SecretList, cephClusterConnection *v1alpha1.CephClusterConnection, controllerNamespace string) (shouldRequeue bool, msg string, err error) {
+	valid, msg := validateCephClusterConnectionSpec(cephClusterConnection)
+	if !valid {
+		err = fmt.Errorf("[RunCephClusterConnectionEventReconcile] CephClusterConnection %s has invalid spec: %s", cephClusterConnection.Name, msg)
+		return false, msg, err
 	}
+	log.Debug(fmt.Sprintf("[RunCephClusterConnectionEventReconcile] CephClusterConnection %s has valid spec", cephClusterConnection.Name))
 
 	added, err := addFinalizerIfNotExists(ctx, cl, cephClusterConnection, CephClusterConnectionControllerFinalizerName)
 	if err != nil {
 		err = fmt.Errorf("[RunCephClusterConnectionEventReconcile] unable to add a finalizer %s to the CephClusterConnection %s: %w", CephClusterConnectionControllerFinalizerName, cephClusterConnection.Name, err)
-		return true, err
+		return true, err.Error(), err
 	}
 	log.Debug(fmt.Sprintf("[RunCephClusterConnectionEventReconcile] finalizer %s was added to the CephClusterConnection %s: %t", CephClusterConnectionControllerFinalizerName, cephClusterConnection.Name, added))
 
-	secretName := SecretForCephClusterConnectionPrefix + cephClusterConnection.Name
+	secretName := internal.CephClusterConnectionSecretPrefix + cephClusterConnection.Name
 	reconcileTypeForSecret, err := IdentifyReconcileFuncForSecret(log, secretList, cephClusterConnection, controllerNamespace, secretName)
 	if err != nil {
-		log.Error(err, fmt.Sprintf("[RunCephClusterConnectionEventReconcile] error occured while identifying the reconcile function for the Secret %q", SecretForCephClusterConnectionPrefix+cephClusterConnection.Name))
-		return true, err
+		err = fmt.Errorf("[RunCephClusterConnectionEventReconcile] error occurred while identifying the reconcile function for CephClusterConnection %s on Secret %s: %w", cephClusterConnection.Name, secretName, err)
+		return true, err.Error(), err
 	}
 
 	shouldRequeue = false
-	log.Debug(fmt.Sprintf("[RunCephClusterConnectionEventReconcile] reconcile operation of CephClusterConnection %s for Secret %s: %s", cephClusterConnection.Name, secretName, reconcileTypeForSecret))
+	log.Debug(fmt.Sprintf("[RunCephClusterConnectionEventReconcile] successfully identified the reconcile type for CephClusterConnection %s to be performed on Secret %s: %s", cephClusterConnection.Name, secretName, reconcileTypeForSecret))
 	switch reconcileTypeForSecret {
-	case CreateReconcile:
-		shouldRequeue, err = reconcileSecretCreateFunc(ctx, cl, log, cephClusterConnection, controllerNamespace, secretName)
-	case UpdateReconcile:
-		shouldRequeue, err = reconcileSecretUpdateFunc(ctx, cl, log, secretList, cephClusterConnection, controllerNamespace, secretName)
-	case DeleteReconcile:
-		log.Debug(fmt.Sprintf("[RunCephClusterConnectionEventReconcile] DeleteReconcile: starts reconciliataion of CephClusterConnection %s for Secret %s", cephClusterConnection.Name, secretName))
-		shouldRequeue, err = reconcileSecretDeleteFunc(ctx, cl, log, secretList, cephClusterConnection, secretName)
+	case internal.CreateReconcile:
+		shouldRequeue, msg, err = reconcileSecretCreateFunc(ctx, cl, log, cephClusterConnection, controllerNamespace, secretName)
+	case internal.UpdateReconcile:
+		shouldRequeue, msg, err = reconcileSecretUpdateFunc(ctx, cl, log, secretList, cephClusterConnection, controllerNamespace, secretName)
+	case internal.DeleteReconcile:
+		shouldRequeue, msg, err = reconcileSecretDeleteFunc(ctx, cl, log, secretList, cephClusterConnection, secretName)
 	default:
-		log.Debug(fmt.Sprintf("[RunCephClusterConnectionEventReconcile] StorageClass for CephClusterConnection %s should not be reconciled", cephClusterConnection.Name))
+		log.Debug(fmt.Sprintf("[RunCephClusterConnectionEventReconcile] no reconcile action required for CephClusterConnection %s on Secret %s. No changes will be made.", cephClusterConnection.Name, secretName))
+		msg = "Successfully reconciled"
 	}
-	log.Debug(fmt.Sprintf("[RunCephClusterConnectionEventReconcile] ends reconciliataion of StorageClass, name: %s, shouldRequeue: %t, err: %v", cephClusterConnection.Name, shouldRequeue, err))
+	log.Debug(fmt.Sprintf("[RunCephClusterConnectionEventReconcile] completed reconcile operation for CephClusterConnection %s on Secret %s.", cephClusterConnection.Name, secretName))
 
 	if err != nil || shouldRequeue {
-		return shouldRequeue, err
+		return shouldRequeue, msg, err
 	}
 
-	log.Debug(fmt.Sprintf("[RunCephClusterConnectionEventReconcile] Finish all reconciliations for CephClusterConnection %q.", cephClusterConnection.Name))
-	return false, nil
+	confgigMap := &corev1.ConfigMap{}
+	err = cl.Get(ctx, types.NamespacedName{Name: internal.CSICephConfigMapName, Namespace: controllerNamespace}, confgigMap)
+	if err != nil {
+		err = fmt.Errorf("[RunCephClusterConnectionEventReconcile] unable to get ConfigMap %s in namespace %s: %w", internal.CSICephConfigMapName, controllerNamespace, err)
+		return true, err.Error(), err
+	}
 
+	// TODO: Implement the reconcile for the ConfigMap
+
+	log.Debug(fmt.Sprintf("[RunCephClusterConnectionEventReconcile] finish all reconciliations for CephClusterConnection %q.", cephClusterConnection.Name))
+	return false, msg, nil
 }

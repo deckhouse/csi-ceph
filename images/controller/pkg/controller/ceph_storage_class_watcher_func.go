@@ -18,7 +18,9 @@ package controller
 
 import (
 	"context"
+	"d8-controller/api/v1alpha1"
 	storagev1alpha1 "d8-controller/api/v1alpha1"
+	"d8-controller/pkg/internal"
 	"d8-controller/pkg/logger"
 	"fmt"
 	"reflect"
@@ -34,11 +36,11 @@ import (
 
 func IdentifyReconcileFuncForStorageClass(log logger.Logger, scList *v1.StorageClassList, cephSC *storagev1alpha1.CephStorageClass, controllerNamespace, clusterID string) (reconcileType string, err error) {
 	if shouldReconcileByDeleteFunc(cephSC) {
-		return DeleteReconcile, nil
+		return internal.DeleteReconcile, nil
 	}
 
 	if shouldReconcileStorageClassByCreateFunc(scList, cephSC) {
-		return CreateReconcile, nil
+		return internal.CreateReconcile, nil
 	}
 
 	should, err := shouldReconcileStorageClassByUpdateFunc(log, scList, cephSC, controllerNamespace, clusterID)
@@ -46,7 +48,7 @@ func IdentifyReconcileFuncForStorageClass(log logger.Logger, scList *v1.StorageC
 		return "", err
 	}
 	if should {
-		return UpdateReconcile, nil
+		return internal.UpdateReconcile, nil
 	}
 
 	return "", nil
@@ -89,7 +91,7 @@ func shouldReconcileStorageClassByUpdateFunc(log logger.Logger, scList *v1.Stora
 					return true, nil
 				}
 
-				if cephSC.Status != nil && cephSC.Status.Phase == PhaseFailed {
+				if cephSC.Status != nil && cephSC.Status.Phase == v1alpha1.PhaseFailed {
 					return true, nil
 				}
 
@@ -174,24 +176,17 @@ func reconcileStorageClassUpdateFunc(
 		err = fmt.Errorf("[reconcileStorageClassUpdateFunc] unable to configure a Storage Class for the CephStorageClass %s: %w", cephSC.Name, err)
 		return false, err.Error(), err
 	}
+	log.Debug(fmt.Sprintf("[reconcileStorageClassUpdateFunc] successfully configurated storage class for the CephStorageClass, name: %s", cephSC.Name))
+	log.Trace(fmt.Sprintf("[reconcileStorageClassUpdateFunc] new storage class: %+v", newSC))
+	log.Trace(fmt.Sprintf("[reconcileStorageClassUpdateFunc] old storage class: %+v", oldSC))
 
-	diff, err := GetSCDiff(oldSC, newSC)
+	err = recreateStorageClass(ctx, cl, oldSC, newSC)
 	if err != nil {
-		err = fmt.Errorf("[reconcileStorageClassUpdateFunc] error occured while identifying the difference between the existed StorageClass %s and the new one: %w", newSC.Name, err)
+		err = fmt.Errorf("[reconcileStorageClassUpdateFunc] unable to recreate a Storage Class %s: %w", newSC.Name, err)
 		return true, err.Error(), err
 	}
 
-	if diff != "" {
-		log.Info(fmt.Sprintf("[reconcileStorageClassUpdateFunc] current Storage Class LVMVolumeGroups do not match CephStorageClass ones. The Storage Class %s will be recreated with new ones", cephSC.Name))
-
-		err = recreateStorageClass(ctx, cl, oldSC, newSC)
-		if err != nil {
-			err = fmt.Errorf("[reconcileStorageClassUpdateFunc] unable to recreate a Storage Class %s: %w", newSC.Name, err)
-			return true, err.Error(), err
-		}
-
-		log.Info(fmt.Sprintf("[reconcileStorageClassUpdateFunc] a Storage Class %s was successfully recreated", newSC.Name))
-	}
+	log.Info(fmt.Sprintf("[reconcileStorageClassUpdateFunc] a Storage Class %s was successfully recreated", newSC.Name))
 
 	return false, "Successfully updated", nil
 }
@@ -235,6 +230,12 @@ func reconcileStorageClassDeleteFunc(
 		log.Info(fmt.Sprintf("[reconcileStorageClassDeleteFunc] successfully deleted a storage class, name: %s", sc.Name))
 	}
 
+	_, err = removeFinalizerIfExists(ctx, cl, cephSC, CephStorageClassControllerFinalizerName)
+	if err != nil {
+		err = fmt.Errorf("[reconcileStorageClassDeleteFunc] unable to remove a finalizer %s from the CephStorageClass %s: %w", CephStorageClassControllerFinalizerName, cephSC.Name, err)
+		return true, err.Error(), err
+	}
+
 	log.Debug("[reconcileStorageClassDeleteFunc] ends the reconciliation")
 	return false, "", nil
 }
@@ -262,6 +263,9 @@ func ConfigureStorageClass(cephSC *storagev1alpha1.CephStorageClass, controllerN
 			Name:       cephSC.Name,
 			Namespace:  cephSC.Namespace,
 			Finalizers: []string{CephStorageClassControllerFinalizerName},
+			Labels: map[string]string{
+				internal.StorageManagedLabelKey: CephStorageClassCtrlName,
+			},
 		},
 		Parameters:           params,
 		Provisioner:          provisioner,
@@ -288,7 +292,7 @@ func GetStorageClassProvisioner(cephSC *storagev1alpha1.CephStorageClass) string
 }
 
 func GetStoragecClassParams(cephSC *storagev1alpha1.CephStorageClass, controllerNamespace, clusterID string) (map[string]string, error) {
-	secretName := SecretForCephClusterConnectionPrefix + cephSC.Spec.ClusterConnectionName
+	secretName := internal.CephClusterConnectionSecretPrefix + cephSC.Spec.ClusterConnectionName
 
 	params := map[string]string{
 		"clusterID": clusterID,
@@ -431,49 +435,49 @@ func validateCephStorageClassSpec(cephSC *storagev1alpha1.CephStorageClass) (boo
 
 	if cephSC.Spec.ClusterConnectionName == "" {
 		validationPassed = false
-		failedMsgBuilder.WriteString("the spec.clusterConnectionName field is empty")
+		failedMsgBuilder.WriteString("the spec.clusterConnectionName field is empty; ")
 	}
 
 	if cephSC.Spec.ReclaimPolicy == "" {
 		validationPassed = false
-		failedMsgBuilder.WriteString("the spec.reclaimPolicy field is empty")
+		failedMsgBuilder.WriteString("the spec.reclaimPolicy field is empty; ")
 	}
 
 	if cephSC.Spec.Type == "" {
 		validationPassed = false
-		failedMsgBuilder.WriteString("the spec.type field is empty")
+		failedMsgBuilder.WriteString("the spec.type field is empty; ")
 	}
 
 	switch cephSC.Spec.Type {
 	case storagev1alpha1.CephStorageClassTypeRBD:
 		if cephSC.Spec.RBD == nil {
 			validationPassed = false
-			failedMsgBuilder.WriteString("the spec.rbd field is empty")
+			failedMsgBuilder.WriteString("the spec.rbd field is empty; ")
 		}
 
 		if cephSC.Spec.RBD.DefaultFSType == "" {
 			validationPassed = false
-			failedMsgBuilder.WriteString("the spec.rbd.defaultFSType field is empty")
+			failedMsgBuilder.WriteString("the spec.rbd.defaultFSType field is empty; ")
 		}
 
 		if cephSC.Spec.RBD.Pool == "" {
 			validationPassed = false
-			failedMsgBuilder.WriteString("the spec.rbd.pool field is empty")
+			failedMsgBuilder.WriteString("the spec.rbd.pool field is empty; ")
 		}
 	case storagev1alpha1.CephStorageClassTypeCephFS:
 		if cephSC.Spec.CephFS == nil {
 			validationPassed = false
-			failedMsgBuilder.WriteString("the spec.cephfs field is empty")
+			failedMsgBuilder.WriteString("the spec.cephfs field is empty; ")
 		}
 
 		if cephSC.Spec.CephFS.FSName == "" {
 			validationPassed = false
-			failedMsgBuilder.WriteString("the spec.cephfs.fsName field is empty")
+			failedMsgBuilder.WriteString("the spec.cephfs.fsName field is empty; ")
 		}
 
 		if cephSC.Spec.CephFS.Pool == "" {
 			validationPassed = false
-			failedMsgBuilder.WriteString("the spec.cephfs.pool field is empty")
+			failedMsgBuilder.WriteString("the spec.cephfs.pool field is empty; ")
 		}
 	default:
 		validationPassed = false

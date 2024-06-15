@@ -19,10 +19,11 @@ package controller
 import (
 	"context"
 	v1alpha1 "d8-controller/api/v1alpha1"
+	"d8-controller/pkg/internal"
 	"d8-controller/pkg/logger"
-	"errors"
 	"fmt"
 	"reflect"
+	"strings"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -30,33 +31,48 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-func validateCephClusterConnectionSpec(cephClusterConnection *v1alpha1.CephClusterConnection) error {
+func validateCephClusterConnectionSpec(cephClusterConnection *v1alpha1.CephClusterConnection) (bool, string) {
+	if cephClusterConnection.DeletionTimestamp != nil {
+		return true, ""
+	}
+
+	var (
+		failedMsgBuilder strings.Builder
+		validationPassed = true
+	)
+
+	failedMsgBuilder.WriteString("Validation of CeohClusterConnection failed: ")
+
 	if cephClusterConnection.Spec.ClusterID == "" {
-		return fmt.Errorf("[validateCephClusterConnectionSpec] %s: spec.clusterID is required", cephClusterConnection.Name)
+		validationPassed = false
+		failedMsgBuilder.WriteString("the spec.clusterID field is empty; ")
 	}
 
 	if cephClusterConnection.Spec.Monitors == nil {
-		return fmt.Errorf("[validateCephClusterConnectionSpec] %s: spec.monitors is required", cephClusterConnection.Name)
+		validationPassed = false
+		failedMsgBuilder.WriteString("the spec.monitors field is empty; ")
 	}
 
 	if cephClusterConnection.Spec.UserID == "" {
-		return fmt.Errorf("[validateCephClusterConnectionSpec] %s: spec.userID is required", cephClusterConnection.Name)
+		validationPassed = false
+		failedMsgBuilder.WriteString("the spec.userID field is empty; ")
 	}
 
 	if cephClusterConnection.Spec.UserKey == "" {
-		return fmt.Errorf("[validateCephClusterConnectionSpec] %s: spec.userKey is required", cephClusterConnection.Name)
+		validationPassed = false
+		failedMsgBuilder.WriteString("the spec.userKey field is empty; ")
 	}
 
-	return nil
+	return validationPassed, failedMsgBuilder.String()
 }
 
 func IdentifyReconcileFuncForSecret(log logger.Logger, secretList *corev1.SecretList, cephClusterConnection *v1alpha1.CephClusterConnection, controllerNamespace, secretName string) (reconcileType string, err error) {
 	if shouldReconcileByDeleteFunc(cephClusterConnection) {
-		return DeleteReconcile, nil
+		return internal.DeleteReconcile, nil
 	}
 
 	if shouldReconcileSecretByCreateFunc(secretList, cephClusterConnection, secretName) {
-		return CreateReconcile, nil
+		return internal.CreateReconcile, nil
 	}
 
 	should, err := shouldReconcileSecretByUpdateFunc(log, secretList, cephClusterConnection, controllerNamespace, secretName)
@@ -64,7 +80,7 @@ func IdentifyReconcileFuncForSecret(log logger.Logger, secretList *corev1.Secret
 		return "", err
 	}
 	if should {
-		return UpdateReconcile, nil
+		return internal.UpdateReconcile, nil
 	}
 
 	return "", nil
@@ -90,7 +106,7 @@ func shouldReconcileSecretByUpdateFunc(log logger.Logger, secretList *corev1.Sec
 	}
 
 	secretSelector := labels.Set(map[string]string{
-		StorageManagedLabelKey: CephClusterConnectionCtrlName,
+		internal.StorageManagedLabelKey: CephClusterConnectionCtrlName,
 	})
 
 	for _, oldSecret := range secretList.Items {
@@ -100,23 +116,22 @@ func shouldReconcileSecretByUpdateFunc(log logger.Logger, secretList *corev1.Sec
 			if !equal {
 				log.Debug(fmt.Sprintf("[shouldReconcileSecretByUpdateFunc] a secret %s should be updated", secretName))
 				if !labels.Set(oldSecret.Labels).AsSelector().Matches(secretSelector) {
-					err := fmt.Errorf("a secret %q does not have a label %s=%s", oldSecret.Name, StorageManagedLabelKey, CephClusterConnectionCtrlName)
+					err := fmt.Errorf("a secret %q does not have a label %s=%s", oldSecret.Name, internal.StorageManagedLabelKey, CephClusterConnectionCtrlName)
 					return false, err
 				}
 				return true, nil
 			}
 
 			if !labels.Set(oldSecret.Labels).AsSelector().Matches(secretSelector) {
-				log.Debug(fmt.Sprintf("[shouldReconcileSecretByUpdateFunc] a secret %s should be updated. The label %s=%s is missing", oldSecret.Name, StorageManagedLabelKey, CephClusterConnectionCtrlName))
+				log.Debug(fmt.Sprintf("[shouldReconcileSecretByUpdateFunc] a secret %s should be updated. The label %s=%s is missing", oldSecret.Name, internal.StorageManagedLabelKey, CephClusterConnectionCtrlName))
 				return true, nil
 			}
 
 			return false, nil
 		}
 	}
-
-	log.Debug(fmt.Sprintf("[shouldReconcileSecretByUpdateFunc] a secret %s not found in the list: %+v. It should be created", secretName, secretList.Items))
-	return true, nil
+	err := fmt.Errorf("[shouldReconcileSecretByUpdateFunc] a secret %s not found in the list: %+v. It should be created", secretName, secretList.Items)
+	return false, err
 }
 
 func configureSecret(cephClusterConnection *v1alpha1.CephClusterConnection, controllerNamespace, secretName string) *corev1.Secret {
@@ -127,7 +142,7 @@ func configureSecret(cephClusterConnection *v1alpha1.CephClusterConnection, cont
 			Name:      secretName,
 			Namespace: controllerNamespace,
 			Labels: map[string]string{
-				StorageManagedLabelKey: CephClusterConnectionCtrlName,
+				internal.StorageManagedLabelKey: CephClusterConnectionCtrlName,
 			},
 			Finalizers: []string{CephClusterConnectionControllerFinalizerName},
 		},
@@ -150,11 +165,11 @@ func areSecretsEqual(old, new *corev1.Secret) bool {
 		return true
 	}
 
-	return true
+	return false
 }
 
-func reconcileSecretCreateFunc(ctx context.Context, cl client.Client, log logger.Logger, cephClusterConnection *v1alpha1.CephClusterConnection, controllerNamespace, secretName string) (shouldRequeue bool, err error) {
-	log.Debug(fmt.Sprintf("[reconcileSecretCreateFunc] starts reconciliataion of CephClusterConnection %s for Secret %s", cephClusterConnection.Name, secretName))
+func reconcileSecretCreateFunc(ctx context.Context, cl client.Client, log logger.Logger, cephClusterConnection *v1alpha1.CephClusterConnection, controllerNamespace, secretName string) (shouldRequeue bool, msg string, err error) {
+	log.Debug(fmt.Sprintf("[reconcileSecretCreateFunc] starts reconciliation of CephClusterConnection %s for Secret %s", cephClusterConnection.Name, secretName))
 
 	newSecret := configureSecret(cephClusterConnection, controllerNamespace, secretName)
 	log.Debug(fmt.Sprintf("[reconcileSecretCreateFunc] successfully configurated secret %s for the CephClusterConnection %s", secretName, cephClusterConnection.Name))
@@ -163,19 +178,14 @@ func reconcileSecretCreateFunc(ctx context.Context, cl client.Client, log logger
 	err = cl.Create(ctx, newSecret)
 	if err != nil {
 		err = fmt.Errorf("[reconcileSecretCreateFunc] unable to create a Secret %s for CephClusterConnection %s: %w", newSecret.Name, cephClusterConnection.Name, err)
-		upError := updateCephClusterConnectionPhase(ctx, cl, cephClusterConnection, PhaseFailed, err.Error())
-		if upError != nil {
-			upError = fmt.Errorf("[reconcileSecretCreateFunc] unable to update the CephClusterConnection %s: %w", cephClusterConnection.Name, upError)
-			err = errors.Join(err, upError)
-		}
-		return true, err
+		return true, err.Error(), err
 	}
 
-	return false, nil
+	return false, "Successfully created", nil
 }
 
-func reconcileSecretUpdateFunc(ctx context.Context, cl client.Client, log logger.Logger, secretList *corev1.SecretList, cephClusterConnection *v1alpha1.CephClusterConnection, controllerNamespace, secretName string) (shouldRequeue bool, err error) {
-	log.Debug(fmt.Sprintf("[reconcileSecretUpdateFunc] starts reconciliataion of CephClusterConnection %s for Secret %s", cephClusterConnection.Name, secretName))
+func reconcileSecretUpdateFunc(ctx context.Context, cl client.Client, log logger.Logger, secretList *corev1.SecretList, cephClusterConnection *v1alpha1.CephClusterConnection, controllerNamespace, secretName string) (shouldRequeue bool, msg string, err error) {
+	log.Debug(fmt.Sprintf("[reconcileSecretUpdateFunc] starts reconciliation of CephClusterConnection %s for Secret %s", cephClusterConnection.Name, secretName))
 
 	var oldSecret *corev1.Secret
 	for _, s := range secretList.Items {
@@ -187,12 +197,7 @@ func reconcileSecretUpdateFunc(ctx context.Context, cl client.Client, log logger
 
 	if oldSecret == nil {
 		err := fmt.Errorf("[reconcileSecretUpdateFunc] unable to find a secret %s for the CephClusterConnection %s", secretName, cephClusterConnection.Name)
-		upError := updateCephClusterConnectionPhase(ctx, cl, cephClusterConnection, PhaseFailed, err.Error())
-		if upError != nil {
-			upError = fmt.Errorf("[reconcileSecretUpdateFunc] unable to update the CephClusterConnection %s: %w", cephClusterConnection.Name, upError)
-			err = errors.Join(err, upError)
-		}
-		return true, err
+		return true, err.Error(), err
 	}
 
 	log.Debug(fmt.Sprintf("[reconcileSecretUpdateFunc] secret %s was found for the CephClusterConnection %s", secretName, cephClusterConnection.Name))
@@ -205,19 +210,16 @@ func reconcileSecretUpdateFunc(ctx context.Context, cl client.Client, log logger
 	err = cl.Update(ctx, newSecret)
 	if err != nil {
 		err = fmt.Errorf("[reconcileSecretUpdateFunc] unable to update the Secret %s for CephClusterConnection %s: %w", newSecret.Name, cephClusterConnection.Name, err)
-		upError := updateCephClusterConnectionPhase(ctx, cl, cephClusterConnection, PhaseFailed, err.Error())
-		if upError != nil {
-			upError = fmt.Errorf("[reconcileSecretUpdateFunc] unable to update the CephClusterConnection %s: %w", cephClusterConnection.Name, upError)
-			err = errors.Join(err, upError)
-		}
-		return true, err
+		return true, err.Error(), err
 	}
 
-	return false, nil
+	log.Info(fmt.Sprintf("[reconcileSecretUpdateFunc] successfully updated the Secret %s for the CephClusterConnection %s", newSecret.Name, cephClusterConnection.Name))
+
+	return false, "Successfully updated", nil
 }
 
-func reconcileSecretDeleteFunc(ctx context.Context, cl client.Client, log logger.Logger, secretList *corev1.SecretList, cephClusterConnection *v1alpha1.CephClusterConnection, secretName string) (shouldRequeue bool, err error) {
-	log.Debug(fmt.Sprintf("[reconcileSecretDeleteFunc] starts reconciliataion of CephClusterConnection %s for Secret %s", cephClusterConnection.Name, secretName))
+func reconcileSecretDeleteFunc(ctx context.Context, cl client.Client, log logger.Logger, secretList *corev1.SecretList, cephClusterConnection *v1alpha1.CephClusterConnection, secretName string) (shouldRequeue bool, msg string, err error) {
+	log.Debug(fmt.Sprintf("[reconcileSecretDeleteFunc] starts reconciliation of CephClusterConnection %s for Secret %s", cephClusterConnection.Name, secretName))
 
 	var secret *corev1.Secret
 	for _, s := range secretList.Items {
@@ -233,33 +235,17 @@ func reconcileSecretDeleteFunc(ctx context.Context, cl client.Client, log logger
 
 	if secret != nil {
 		log.Info(fmt.Sprintf("[reconcileSecretDeleteFunc] successfully found a secret %s for the CephClusterConnection %s", secretName, cephClusterConnection.Name))
-		log.Debug(fmt.Sprintf("[reconcileSecretDeleteFunc] starts removing a finalizer %s from the Secret %s", CephClusterConnectionControllerFinalizerName, secret.Name))
-		_, err := removeFinalizerIfExists(ctx, cl, secret, CephClusterConnectionControllerFinalizerName)
-		if err != nil {
-			err = fmt.Errorf("[reconcileSecretDeleteFunc] unable to remove a finalizer %s from the Secret %s: %w", CephClusterConnectionControllerFinalizerName, secret.Name, err)
-			upErr := updateCephClusterConnectionPhase(ctx, cl, cephClusterConnection, PhaseFailed, fmt.Sprintf("Unable to remove a finalizer, err: %s", err.Error()))
-			if upErr != nil {
-				upErr = fmt.Errorf("[reconcileSecretDeleteFunc] unable to update the CephClusterConnection %s: %w", cephClusterConnection.Name, upErr)
-				err = errors.Join(err, upErr)
-			}
-			return true, err
-		}
+		err = deleteSecret(ctx, cl, secret)
 
-		err = cl.Delete(ctx, secret)
 		if err != nil {
-			err = fmt.Errorf("[reconcileSecretDeleteFunc] unable to delete a secret %s: %w", secret.Name, err)
-			upErr := updateCephClusterConnectionPhase(ctx, cl, cephClusterConnection, PhaseFailed, fmt.Sprintf("Unable to delete a secret, err: %s", err.Error()))
-			if upErr != nil {
-				upErr = fmt.Errorf("[reconcileSecretDeleteFunc] unable to update the CephClusterConnection %s: %w", cephClusterConnection.Name, upErr)
-				err = errors.Join(err, upErr)
-			}
-			return true, err
+			err = fmt.Errorf("[reconcileSecretDeleteFunc] unable to delete the Secret %s for the CephCluster %s: %w", secret.Name, cephClusterConnection.Name, err)
+			return true, err.Error(), err
 		}
 	}
 
-	log.Info(fmt.Sprintf("[reconcileSecretDeleteFunc] ends reconciliataion of CephClusterConnection %s for Secret %s", cephClusterConnection.Name, secretName))
+	log.Info(fmt.Sprintf("[reconcileSecretDeleteFunc] ends reconciliation of CephClusterConnection %s for Secret %s", cephClusterConnection.Name, secretName))
 
-	return false, nil
+	return false, "", nil
 }
 
 func updateCephClusterConnectionPhase(ctx context.Context, cl client.Client, cephClusterConnection *v1alpha1.CephClusterConnection, phase, reason string) error {
@@ -270,6 +256,20 @@ func updateCephClusterConnectionPhase(ctx context.Context, cl client.Client, cep
 	cephClusterConnection.Status.Reason = reason
 
 	err := cl.Status().Update(ctx, cephClusterConnection)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func deleteSecret(ctx context.Context, cl client.Client, secret *corev1.Secret) error {
+	_, err := removeFinalizerIfExists(ctx, cl, secret, CephClusterConnectionControllerFinalizerName)
+	if err != nil {
+		return err
+	}
+
+	err = cl.Delete(ctx, secret)
 	if err != nil {
 		return err
 	}
