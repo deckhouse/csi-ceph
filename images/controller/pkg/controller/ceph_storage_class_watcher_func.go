@@ -216,18 +216,19 @@ func reconcileStorageClassDeleteFunc(
 		log.Info(fmt.Sprintf("[reconcileStorageClassDeleteFunc] successfully found a storage class for the CephStorageClass %s", cephSC.Name))
 		log.Debug(fmt.Sprintf("[reconcileStorageClassDeleteFunc] starts identifying a provisioner for the storage class %s", sc.Name))
 
-		if !slices.Contains(allowedProvisioners, sc.Provisioner) {
-			err = fmt.Errorf("[reconcileStorageClassDeleteFunc] a storage class %s with provisioner %s does not belong to allowed provisioners: %v", sc.Name, sc.Provisioner, allowedProvisioners)
-			return true, err.Error(), err
+		if slices.Contains(allowedProvisioners, sc.Provisioner) {
+			log.Info(fmt.Sprintf("[reconcileStorageClassDeleteFunc] the storage class %s provisioner %s belongs to allowed provisioners: %v", sc.Name, sc.Provisioner, allowedProvisioners))
+			err := deleteStorageClass(ctx, cl, sc)
+			if err != nil {
+				err = fmt.Errorf("[reconcileStorageClassDeleteFunc] unable to delete a storage class %s: %w", sc.Name, err)
+				return true, err.Error(), err
+			}
+			log.Info(fmt.Sprintf("[reconcileStorageClassDeleteFunc] successfully deleted a storage class, name: %s", sc.Name))
 		}
 
-		log.Info(fmt.Sprintf("[reconcileStorageClassDeleteFunc] the storage class %s provisioner %s belongs to allowed provisioners: %v", sc.Name, sc.Provisioner, allowedProvisioners))
-		err := deleteStorageClass(ctx, cl, sc)
-		if err != nil {
-			err = fmt.Errorf("[reconcileStorageClassDeleteFunc] unable to delete a storage class %s: %w", sc.Name, err)
-			return true, err.Error(), err
+		if !slices.Contains(allowedProvisioners, sc.Provisioner) {
+			log.Info(fmt.Sprintf("[reconcileStorageClassDeleteFunc] a storage class %s with provisioner %s does not belong to allowed provisioners: %v. Skip deletion of storage class", sc.Name, sc.Provisioner, allowedProvisioners))
 		}
-		log.Info(fmt.Sprintf("[reconcileStorageClassDeleteFunc] successfully deleted a storage class, name: %s", sc.Name))
 	}
 
 	_, err = removeFinalizerIfExists(ctx, cl, cephSC, CephStorageClassControllerFinalizerName)
