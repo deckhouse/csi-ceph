@@ -34,13 +34,30 @@ type CephClusterConnectionList struct {
 }
 
 type CephClusterConnectionSpec struct {
-	ClusterID string   `json:"clusterID"`
-	UserID    string   `json:"userID"`
-	UserKey   string   `json:"userKey"`
-	Monitors  []string `json:"monitors"`
+	ClusterID string                          `json:"clusterID"`
+	UserID    string                          `json:"userID"`
+	UserKey   string                          `json:"userKey"`
+	Monitors  []string                        `json:"monitors"`
+	CephFS    CephClusterConnectionSpecCephFS `json:"cephFS"`
+}
+
+type CephClusterConnectionSpecCephFS struct {
+	SubvolumeGroup string `json:"subvolumeGroup"`
 }
 
 type CephClusterConnectionStatus struct {
 	Phase  string `json:"phase,omitempty"`
 	Reason string `json:"reason,omitempty"`
+}
+
+type ClusterConfig struct {
+	CephFS    map[string]string `json:"cephFS"`
+	ClusterID string            `json:"clusterID"`
+	Monitors  []string          `json:"monitors"`
+}
+
+type ClusterConfigList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata"`
+	Items           []ClusterConfig `json:"items"`
 }

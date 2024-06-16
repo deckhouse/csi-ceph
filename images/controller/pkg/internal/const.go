@@ -23,4 +23,7 @@ const (
 	CreateReconcile                   = "Create"
 	UpdateReconcile                   = "Update"
 	DeleteReconcile                   = "Delete"
+
+	UpdateConfigMapActionUpdate = "update"
+	UpdateConfigMapActionDelete = "delete"
 )

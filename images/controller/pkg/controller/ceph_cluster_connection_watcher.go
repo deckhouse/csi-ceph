@@ -43,8 +43,8 @@ import (
 
 const (
 	// This value used as a name for the controller AND the value for managed-by label.
-	CephClusterConnectionCtrlName                = "d8-ceph-cluster-controller"
-	CephClusterConnectionControllerFinalizerName = "storage.deckhouse.io/ceph-cluster-controller"
+	CephClusterConnectionCtrlName                = "d8-ceph-cluster-connection-controller"
+	CephClusterConnectionControllerFinalizerName = "storage.deckhouse.io/ceph-cluster-connection-controller"
 )
 
 func RunCephClusterConnectionWatcherController(
@@ -190,14 +190,38 @@ func RunCephClusterConnectionEventReconcile(ctx context.Context, cl client.Clien
 		return shouldRequeue, msg, err
 	}
 
-	confgigMap := &corev1.ConfigMap{}
-	err = cl.Get(ctx, types.NamespacedName{Name: internal.CSICephConfigMapName, Namespace: controllerNamespace}, confgigMap)
+	configMapList := &corev1.ConfigMapList{}
+	err = cl.List(ctx, configMapList, client.InNamespace(controllerNamespace))
 	if err != nil {
-		err = fmt.Errorf("[RunCephClusterConnectionEventReconcile] unable to get ConfigMap %s in namespace %s: %w", internal.CSICephConfigMapName, controllerNamespace, err)
+		err = fmt.Errorf("[RunCephClusterConnectionEventReconcile] unable to list ConfigMaps in namespace %s: %w", controllerNamespace, err)
 		return true, err.Error(), err
 	}
 
-	// TODO: Implement the reconcile for the ConfigMap
+	configMapName := internal.CSICephConfigMapName
+
+	reconcileTypeForConfigMap, err := IdentifyReconcileFuncForConfigMap(log, configMapList, cephClusterConnection, controllerNamespace, configMapName)
+	if err != nil {
+		err = fmt.Errorf("[RunCephClusterConnectionEventReconcile] error occurred while identifying the reconcile function for CephClusterConnection %s on ConfigMap %s: %w", cephClusterConnection.Name, internal.CSICephConfigMapName, err)
+		return true, err.Error(), err
+	}
+
+	log.Debug(fmt.Sprintf("[RunCephClusterConnectionEventReconcile] successfully identified the reconcile type for CephClusterConnection %s to be performed on ConfigMap %s: %s", cephClusterConnection.Name, internal.CSICephConfigMapName, reconcileTypeForConfigMap))
+	switch reconcileTypeForConfigMap {
+	case internal.CreateReconcile:
+		shouldRequeue, msg, err = reconcileConfigMapCreateFunc(ctx, cl, log, cephClusterConnection, controllerNamespace, configMapName)
+	case internal.UpdateReconcile:
+		shouldRequeue, msg, err = reconcileConfigMapUpdateFunc(ctx, cl, log, configMapList, cephClusterConnection, configMapName)
+	case internal.DeleteReconcile:
+		shouldRequeue, msg, err = reconcileConfigMapDeleteFunc(ctx, cl, log, configMapList, cephClusterConnection, configMapName)
+	default:
+		log.Debug(fmt.Sprintf("[RunCephClusterConnectionEventReconcile] no reconcile action required for CephClusterConnection %s on ConfigMap %s. No changes will be made.", cephClusterConnection.Name, internal.CSICephConfigMapName))
+		msg = "Successfully reconciled"
+	}
+	log.Debug(fmt.Sprintf("[RunCephClusterConnectionEventReconcile] completed reconcile operation for CephClusterConnection %s on ConfigMap %s.", cephClusterConnection.Name, internal.CSICephConfigMapName))
+
+	if err != nil || shouldRequeue {
+		return shouldRequeue, msg, err
+	}
 
 	log.Debug(fmt.Sprintf("[RunCephClusterConnectionEventReconcile] finish all reconciliations for CephClusterConnection %q.", cephClusterConnection.Name))
 	return false, msg, nil
