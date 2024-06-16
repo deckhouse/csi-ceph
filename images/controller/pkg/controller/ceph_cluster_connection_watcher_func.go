@@ -526,8 +526,15 @@ func updateConfigMap(oldConfigMap *corev1.ConfigMap, cephClusterConnection *v1al
 	if configMap.Labels == nil {
 		configMap.Labels = map[string]string{}
 	}
-
 	configMap.Labels[internal.StorageManagedLabelKey] = CephClusterConnectionCtrlName
+
+	if configMap.Finalizers == nil {
+		configMap.Finalizers = []string{}
+	}
+
+	if !slices.Contains(configMap.Finalizers, CephClusterConnectionControllerFinalizerName) {
+		configMap.Finalizers = append(configMap.Finalizers, CephClusterConnectionControllerFinalizerName)
+	}
 
 	return configMap
 }

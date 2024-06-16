@@ -18,6 +18,7 @@ rules:
       - ""
     resources:
       - secrets
+      - configmaps
     verbs:
       - get
       - list
@@ -56,8 +57,8 @@ rules:
     resources:
       - cephstorageclasses
       - cephstorageclasses/status
-      - cephclusters
-      - cephclusters/status
+      - cephclusterconnections
+      - cephclusterconnections/status
     verbs:
       - get
       - list

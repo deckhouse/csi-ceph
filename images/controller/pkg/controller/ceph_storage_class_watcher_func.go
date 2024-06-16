@@ -241,7 +241,7 @@ func reconcileStorageClassDeleteFunc(
 }
 
 func ConfigureStorageClass(cephSC *storagev1alpha1.CephStorageClass, controllerNamespace, clusterID string) (*v1.StorageClass, error) {
-	provisioner := GetStorageClassProvisioner(cephSC)
+	provisioner := GetStorageClassProvisioner(cephSC.Spec.Type)
 	allowVolumeExpansion := true
 	reclaimPolicy := corev1.PersistentVolumeReclaimPolicy(cephSC.Spec.ReclaimPolicy)
 	volumeBindingMode := v1.VolumeBindingImmediate
@@ -278,9 +278,9 @@ func ConfigureStorageClass(cephSC *storagev1alpha1.CephStorageClass, controllerN
 	return sc, nil
 }
 
-func GetStorageClassProvisioner(cephSC *storagev1alpha1.CephStorageClass) string {
+func GetStorageClassProvisioner(cephStorageClasstype string) string {
 	provisioner := ""
-	switch cephSC.Spec.Type {
+	switch cephStorageClasstype {
 	case storagev1alpha1.CephStorageClassTypeRBD:
 		provisioner = CephStorageClassRBDProvisioner
 	case storagev1alpha1.CephStorageClassTypeCephFS:
