@@ -50,7 +50,7 @@ func validateCephClusterConnectionSpec(cephClusterConnection *v1alpha1.CephClust
 		failedMsgBuilder.WriteString("the spec.clusterID field is empty; ")
 	}
 
-	if cephClusterConnection.Spec.Monitors == nil {
+	if len(cephClusterConnection.Spec.Monitors) == 0 {
 		validationPassed = false
 		failedMsgBuilder.WriteString("the spec.monitors field is empty; ")
 	}

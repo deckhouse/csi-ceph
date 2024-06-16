@@ -473,6 +473,20 @@ var _ = Describe(controller.CephStorageClassCtrlName, func() {
 		Expect(sc.Labels).To(HaveLen(0))
 	})
 
+	It("Remove_ceph_cluster_connection", func() {
+
+		cephClusterConnection := &v1alpha1.CephClusterConnection{}
+		err := cl.Get(ctx, client.ObjectKey{Name: clusterConnectionName}, cephClusterConnection)
+		Expect(err).NotTo(HaveOccurred())
+
+		err = cl.Delete(ctx, cephClusterConnection)
+		Expect(err).NotTo(HaveOccurred())
+
+		cephClusterConnection = &v1alpha1.CephClusterConnection{}
+		err = cl.Get(ctx, client.ObjectKey{Name: clusterConnectionName}, cephClusterConnection)
+		Expect(k8serrors.IsNotFound(err)).To(BeTrue())
+	})
+
 })
 
 type CephStorageClassConfig struct {
