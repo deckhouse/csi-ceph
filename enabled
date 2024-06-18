@@ -20,7 +20,7 @@ function __main__() {
   enabled::disable_module_if_cluster_is_not_bootstraped
   enabled::disable_module_in_kubernetes_versions_less_than 1.23.0
 
-  if ! values::array_has global.enabledModules "ceph-csi" ; then
+  if values::array_has global.enabledModules "ceph-csi" ; then
     echo "You must disable the ceph-csi module for the csi-ceph module to work."
     echo "false" > "$MODULE_ENABLED_RESULT"
   else
