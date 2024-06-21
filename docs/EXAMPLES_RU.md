@@ -25,7 +25,7 @@ spec:
 kubectl get cephclusterconnection <имя cephclusterconnection>
 ```
 
-## Пример описаня `CephStorageClass`
+## Пример описания `CephStorageClass`
 
 ### RBD
 
