@@ -1,5 +1,4 @@
 ---
 title: "Модуль csi-ceph: настройки"
+force_searchable: true
 ---
-
-{% include module-bundle.liquid %}
