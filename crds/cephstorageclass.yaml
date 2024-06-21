@@ -32,10 +32,18 @@ spec:
                 - reclaimPolicy
                 - type
               oneOf:
-                - required:
-                    - rbd
-                - required:
-                    - cephfs
+                - required: ["cephfs"]
+                  properties:
+                    type:
+                      enum: ["cephfs"]
+                  not:
+                    required: ["rbd"]
+                - required: ["rbd"]
+                  properties:
+                    type:
+                      enum: ["rbd"]
+                  not:
+                    required: ["cephfs"]
               properties:
                 clusterConnectionName:
                   description: |
@@ -111,7 +119,7 @@ spec:
                       minLength: 1
                     pool:
                       description: |
-                        Name of the Ceph pool.
+                        Name of the RBD pool.
                       type: string
                       x-kubernetes-validations:
                         - rule: self == oldSelf
@@ -127,7 +135,7 @@ spec:
                   description: |
                     The Storage class current state. Might be: 
                     - Failed (if the controller received incorrect resource configuration or some errors occurred during the operation)
-                    - Create (if everything went fine)
+                    - Created (if everything went fine)
                   enum:
                     - Failed
                     - Created

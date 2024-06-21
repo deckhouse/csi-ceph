@@ -38,6 +38,7 @@ var _ = Describe(controller.CephStorageClassCtrlName, func() {
 		controllerNamespace = "test-namespace"
 		nameForCephSC       = "example-ceph-fs"
 		nameForRBDSC        = "example-rbd"
+		nameForBadSC        = "example-bad"
 	)
 	var (
 		ctx = context.Background()
@@ -471,6 +472,91 @@ var _ = Describe(controller.CephStorageClassCtrlName, func() {
 		Expect(sc.Provisioner).To(Equal("test-provisioner"))
 		Expect(sc.Finalizers).To(HaveLen(0))
 		Expect(sc.Labels).To(HaveLen(0))
+	})
+
+	It("Create_ceph_sc_with_invalid_type", func() {
+		cephSCtemplate := generateCephStorageClass(CephStorageClassConfig{
+			Name:                  nameForBadSC,
+			ClusterConnectionName: clusterConnectionName,
+			ReclaimPolicy:         reclaimPolicyDelete,
+			Type:                  "invalid",
+			CephFS: &CephFSConfig{
+				FSName: fsName,
+				Pool:   pool,
+			},
+		})
+
+		err := cl.Create(ctx, cephSCtemplate)
+		Expect(err).NotTo(HaveOccurred())
+
+		csc := &v1alpha1.CephStorageClass{}
+		err = cl.Get(ctx, client.ObjectKey{Name: nameForBadSC}, csc)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(csc).NotTo(BeNil())
+		Expect(csc.Name).To(Equal(nameForBadSC))
+		Expect(csc.Finalizers).To(HaveLen(0))
+
+		scList := &v1.StorageClassList{}
+		err = cl.List(ctx, scList)
+		Expect(err).NotTo(HaveOccurred())
+
+		shouldRequeue, _, err := controller.RunStorageClassEventReconcile(ctx, cl, log, scList, csc, controllerNamespace)
+		Expect(err).To(HaveOccurred())
+		Expect(shouldRequeue).To(BeFalse())
+		Expect(csc.Finalizers).To(HaveLen(0))
+
+		sc := &v1.StorageClass{}
+		err = cl.Get(ctx, client.ObjectKey{Name: nameForBadSC}, sc)
+		Expect(k8serrors.IsNotFound(err)).To(BeTrue())
+
+		err = cl.Delete(ctx, csc)
+		Expect(err).NotTo(HaveOccurred())
+
+		err = cl.Get(ctx, client.ObjectKey{Name: nameForBadSC}, csc)
+		Expect(k8serrors.IsNotFound(err)).To(BeTrue())
+	})
+
+	It("Create_ceph_sc_with_props_for_another_type", func() {
+		cephSCtemplate := generateCephStorageClass(CephStorageClassConfig{
+			Name:                  nameForBadSC,
+			ClusterConnectionName: clusterConnectionName,
+			ReclaimPolicy:         reclaimPolicyDelete,
+			Type:                  storageTypeCephFS,
+			RBD: &RBDConfig{
+				DefaultFSType: "ext4",
+				Pool:          pool,
+			},
+		})
+
+		err := cl.Create(ctx, cephSCtemplate)
+		Expect(err).NotTo(HaveOccurred())
+
+		csc := &v1alpha1.CephStorageClass{}
+		err = cl.Get(ctx, client.ObjectKey{Name: nameForBadSC}, csc)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(csc).NotTo(BeNil())
+		Expect(csc.Name).To(Equal(nameForBadSC))
+		Expect(csc.Finalizers).To(HaveLen(0))
+
+		scList := &v1.StorageClassList{}
+		err = cl.List(ctx, scList)
+		Expect(err).NotTo(HaveOccurred())
+
+		shouldRequeue, _, err := controller.RunStorageClassEventReconcile(ctx, cl, log, scList, csc, controllerNamespace)
+		Expect(err).To(HaveOccurred())
+		Expect(shouldRequeue).To(BeFalse())
+		Expect(csc.Finalizers).To(HaveLen(0))
+
+		sc := &v1.StorageClass{}
+		err = cl.Get(ctx, client.ObjectKey{Name: nameForBadSC}, sc)
+		Expect(k8serrors.IsNotFound(err)).To(BeTrue())
+
+		err = cl.Delete(ctx, csc)
+		Expect(err).NotTo(HaveOccurred())
+
+		csc = &v1alpha1.CephStorageClass{}
+		err = cl.Get(ctx, client.ObjectKey{Name: nameForBadSC}, csc)
+		Expect(k8serrors.IsNotFound(err)).To(BeTrue())
 	})
 
 	It("Remove_ceph_cluster_connection", func() {

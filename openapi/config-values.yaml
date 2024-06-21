@@ -3,12 +3,22 @@ required:
   - cephfsEnabled
   - rbdEnabled
 properties:
-    cephfsEnabled:
-      type: boolean
-      default: true
-      description: Cephfs driver state
-    rbdEnabled:
-      type: boolean
-      default: true
-      description: RBD driver state
+  cephfsEnabled:
+    type: boolean
+    default: true
+    description: Cephfs driver state
+  rbdEnabled:
+    type: boolean
+    default: true
+    description: RBD driver state
+  logLevel:
+    type: string
+    enum:
+      - ERROR
+      - WARN
+      - INFO
+      - DEBUG
+      - TRACE
+    description: Module log level
+    default: DEBUG
 

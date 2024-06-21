@@ -248,11 +248,12 @@ func verifyConfigMap(ctx context.Context, cl client.Client, cephClusterConnectio
 	Expect(configMap.Finalizers).To(HaveLen(1))
 	Expect(configMap.Finalizers).To(ContainElement(controller.CephClusterConnectionControllerFinalizerName))
 
-	clusterConfigs := v1alpha1.ClusterConfigList{}
+	var clusterConfigs []v1alpha1.ClusterConfig
 	err = json.Unmarshal([]byte(configMap.Data["config.json"]), &clusterConfigs)
 	Expect(err).NotTo(HaveOccurred())
+	Expect(clusterConfigs).NotTo(BeNil())
 	found := false
-	for _, cfg := range clusterConfigs.Items {
+	for _, cfg := range clusterConfigs {
 		if cfg.ClusterID == cephClusterConnection.Spec.ClusterID {
 			Expect(cfg.Monitors).To(ConsistOf(cephClusterConnection.Spec.Monitors))
 			found = true
@@ -270,10 +271,10 @@ func verifyConfigMapWithoutClusterConnection(ctx context.Context, cl client.Clie
 	Expect(configMap.Finalizers).To(HaveLen(1))
 	Expect(configMap.Finalizers).To(ContainElement(controller.CephClusterConnectionControllerFinalizerName))
 
-	clusterConfigs := v1alpha1.ClusterConfigList{}
+	var clusterConfigs []v1alpha1.ClusterConfig
 	err = json.Unmarshal([]byte(configMap.Data["config.json"]), &clusterConfigs)
 	Expect(err).NotTo(HaveOccurred())
-	for _, cfg := range clusterConfigs.Items {
+	for _, cfg := range clusterConfigs {
 		Expect(cfg.ClusterID).NotTo(Equal(cephClusterConnection.Spec.ClusterID))
 	}
 }

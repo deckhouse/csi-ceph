@@ -55,9 +55,3 @@ type ClusterConfig struct {
 	ClusterID string            `json:"clusterID"`
 	Monitors  []string          `json:"monitors"`
 }
-
-type ClusterConfigList struct {
-	metav1.TypeMeta `json:",inline"`
-	metav1.ListMeta `json:"metadata"`
-	Items           []ClusterConfig `json:"items"`
-}

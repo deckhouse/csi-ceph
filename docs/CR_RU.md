@@ -1,5 +1,5 @@
 ---
-title: "Модуль ceph-csi: custom resources"
+title: "Модуль csi-ceph: custom resources"
 ---
 
 <!-- SCHEMA -->

@@ -1,5 +1,5 @@
 ---
-title: "Модуль ceph-csi: настройки"
+title: "Модуль csi-ceph: настройки"
 ---
 
 {% include module-bundle.liquid %}

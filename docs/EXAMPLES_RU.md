@@ -1,34 +1,66 @@
 ---
-title: "Модуль ceph-csi: примеры"
+title: "Модуль csi-ceph: примеры"
 ---
 
-## Пример описания `CephCSIDriver`
+## Пример описания `CephClusterConnection`
 
 ```yaml
-apiVersion: deckhouse.io/v1alpha1
-kind: CephCSIDriver
+apiVersion: storage.deckhouse.io/v1alpha1
+kind: CephClusterConnection
 metadata:
-  name: example
+  name: ceph-cluster-1
 spec:
-  clusterID: 2bf085fc-5119-404f-bb19-820ca6a1b07e
+  clusterID: 0324bfe8-c36a-4829-bacd-9e28b6480de9
   monitors:
-  - 10.0.0.10:6789
-  userID: admin
-  userKey: AQDbc7phl+eeGRAAaWL9y71mnUiRHKRFOWMPCQ==
+  - 172.20.1.28:6789
+  - 172.20.1.34:6789
+  - 172.20.1.37:6789
+  userID: user
+  userKey: AQDiVXVmBJVRLxAAg65PhODrtwbwSWrjJwssUg==
+```
+
+- Проверить создание объекта можно командой (Phase должен быть `Created`):
+
+```shell
+kubectl get cephclusterconnection <имя cephclusterconnection>
+```
+
+## Пример описаня `CephStorageClass`
+
+### RBD
+
+```yaml
+apiVersion: storage.deckhouse.io/v1alpha1
+kind: CephStorageClass
+metadata:
+  name: ceph-rbd-sc
+spec:
+  clusterConnectionName: ceph-cluster-1
+  reclaimPolicy: Delete
+  type: rbd
   rbd:
-    storageClasses:
-    - allowVolumeExpansion: true
-      defaultFSType: ext4
-      mountOptions:
-      - discard
-      namePostfix: csi-rbd
-      pool: kubernetes-rbd
-      reclaimPolicy: Delete
-  cephfs:
-    storageClasses:
-    - allowVolumeExpansion: true
-      fsName: cephfs
-      namePostfix: csi-cephfs
-      pool: cephfs_data
-      reclaimPolicy: Delete
+    defaultFSType: ext4
+    pool: ceph-rbd-pool  
+```
+
+### CephFS
+
+```yaml
+apiVersion: storage.deckhouse.io/v1alpha1
+kind: CephStorageClass
+metadata:
+  name: ceph-fs-sc
+spec:
+  clusterConnectionName: ceph-cluster-1
+  reclaimPolicy: Delete
+  type: rbd
+  rbd:
+    defaultFSType: ext4
+    pool: ceph-rbd-pool 
+```
+
+### Проверить создание объекта можно командой (Phase должен быть `Created`):
+
+```shell
+kubectl get cephstorageclass <имя storage class>
 ```

@@ -281,7 +281,7 @@ func IdentifyReconcileFuncForConfigMap(log logger.Logger, configMapList *corev1.
 		return internal.CreateReconcile, nil
 	}
 
-	should, err := shouldReconcileConfigMapByUpdateFunc(log, configMapList, cephClusterConnection, controllerNamespace, configMapName)
+	should, err := shouldReconcileConfigMapByUpdateFunc(log, configMapList, cephClusterConnection, configMapName)
 	if err != nil {
 		return "", err
 	}
@@ -310,7 +310,7 @@ func shouldReconcileConfigMapByCreateFunc(configMapList *corev1.ConfigMapList, c
 	return true
 }
 
-func shouldReconcileConfigMapByUpdateFunc(log logger.Logger, configMapList *corev1.ConfigMapList, cephClusterConnection *v1alpha1.CephClusterConnection, controllerNamespace, configMapName string) (bool, error) {
+func shouldReconcileConfigMapByUpdateFunc(log logger.Logger, configMapList *corev1.ConfigMapList, cephClusterConnection *v1alpha1.CephClusterConnection, configMapName string) (bool, error) {
 	if cephClusterConnection.DeletionTimestamp != nil {
 		return false, nil
 	}
@@ -328,7 +328,7 @@ func shouldReconcileConfigMapByUpdateFunc(log logger.Logger, configMapList *core
 
 			equal := false
 			clusterConfigExists := false
-			for _, oldClusterConfig := range oldClusterConfigs.Items {
+			for _, oldClusterConfig := range oldClusterConfigs {
 				if oldClusterConfig.ClusterID == cephClusterConnection.Spec.ClusterID {
 					clusterConfigExists = true
 					newClusterConfig := configureClusterConfig(cephClusterConnection)
@@ -361,16 +361,16 @@ func shouldReconcileConfigMapByUpdateFunc(log logger.Logger, configMapList *core
 	return false, err
 }
 
-func getClusterConfigsFromConfigMap(configMap corev1.ConfigMap) (v1alpha1.ClusterConfigList, error) {
+func getClusterConfigsFromConfigMap(configMap corev1.ConfigMap) ([]v1alpha1.ClusterConfig, error) {
 	jsonData, ok := configMap.Data["config.json"]
 	if !ok {
-		return v1alpha1.ClusterConfigList{}, fmt.Errorf("[getClusterConfigsFromConfigMap] config.json key not found in the ConfigMap %s", configMap.Name)
+		return nil, fmt.Errorf("[getClusterConfigsFromConfigMap] config.json key not found in the ConfigMap %s", configMap.Name)
 	}
 
-	clusterConfigs := v1alpha1.ClusterConfigList{}
+	var clusterConfigs []v1alpha1.ClusterConfig
 	err := json.Unmarshal([]byte(jsonData), &clusterConfigs)
 	if err != nil {
-		return v1alpha1.ClusterConfigList{}, fmt.Errorf("[getClusterConfigsFromConfigMap] unable to unmarshal data from the ConfigMap %s: %w", configMap.Name, err)
+		return nil, fmt.Errorf("[getClusterConfigsFromConfigMap] unable to unmarshal data from the ConfigMap %s: %w", configMap.Name, err)
 	}
 
 	return clusterConfigs, nil
@@ -482,9 +482,7 @@ func reconcileConfigMapDeleteFunc(ctx context.Context, cl client.Client, log log
 }
 
 func createConfigMap(clusterConfig v1alpha1.ClusterConfig, controllerNamespace, configMapName string) *corev1.ConfigMap {
-	clusterConfigs := v1alpha1.ClusterConfigList{
-		Items: []v1alpha1.ClusterConfig{clusterConfig},
-	}
+	clusterConfigs := []v1alpha1.ClusterConfig{clusterConfig}
 	jsonData, _ := json.Marshal(clusterConfigs)
 
 	configMap := &corev1.ConfigMap{
@@ -507,15 +505,15 @@ func createConfigMap(clusterConfig v1alpha1.ClusterConfig, controllerNamespace, 
 func updateConfigMap(oldConfigMap *corev1.ConfigMap, cephClusterConnection *v1alpha1.CephClusterConnection, updateAction string) *corev1.ConfigMap {
 	clusterConfigs, _ := getClusterConfigsFromConfigMap(*oldConfigMap)
 
-	for i, clusterConfig := range clusterConfigs.Items {
+	for i, clusterConfig := range clusterConfigs {
 		if clusterConfig.ClusterID == cephClusterConnection.Spec.ClusterID {
-			clusterConfigs.Items = slices.Delete(clusterConfigs.Items, i, i+1)
+			clusterConfigs = slices.Delete(clusterConfigs, i, i+1)
 		}
 	}
 
 	if updateAction == internal.UpdateConfigMapActionUpdate {
 		newClusterConfig := configureClusterConfig(cephClusterConnection)
-		clusterConfigs.Items = append(clusterConfigs.Items, newClusterConfig)
+		clusterConfigs = append(clusterConfigs, newClusterConfig)
 	}
 
 	newJsonData, _ := json.Marshal(clusterConfigs)

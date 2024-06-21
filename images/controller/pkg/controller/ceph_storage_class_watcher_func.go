@@ -453,32 +453,32 @@ func validateCephStorageClassSpec(cephSC *storagev1alpha1.CephStorageClass) (boo
 	case storagev1alpha1.CephStorageClassTypeRBD:
 		if cephSC.Spec.RBD == nil {
 			validationPassed = false
-			failedMsgBuilder.WriteString("the spec.rbd field is empty; ")
-		}
+			failedMsgBuilder.WriteString(fmt.Sprintf("CephStorageClass type is %s but the spec.rbd field is empty; ", storagev1alpha1.CephStorageClassTypeRBD))
+		} else {
+			if cephSC.Spec.RBD.DefaultFSType == "" {
+				validationPassed = false
+				failedMsgBuilder.WriteString("the spec.rbd.defaultFSType field is empty; ")
+			}
 
-		if cephSC.Spec.RBD.DefaultFSType == "" {
-			validationPassed = false
-			failedMsgBuilder.WriteString("the spec.rbd.defaultFSType field is empty; ")
-		}
-
-		if cephSC.Spec.RBD.Pool == "" {
-			validationPassed = false
-			failedMsgBuilder.WriteString("the spec.rbd.pool field is empty; ")
+			if cephSC.Spec.RBD.Pool == "" {
+				validationPassed = false
+				failedMsgBuilder.WriteString("the spec.rbd.pool field is empty; ")
+			}
 		}
 	case storagev1alpha1.CephStorageClassTypeCephFS:
 		if cephSC.Spec.CephFS == nil {
 			validationPassed = false
-			failedMsgBuilder.WriteString("the spec.cephfs field is empty; ")
-		}
+			failedMsgBuilder.WriteString(fmt.Sprintf("CephStorageClass type is %s but the spec.cephfs field is empty; ", storagev1alpha1.CephStorageClassTypeRBD))
+		} else {
+			if cephSC.Spec.CephFS.FSName == "" {
+				validationPassed = false
+				failedMsgBuilder.WriteString("the spec.cephfs.fsName field is empty; ")
+			}
 
-		if cephSC.Spec.CephFS.FSName == "" {
-			validationPassed = false
-			failedMsgBuilder.WriteString("the spec.cephfs.fsName field is empty; ")
-		}
-
-		if cephSC.Spec.CephFS.Pool == "" {
-			validationPassed = false
-			failedMsgBuilder.WriteString("the spec.cephfs.pool field is empty; ")
+			if cephSC.Spec.CephFS.Pool == "" {
+				validationPassed = false
+				failedMsgBuilder.WriteString("the spec.cephfs.pool field is empty; ")
+			}
 		}
 	default:
 		validationPassed = false

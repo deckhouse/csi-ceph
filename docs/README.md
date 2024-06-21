@@ -1,5 +1,5 @@
 ---
-title: "The ceph-csi module"
+title: "The csi-ceph module"
 ---
 
 The module installs and configures the CSI driver for RBD and CephFS.
