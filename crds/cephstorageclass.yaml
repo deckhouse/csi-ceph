@@ -27,23 +27,17 @@ spec:
           properties:
             spec:
               type: object
+              x-kubernetes-validations:
+                - rule: |
+                    (self.type == "CephFS" && has(self.cephFS) && !has(self.RBD)) || self.type != "CephFS"
+                  message: "Field 'cephFS' is required for 'CephFS' type, and 'RBD' field is forbidden"
+                - rule: |
+                    (self.type == "RBD" && has(self.RBD) && !has(self.cephFS)) || self.type != "RBD"
+                  message: "Field 'RBD' is required for 'RBD' type, and 'cephFS' field is forbidden"
               required:
                 - clusterConnectionName
                 - reclaimPolicy
                 - type
-              oneOf:
-                - required: ["cephfs"]
-                  properties:
-                    type:
-                      enum: ["cephfs"]
-                  not:
-                    required: ["rbd"]
-                - required: ["rbd"]
-                  properties:
-                    type:
-                      enum: ["rbd"]
-                  not:
-                    required: ["cephfs"]
               properties:
                 clusterConnectionName:
                   description: |
@@ -68,16 +62,16 @@ spec:
                 type:
                   description: |
                     The type of the storage class. Might be:
-                    - cephfs (CephFS)
-                    - rbd (Rados Block Device)
+                    - CephFS
+                    - RBD (Rados Block Device)
                   type: string
                   x-kubernetes-validations:
                     - rule: self == oldSelf
                       message: Value is immutable.
                   enum:
-                    - cephfs
-                    - rbd
-                cephfs:
+                    - CephFS
+                    - RBD
+                cephFS:
                   type: object
                   description: |
                     CephFS specific parameters.
@@ -101,7 +95,7 @@ spec:
                         - rule: self == oldSelf
                           message: Value is immutable.
                       minLength: 1
-                rbd:
+                RBD:
                   type: object
                   description: |
                     Rados Block Device specific parameters.

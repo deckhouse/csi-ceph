@@ -19,8 +19,8 @@ package v1alpha1
 import metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 const (
-	CephStorageClassTypeRBD    = "rbd"
-	CephStorageClassTypeCephFS = "cephfs"
+	CephStorageClassTypeRBD    = "RBD"
+	CephStorageClassTypeCephFS = "CephFS"
 )
 
 var (
@@ -45,8 +45,8 @@ type CephStorageClassSpec struct {
 	ClusterConnectionName string                  `json:"clusterConnectionName"`
 	ReclaimPolicy         string                  `json:"reclaimPolicy"`
 	Type                  string                  `json:"type"`
-	RBD                   *CephStorageClassRBD    `json:"rbd,omitempty"`
-	CephFS                *CephStorageClassCephFS `json:"cephfs,omitempty"`
+	RBD                   *CephStorageClassRBD    `json:"RBD,omitempty"`
+	CephFS                *CephStorageClassCephFS `json:"cephFS,omitempty"`
 }
 
 type CephStorageClassRBD struct {

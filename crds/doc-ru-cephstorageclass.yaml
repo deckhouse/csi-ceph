@@ -21,9 +21,9 @@ spec:
                 type:
                   description: |
                     Тип storage-класса. Возможные значения:
-                    - cephfs (CephFS)
-                    - rbd (Rados Block Device)
-                cephfs:
+                    - CephFS
+                    - RBD (Rados Block Device)
+                cephFS:
                   description: |
                     Специфические параметры для CephFS.
                   properties:
@@ -33,7 +33,7 @@ spec:
                     pool:
                       description: |
                         Имя пула Ceph.
-                rbd:
+                RBD:
                   description: |
                     Специфические параметры для Rados Block Device.
                   properties:
