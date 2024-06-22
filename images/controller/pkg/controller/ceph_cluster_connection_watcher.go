@@ -22,7 +22,6 @@ import (
 	"d8-controller/pkg/config"
 	"d8-controller/pkg/internal"
 	"d8-controller/pkg/logger"
-	"errors"
 	"fmt"
 	"reflect"
 	"time"
@@ -109,38 +108,33 @@ func RunCephClusterConnectionWatcherController(
 		return nil, err
 	}
 
-	err = c.Watch(source.Kind(mgr.GetCache(), &v1alpha1.CephClusterConnection{}), handler.Funcs{
-		CreateFunc: func(ctx context.Context, e event.CreateEvent, q workqueue.RateLimitingInterface) {
-			log.Info(fmt.Sprintf("[CreateFunc] get event for CephClusterConnection %q. Add to the queue", e.Object.GetName()))
-			request := reconcile.Request{NamespacedName: types.NamespacedName{Namespace: e.Object.GetNamespace(), Name: e.Object.GetName()}}
-			q.Add(request)
-		},
-		UpdateFunc: func(ctx context.Context, e event.UpdateEvent, q workqueue.RateLimitingInterface) {
-			log.Info(fmt.Sprintf("[UpdateFunc] get event for CephClusterConnection %q. Check if it should be reconciled", e.ObjectNew.GetName()))
+	err = c.Watch(
+		source.Kind(mgr.GetCache(), &v1alpha1.CephClusterConnection{},
+			handler.TypedFuncs[*v1alpha1.CephClusterConnection]{
+				CreateFunc: func(ctx context.Context, e event.TypedCreateEvent[*v1alpha1.CephClusterConnection], q workqueue.RateLimitingInterface) {
+					log.Info(fmt.Sprintf("[CreateFunc] get event for CephClusterConnection %q. Add to the queue", e.Object.GetName()))
+					request := reconcile.Request{NamespacedName: types.NamespacedName{Namespace: e.Object.GetNamespace(), Name: e.Object.GetName()}}
+					q.Add(request)
+				},
+				UpdateFunc: func(ctx context.Context, e event.TypedUpdateEvent[*v1alpha1.CephClusterConnection], q workqueue.RateLimitingInterface) {
+					log.Info(fmt.Sprintf("[UpdateFunc] get event for CephClusterConnection %q. Check if it should be reconciled", e.ObjectNew.GetName()))
 
-			oldCephClusterConnection, ok := e.ObjectOld.(*v1alpha1.CephClusterConnection)
-			if !ok {
-				err = errors.New("unable to cast event object to a given type")
-				log.Error(err, "[UpdateFunc] an error occurred while handling create event")
-				return
-			}
-			newCephClusterConnection, ok := e.ObjectNew.(*v1alpha1.CephClusterConnection)
-			if !ok {
-				err = errors.New("unable to cast event object to a given type")
-				log.Error(err, "[UpdateFunc] an error occurred while handling create event")
-				return
-			}
+					oldCephClusterConnection := e.ObjectOld
+					newCephClusterConnection := e.ObjectNew
 
-			if reflect.DeepEqual(oldCephClusterConnection.Spec, newCephClusterConnection.Spec) && newCephClusterConnection.DeletionTimestamp == nil {
-				log.Info(fmt.Sprintf("[UpdateFunc] an update event for the CephClusterConnection %s has no Spec field updates. It will not be reconciled", newCephClusterConnection.Name))
-				return
-			}
+					if reflect.DeepEqual(oldCephClusterConnection.Spec, newCephClusterConnection.Spec) && newCephClusterConnection.DeletionTimestamp == nil {
+						log.Info(fmt.Sprintf("[UpdateFunc] an update event for the CephClusterConnection %s has no Spec field updates. It will not be reconciled", newCephClusterConnection.Name))
+						return
+					}
 
-			log.Info(fmt.Sprintf("[UpdateFunc] the CephClusterConnection %q will be reconciled. Add to the queue", newCephClusterConnection.Name))
-			request := reconcile.Request{NamespacedName: types.NamespacedName{Namespace: newCephClusterConnection.Namespace, Name: newCephClusterConnection.Name}}
-			q.Add(request)
-		},
-	})
+					log.Info(fmt.Sprintf("[UpdateFunc] the CephClusterConnection %q will be reconciled. Add to the queue", newCephClusterConnection.Name))
+					request := reconcile.Request{NamespacedName: types.NamespacedName{Namespace: newCephClusterConnection.Namespace, Name: newCephClusterConnection.Name}}
+					q.Add(request)
+				},
+			},
+		),
+	)
+
 	if err != nil {
 		log.Error(err, "[RunCephClusterConnectionWatcherController] unable to watch the events")
 		return nil, err
