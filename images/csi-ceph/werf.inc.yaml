@@ -32,7 +32,7 @@ shell:
     - echo "deckhouse:x:64535:" >> /relocate/etc/group
     - echo "deckhouse:!::0:::::" >> /relocate/etc/shadow
 ---
-image: {{ $.ImageName }}-distroless
+artifact: {{ $.ImageName }}-distroless
 from: {{ $.BASE_SCRATCH }}
 
 import:
@@ -40,6 +40,7 @@ import:
     add: /relocate
     to: /
     before: setup
+
 ---
 image: {{ $.ImageName }}
 fromArtifact: {{ $.ImageName }}-distroless
@@ -48,5 +49,6 @@ import:
     add: /relocate
     to: /
     before: setup
+
 docker:
   ENTRYPOINT: ["/cephcsi"]
