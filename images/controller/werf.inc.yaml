@@ -1,0 +1,35 @@
+{{- $_ := set . "BASE_GOLANG_22_ALPINE" "registry.deckhouse.io/base_images/golang:1.22.1-alpine@sha256:0de6cf7cceab6ecbf0718bdfb675b08b78113c3709c5e4b99456cdb2ae8c2495" }}
+{{- $_ := set . "BASE_SCRATCH"    "registry.deckhouse.io/base_images/scratch@sha256:b054705fcc9f2205777d80a558d920c0b4209efdc3163c22b5bfcb5dda1db5fc" }}
+
+---
+artifact: {{ $.ImageName }}-golang-artifact
+from: {{ $.BASE_GOLANG_22_ALPINE }}
+
+git:
+  - add: /images/controller/src
+    to: /src
+    stageDependencies:
+      setup:
+        - "**/*"
+mount:
+  - fromPath: ~/go-pkg-cache
+    to: /go/pkg
+shell:
+  setup:
+    - cd /src/cmd
+    - GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="-s -w" -o controller
+    - mv controller /controller
+    - chmod +x /controller
+
+---
+image: {{ $.ImageName }}
+from: {{ $.BASE_SCRATCH }}
+
+import:
+  - artifact: {{ $.ImageName }}-golang-artifact
+    add: /controller
+    to: /controller
+    before: setup
+
+docker:
+  ENTRYPOINT: ["/controller"]
