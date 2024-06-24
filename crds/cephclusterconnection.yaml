@@ -53,6 +53,15 @@ spec:
                   type: array
                   items:
                     type: string
+                cephFS:
+                  type: object
+                  description: |
+                    CephFS specific parameters.
+                  properties:
+                    subvolumeGroup:
+                      description: |
+                        CephFS subvolume group name.
+                      type: string
             status:
               type: object
               description: |

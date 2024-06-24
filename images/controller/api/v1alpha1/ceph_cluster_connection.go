@@ -38,10 +38,10 @@ type CephClusterConnectionSpec struct {
 	UserID    string                          `json:"userID"`
 	UserKey   string                          `json:"userKey"`
 	Monitors  []string                        `json:"monitors"`
-	CephFS    CephClusterConnectionSpecCephFS `json:"cephFS"`
+	CephFS    CephClusterConnectionCephFSSpec `json:"cephFS"`
 }
 
-type CephClusterConnectionSpecCephFS struct {
+type CephClusterConnectionCephFSSpec struct {
 	SubvolumeGroup string `json:"subvolumeGroup"`
 }
 
