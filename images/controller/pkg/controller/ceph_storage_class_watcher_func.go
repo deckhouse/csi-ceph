@@ -293,7 +293,7 @@ func GetStorageClassProvisioner(cephStorageClasstype string) string {
 }
 
 func GetStoragecClassParams(cephSC *storagev1alpha1.CephStorageClass, controllerNamespace, clusterID string) (map[string]string, error) {
-	secretName := internal.CephClusterConnectionSecretPrefix + cephSC.Spec.ClusterConnectionName
+	secretName := internal.CephClusterAuthenticationSecretPrefix + cephSC.Spec.ClusterAuthenticationName
 
 	params := map[string]string{
 		"clusterID": clusterID,
@@ -313,7 +313,6 @@ func GetStoragecClassParams(cephSC *storagev1alpha1.CephStorageClass, controller
 
 	if cephSC.Spec.Type == storagev1alpha1.CephStorageClassTypeCephFS {
 		params["fsName"] = cephSC.Spec.CephFS.FSName
-		params["pool"] = cephSC.Spec.CephFS.Pool
 	}
 
 	return params, nil
@@ -439,6 +438,11 @@ func validateCephStorageClassSpec(cephSC *storagev1alpha1.CephStorageClass) (boo
 		failedMsgBuilder.WriteString("the spec.clusterConnectionName field is empty; ")
 	}
 
+	if cephSC.Spec.ClusterAuthenticationName == "" {
+		validationPassed = false
+		failedMsgBuilder.WriteString("the spec.clusterAuthenticationName field is empty; ")
+	}
+
 	if cephSC.Spec.ReclaimPolicy == "" {
 		validationPassed = false
 		failedMsgBuilder.WriteString("the spec.reclaimPolicy field is empty; ")
@@ -473,11 +477,6 @@ func validateCephStorageClassSpec(cephSC *storagev1alpha1.CephStorageClass) (boo
 			if cephSC.Spec.CephFS.FSName == "" {
 				validationPassed = false
 				failedMsgBuilder.WriteString("the spec.cephfs.fsName field is empty; ")
-			}
-
-			if cephSC.Spec.CephFS.Pool == "" {
-				validationPassed = false
-				failedMsgBuilder.WriteString("the spec.cephfs.pool field is empty; ")
 			}
 		}
 	default:

@@ -68,14 +68,14 @@ func RunCephClusterConnectionWatcherController(
 				return reconcile.Result{}, nil
 			}
 
-			secretList := &corev1.SecretList{}
-			err = cl.List(ctx, secretList, client.InNamespace(cfg.ControllerNamespace))
+			configMapList := &corev1.ConfigMapList{}
+			err = cl.List(ctx, configMapList, client.InNamespace(cfg.ControllerNamespace))
 			if err != nil {
-				log.Error(err, "[CephClusterConnectionReconciler] unable to list Secrets")
+				err = fmt.Errorf("[RunCephClusterConnectionEventReconcile] unable to list ConfigMaps in namespace %s: %w", cfg.ControllerNamespace, err)
 				return reconcile.Result{}, err
 			}
 
-			shouldRequeue, msg, err := RunCephClusterConnectionEventReconcile(ctx, cl, log, secretList, cephClusterConnection, cfg.ControllerNamespace)
+			shouldRequeue, msg, err := RunCephClusterConnectionEventReconcile(ctx, cl, log, configMapList, cephClusterConnection, cfg.ControllerNamespace)
 			log.Info(fmt.Sprintf("[CephClusterConnectionReconciler] CeohClusterConnection %s has been reconciled with message: %s", cephClusterConnection.Name, msg))
 			phase := v1alpha1.PhaseCreated
 			if err != nil {
@@ -143,7 +143,7 @@ func RunCephClusterConnectionWatcherController(
 	return c, nil
 }
 
-func RunCephClusterConnectionEventReconcile(ctx context.Context, cl client.Client, log logger.Logger, secretList *corev1.SecretList, cephClusterConnection *v1alpha1.CephClusterConnection, controllerNamespace string) (shouldRequeue bool, msg string, err error) {
+func RunCephClusterConnectionEventReconcile(ctx context.Context, cl client.Client, log logger.Logger, configMapList *corev1.ConfigMapList, cephClusterConnection *v1alpha1.CephClusterConnection, controllerNamespace string) (shouldRequeue bool, msg string, err error) {
 	valid, msg := validateCephClusterConnectionSpec(cephClusterConnection)
 	if !valid {
 		err = fmt.Errorf("[RunCephClusterConnectionEventReconcile] CephClusterConnection %s has invalid spec: %s", cephClusterConnection.Name, msg)
@@ -158,41 +158,7 @@ func RunCephClusterConnectionEventReconcile(ctx context.Context, cl client.Clien
 	}
 	log.Debug(fmt.Sprintf("[RunCephClusterConnectionEventReconcile] finalizer %s was added to the CephClusterConnection %s: %t", CephClusterConnectionControllerFinalizerName, cephClusterConnection.Name, added))
 
-	secretName := internal.CephClusterConnectionSecretPrefix + cephClusterConnection.Name
-	reconcileTypeForSecret, err := IdentifyReconcileFuncForSecret(log, secretList, cephClusterConnection, controllerNamespace, secretName)
-	if err != nil {
-		err = fmt.Errorf("[RunCephClusterConnectionEventReconcile] error occurred while identifying the reconcile function for CephClusterConnection %s on Secret %s: %w", cephClusterConnection.Name, secretName, err)
-		return true, err.Error(), err
-	}
-
-	shouldRequeue = false
-	log.Debug(fmt.Sprintf("[RunCephClusterConnectionEventReconcile] successfully identified the reconcile type for CephClusterConnection %s to be performed on Secret %s: %s", cephClusterConnection.Name, secretName, reconcileTypeForSecret))
-	switch reconcileTypeForSecret {
-	case internal.CreateReconcile:
-		shouldRequeue, msg, err = reconcileSecretCreateFunc(ctx, cl, log, cephClusterConnection, controllerNamespace, secretName)
-	case internal.UpdateReconcile:
-		shouldRequeue, msg, err = reconcileSecretUpdateFunc(ctx, cl, log, secretList, cephClusterConnection, controllerNamespace, secretName)
-	case internal.DeleteReconcile:
-		shouldRequeue, msg, err = reconcileSecretDeleteFunc(ctx, cl, log, secretList, cephClusterConnection, secretName)
-	default:
-		log.Debug(fmt.Sprintf("[RunCephClusterConnectionEventReconcile] no reconcile action required for CephClusterConnection %s on Secret %s. No changes will be made.", cephClusterConnection.Name, secretName))
-		msg = "Successfully reconciled"
-	}
-	log.Debug(fmt.Sprintf("[RunCephClusterConnectionEventReconcile] completed reconcile operation for CephClusterConnection %s on Secret %s.", cephClusterConnection.Name, secretName))
-
-	if err != nil || shouldRequeue {
-		return shouldRequeue, msg, err
-	}
-
-	configMapList := &corev1.ConfigMapList{}
-	err = cl.List(ctx, configMapList, client.InNamespace(controllerNamespace))
-	if err != nil {
-		err = fmt.Errorf("[RunCephClusterConnectionEventReconcile] unable to list ConfigMaps in namespace %s: %w", controllerNamespace, err)
-		return true, err.Error(), err
-	}
-
 	configMapName := internal.CSICephConfigMapName
-
 	reconcileTypeForConfigMap, err := IdentifyReconcileFuncForConfigMap(log, configMapList, cephClusterConnection, controllerNamespace, configMapName)
 	if err != nil {
 		err = fmt.Errorf("[RunCephClusterConnectionEventReconcile] error occurred while identifying the reconcile function for CephClusterConnection %s on ConfigMap %s: %w", cephClusterConnection.Name, internal.CSICephConfigMapName, err)

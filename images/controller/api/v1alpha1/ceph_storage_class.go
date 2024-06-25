@@ -42,11 +42,12 @@ type CephStorageClassList struct {
 }
 
 type CephStorageClassSpec struct {
-	ClusterConnectionName string                  `json:"clusterConnectionName"`
-	ReclaimPolicy         string                  `json:"reclaimPolicy"`
-	Type                  string                  `json:"type"`
-	RBD                   *CephStorageClassRBD    `json:"RBD,omitempty"`
-	CephFS                *CephStorageClassCephFS `json:"cephFS,omitempty"`
+	ClusterConnectionName     string                  `json:"clusterConnectionName"`
+	ClusterAuthenticationName string                  `json:"clusterAuthenticationName"`
+	ReclaimPolicy             string                  `json:"reclaimPolicy"`
+	Type                      string                  `json:"type"`
+	RBD                       *CephStorageClassRBD    `json:"RBD,omitempty"`
+	CephFS                    *CephStorageClassCephFS `json:"cephFS,omitempty"`
 }
 
 type CephStorageClassRBD struct {
@@ -56,7 +57,6 @@ type CephStorageClassRBD struct {
 
 type CephStorageClassCephFS struct {
 	FSName string `json:"fsName,omitempty"`
-	Pool   string `json:"pool"`
 }
 
 type CephStorageClassStatus struct {

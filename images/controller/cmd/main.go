@@ -116,6 +116,11 @@ func main() {
 		os.Exit(1)
 	}
 
+	if _, err = controller.RunCephClusterAuthenticationWatcherController(mgr, *cfgParams, *log); err != nil {
+		log.Error(err, fmt.Sprintf("[main] unable to run %s", controller.CephClusterAuthenticationCtrlName))
+		os.Exit(1)
+	}
+
 	if err = mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
 		log.Error(err, "[main] unable to mgr.AddHealthzCheck")
 		os.Exit(1)

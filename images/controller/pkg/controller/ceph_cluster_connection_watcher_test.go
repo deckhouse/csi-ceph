@@ -38,10 +38,7 @@ var _ = Describe(controller.CephClusterConnectionCtrlName, func() {
 		controllerNamespace      = "test-namespace"
 		nameForClusterConnection = "example-ceph-connection"
 		clusterID                = "clusterID1"
-		userID                   = "admin"
-		userKey                  = "key"
 		configMapName            = internal.CSICephConfigMapName
-		secretNamePrefix         = internal.CephClusterConnectionSecretPrefix
 	)
 
 	var (
@@ -59,8 +56,6 @@ var _ = Describe(controller.CephClusterConnectionCtrlName, func() {
 			Spec: v1alpha1.CephClusterConnectionSpec{
 				ClusterID: clusterID,
 				Monitors:  monitors,
-				UserID:    userID,
-				UserKey:   userKey,
 			},
 		}
 
@@ -74,22 +69,17 @@ var _ = Describe(controller.CephClusterConnectionCtrlName, func() {
 		Expect(createdCephClusterConnection).NotTo(BeNil())
 		Expect(createdCephClusterConnection.Name).To(Equal(nameForClusterConnection))
 		Expect(createdCephClusterConnection.Spec.ClusterID).To(Equal(clusterID))
-		Expect(createdCephClusterConnection.Spec.UserID).To(Equal(userID))
-		Expect(createdCephClusterConnection.Spec.UserKey).To(Equal(userKey))
 		Expect(createdCephClusterConnection.Spec.Monitors).To(ConsistOf(monitors))
 		Expect(createdCephClusterConnection.Finalizers).To(HaveLen(0))
 
 		By("Running reconcile for CephClusterConnection creation")
-		secretList := &corev1.SecretList{}
-		err = cl.List(ctx, secretList)
+		configMapList := &corev1.ConfigMapList{}
+		err = cl.List(ctx, configMapList)
 		Expect(err).NotTo(HaveOccurred())
 
-		shouldReconcile, _, err := controller.RunCephClusterConnectionEventReconcile(ctx, cl, log, secretList, createdCephClusterConnection, controllerNamespace)
+		shouldReconcile, _, err := controller.RunCephClusterConnectionEventReconcile(ctx, cl, log, configMapList, createdCephClusterConnection, controllerNamespace)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(shouldReconcile).To(BeFalse())
-
-		By("Verifying dependent Secret")
-		verifySecret(ctx, cl, cephClusterConnection, controllerNamespace)
 
 		By("Verifying dependent ConfigMap")
 		verifyConfigMap(ctx, cl, cephClusterConnection, controllerNamespace)
@@ -117,16 +107,13 @@ var _ = Describe(controller.CephClusterConnectionCtrlName, func() {
 		Expect(updatedCephClusterConnection.Spec.Monitors).To(ConsistOf(newMonitors))
 
 		By("Running reconcile for CephClusterConnection update")
-		secretList = &corev1.SecretList{}
-		err = cl.List(ctx, secretList)
+		configMapList = &corev1.ConfigMapList{}
+		err = cl.List(ctx, configMapList)
 		Expect(err).NotTo(HaveOccurred())
 
-		shouldReconcile, _, err = controller.RunCephClusterConnectionEventReconcile(ctx, cl, log, secretList, updatedCephClusterConnection, controllerNamespace)
+		shouldReconcile, _, err = controller.RunCephClusterConnectionEventReconcile(ctx, cl, log, configMapList, updatedCephClusterConnection, controllerNamespace)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(shouldReconcile).To(BeFalse())
-
-		By("Verifying updated Secret")
-		verifySecret(ctx, cl, updatedCephClusterConnection, controllerNamespace)
 
 		By("Verifying updated ConfigMap")
 		verifyConfigMap(ctx, cl, updatedCephClusterConnection, controllerNamespace)
@@ -146,8 +133,8 @@ var _ = Describe(controller.CephClusterConnectionCtrlName, func() {
 		Expect(err).NotTo(HaveOccurred())
 
 		By("Running reconcile for CephClusterConnection deletion")
-		secretList = &corev1.SecretList{}
-		err = cl.List(ctx, secretList)
+		configMapList = &corev1.ConfigMapList{}
+		err = cl.List(ctx, configMapList)
 		Expect(err).NotTo(HaveOccurred())
 
 		deletedCephClusterConnection := &v1alpha1.CephClusterConnection{}
@@ -157,15 +144,12 @@ var _ = Describe(controller.CephClusterConnectionCtrlName, func() {
 		Expect(deletedCephClusterConnection.Finalizers).To(HaveLen(1))
 		Expect(deletedCephClusterConnection.Finalizers).To(ContainElement(controller.CephClusterConnectionControllerFinalizerName))
 
-		shouldReconcile, _, err = controller.RunCephClusterConnectionEventReconcile(ctx, cl, log, secretList, deletedCephClusterConnection, controllerNamespace)
+		shouldReconcile, _, err = controller.RunCephClusterConnectionEventReconcile(ctx, cl, log, configMapList, deletedCephClusterConnection, controllerNamespace)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(shouldReconcile).To(BeFalse())
 
 		By("Verifying ConfigMap update after deletion")
 		verifyConfigMapWithoutClusterConnection(ctx, cl, cephClusterConnection, controllerNamespace)
-
-		By("Verifying Secret deletion")
-		verifySecretNotExists(ctx, cl, cephClusterConnection, controllerNamespace)
 
 		By("Verifying CephClusterConnection after delete reconcile")
 		deletedCephClusterConnection = &v1alpha1.CephClusterConnection{}
@@ -182,8 +166,6 @@ var _ = Describe(controller.CephClusterConnectionCtrlName, func() {
 			Spec: v1alpha1.CephClusterConnectionSpec{
 				ClusterID: "",
 				Monitors:  []string{"mon1", "mon2", "mon3"},
-				UserID:    userID,
-				UserKey:   userKey,
 			},
 		}
 
@@ -191,16 +173,13 @@ var _ = Describe(controller.CephClusterConnectionCtrlName, func() {
 		Expect(err).NotTo(HaveOccurred())
 
 		By("Running reconcile for invalid CephClusterConnection")
-		secretList := &corev1.SecretList{}
-		err = cl.List(ctx, secretList)
+		configMapList := &corev1.ConfigMapList{}
+		err = cl.List(ctx, configMapList)
 		Expect(err).NotTo(HaveOccurred())
 
-		shouldReconcile, _, err := controller.RunCephClusterConnectionEventReconcile(ctx, cl, log, secretList, cephClusterConnection, controllerNamespace)
+		shouldReconcile, _, err := controller.RunCephClusterConnectionEventReconcile(ctx, cl, log, configMapList, cephClusterConnection, controllerNamespace)
 		Expect(err).To(HaveOccurred())
 		Expect(shouldReconcile).To(BeFalse())
-
-		By("Verifying no Secret created for invalid CephClusterConnection")
-		verifySecretNotExists(ctx, cl, cephClusterConnection, controllerNamespace)
 
 		By("Verifying no ConfigMap entry created for invalid CephClusterConnection")
 		verifyConfigMapWithoutClusterConnection(ctx, cl, cephClusterConnection, controllerNamespace)
@@ -214,31 +193,14 @@ var _ = Describe(controller.CephClusterConnectionCtrlName, func() {
 		Expect(cephClusterConnection.Spec.Monitors).To(HaveLen(0))
 
 		By("Running reconcile for CephClusterConnection with empty Monitors")
-		shouldReconcile, _, err = controller.RunCephClusterConnectionEventReconcile(ctx, cl, log, secretList, cephClusterConnection, controllerNamespace)
+		shouldReconcile, _, err = controller.RunCephClusterConnectionEventReconcile(ctx, cl, log, configMapList, cephClusterConnection, controllerNamespace)
 		Expect(err).To(HaveOccurred())
 		Expect(shouldReconcile).To(BeFalse())
-
-		By("Verifying no Secret created for CephClusterConnection with empty Monitors")
-		verifySecretNotExists(ctx, cl, cephClusterConnection, controllerNamespace)
 
 		By("Verifying no ConfigMap entry created for CephClusterConnection with empty Monitors")
 		verifyConfigMapWithoutClusterConnection(ctx, cl, cephClusterConnection, controllerNamespace)
 	})
 })
-
-func verifySecret(ctx context.Context, cl client.Client, cephClusterConnection *v1alpha1.CephClusterConnection, controllerNamespace string) {
-	secretName := internal.CephClusterConnectionSecretPrefix + cephClusterConnection.Name
-	secret := &corev1.Secret{}
-	err := cl.Get(ctx, client.ObjectKey{Name: secretName, Namespace: controllerNamespace}, secret)
-	Expect(err).NotTo(HaveOccurred())
-	Expect(secret).NotTo(BeNil())
-	Expect(secret.Finalizers).To(HaveLen(1))
-	Expect(secret.Finalizers).To(ContainElement(controller.CephClusterConnectionControllerFinalizerName))
-	Expect(secret.StringData).To(HaveKeyWithValue("userID", cephClusterConnection.Spec.UserID))
-	Expect(secret.StringData).To(HaveKeyWithValue("userKey", cephClusterConnection.Spec.UserKey))
-	Expect(secret.StringData).To(HaveKeyWithValue("adminID", cephClusterConnection.Spec.UserID))
-	Expect(secret.StringData).To(HaveKeyWithValue("adminKey", cephClusterConnection.Spec.UserKey))
-}
 
 func verifyConfigMap(ctx context.Context, cl client.Client, cephClusterConnection *v1alpha1.CephClusterConnection, controllerNamespace string) {
 	configMap := &corev1.ConfigMap{}
@@ -277,11 +239,4 @@ func verifyConfigMapWithoutClusterConnection(ctx context.Context, cl client.Clie
 	for _, cfg := range clusterConfigs {
 		Expect(cfg.ClusterID).NotTo(Equal(cephClusterConnection.Spec.ClusterID))
 	}
-}
-
-func verifySecretNotExists(ctx context.Context, cl client.Client, cephClusterConnection *v1alpha1.CephClusterConnection, controllerNamespace string) {
-	secretName := internal.CephClusterConnectionSecretPrefix + cephClusterConnection.Name
-	secret := &corev1.Secret{}
-	err := cl.Get(ctx, client.ObjectKey{Name: secretName, Namespace: controllerNamespace}, secret)
-	Expect(k8serrors.IsNotFound(err)).To(BeTrue())
 }
