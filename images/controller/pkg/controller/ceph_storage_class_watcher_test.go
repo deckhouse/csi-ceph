@@ -45,26 +45,27 @@ var _ = Describe(controller.CephStorageClassCtrlName, func() {
 		cl  = NewFakeClient()
 		log = logger.Logger{}
 
-		clusterConnectionName = "ceph-connection"
-		clusterID1            = "clusterID1"
-		reclaimPolicyDelete   = "Delete"
-		reclaimPolicyRetain   = "Retain"
-		storageTypeCephFS     = "cephfs"
-		storageTypeRBD        = "rbd"
-		fsName                = "myfs"
-		pool                  = "mypool"
+		clusterConnectionName     = "ceph-connection"
+		clusterAuthenticationName = "ceph-auth"
+		clusterID1                = "clusterID1"
+		reclaimPolicyDelete       = "Delete"
+		reclaimPolicyRetain       = "Retain"
+		storageTypeCephFS         = "CephFS"
+		storageTypeRBD            = "RBD"
+		fsName                    = "myfs"
+		pool                      = "mypool"
 		// defaultFSType         = "ext4"
 	)
 
-	It("Create_ceph_sc_with_not_existing_ceph_connection", func() {
+	It("Create_ceph_sc_with_not_existing_ceph_connection_and_ceph_authentication", func() {
 		cephSCtemplate := generateCephStorageClass(CephStorageClassConfig{
-			Name:                  nameForCephSC,
-			ClusterConnectionName: "not-existing",
-			ReclaimPolicy:         reclaimPolicyDelete,
-			Type:                  storageTypeCephFS,
+			Name:                      nameForCephSC,
+			ClusterConnectionName:     "not-existing",
+			ClusterAuthenticationName: "not-existing",
+			ReclaimPolicy:             reclaimPolicyDelete,
+			Type:                      storageTypeCephFS,
 			CephFS: &CephFSConfig{
 				FSName: fsName,
-				Pool:   pool,
 			},
 		})
 
@@ -85,6 +86,7 @@ var _ = Describe(controller.CephStorageClassCtrlName, func() {
 
 		shouldRequeue, _, err := controller.RunStorageClassEventReconcile(ctx, cl, log, scList, csc, controllerNamespace)
 		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("unable to get a CephClusterConnection"))
 		Expect(shouldRequeue).To(BeTrue())
 
 		err = cl.Get(ctx, client.ObjectKey{Name: nameForCephSC}, csc)
@@ -114,8 +116,6 @@ var _ = Describe(controller.CephStorageClassCtrlName, func() {
 			Spec: v1alpha1.CephClusterConnectionSpec{
 				ClusterID: clusterID1,
 				Monitors:  []string{"mon1", "mon2", "mon3"},
-				UserID:    "admin",
-				UserKey:   "key",
 			},
 		}
 
@@ -126,13 +126,13 @@ var _ = Describe(controller.CephStorageClassCtrlName, func() {
 
 	It("Create_ceph_sc_with_cephfs", func() {
 		cephSCtemplate := generateCephStorageClass(CephStorageClassConfig{
-			Name:                  nameForCephSC,
-			ClusterConnectionName: clusterConnectionName,
-			ReclaimPolicy:         reclaimPolicyDelete,
-			Type:                  storageTypeCephFS,
+			Name:                      nameForCephSC,
+			ClusterConnectionName:     clusterConnectionName,
+			ClusterAuthenticationName: clusterAuthenticationName,
+			ReclaimPolicy:             reclaimPolicyDelete,
+			Type:                      storageTypeCephFS,
 			CephFS: &CephFSConfig{
 				FSName: fsName,
-				Pool:   pool,
 			},
 		})
 
@@ -164,12 +164,12 @@ var _ = Describe(controller.CephStorageClassCtrlName, func() {
 		err = cl.Get(ctx, client.ObjectKey{Name: nameForCephSC}, sc)
 		Expect(err).NotTo(HaveOccurred())
 		performStandardChecksForCephSc(sc, nameForCephSC, controllerNamespace, CephStorageClassConfig{
-			ClusterConnectionName: clusterConnectionName,
-			ReclaimPolicy:         reclaimPolicyDelete,
-			Type:                  storageTypeCephFS,
+			ClusterConnectionName:     clusterConnectionName,
+			ClusterAuthenticationName: clusterAuthenticationName,
+			ReclaimPolicy:             reclaimPolicyDelete,
+			Type:                      storageTypeCephFS,
 			CephFS: &CephFSConfig{
 				FSName: fsName,
-				Pool:   pool,
 			},
 		})
 	})
@@ -209,12 +209,12 @@ var _ = Describe(controller.CephStorageClassCtrlName, func() {
 		err = cl.Get(ctx, client.ObjectKey{Name: nameForCephSC}, sc)
 		Expect(err).NotTo(HaveOccurred())
 		performStandardChecksForCephSc(sc, nameForCephSC, controllerNamespace, CephStorageClassConfig{
-			ClusterConnectionName: clusterConnectionName,
-			ReclaimPolicy:         reclaimPolicyRetain,
-			Type:                  storageTypeCephFS,
+			ClusterConnectionName:     clusterConnectionName,
+			ClusterAuthenticationName: clusterAuthenticationName,
+			ReclaimPolicy:             reclaimPolicyRetain,
+			Type:                      storageTypeCephFS,
 			CephFS: &CephFSConfig{
 				FSName: fsName,
-				Pool:   pool,
 			},
 		})
 	})
@@ -249,10 +249,11 @@ var _ = Describe(controller.CephStorageClassCtrlName, func() {
 
 	It("Create_ceph_sc_with_rbd", func() {
 		cephSCtemplate := generateCephStorageClass(CephStorageClassConfig{
-			Name:                  nameForRBDSC,
-			ClusterConnectionName: clusterConnectionName,
-			ReclaimPolicy:         reclaimPolicyDelete,
-			Type:                  storageTypeRBD,
+			Name:                      nameForRBDSC,
+			ClusterConnectionName:     clusterConnectionName,
+			ClusterAuthenticationName: clusterAuthenticationName,
+			ReclaimPolicy:             reclaimPolicyDelete,
+			Type:                      storageTypeRBD,
 			RBD: &RBDConfig{
 				DefaultFSType: "ext4",
 				Pool:          pool,
@@ -287,9 +288,10 @@ var _ = Describe(controller.CephStorageClassCtrlName, func() {
 		err = cl.Get(ctx, client.ObjectKey{Name: nameForRBDSC}, sc)
 		Expect(err).NotTo(HaveOccurred())
 		performStandardChecksForCephSc(sc, nameForRBDSC, controllerNamespace, CephStorageClassConfig{
-			ClusterConnectionName: clusterConnectionName,
-			ReclaimPolicy:         reclaimPolicyDelete,
-			Type:                  storageTypeRBD,
+			ClusterConnectionName:     clusterConnectionName,
+			ClusterAuthenticationName: clusterAuthenticationName,
+			ReclaimPolicy:             reclaimPolicyDelete,
+			Type:                      storageTypeRBD,
 			RBD: &RBDConfig{
 				DefaultFSType: "ext4",
 				Pool:          pool,
@@ -332,9 +334,10 @@ var _ = Describe(controller.CephStorageClassCtrlName, func() {
 		err = cl.Get(ctx, client.ObjectKey{Name: nameForRBDSC}, sc)
 		Expect(err).NotTo(HaveOccurred())
 		performStandardChecksForCephSc(sc, nameForRBDSC, controllerNamespace, CephStorageClassConfig{
-			ClusterConnectionName: clusterConnectionName,
-			ReclaimPolicy:         reclaimPolicyRetain,
-			Type:                  storageTypeRBD,
+			ClusterConnectionName:     clusterConnectionName,
+			ClusterAuthenticationName: clusterAuthenticationName,
+			ReclaimPolicy:             reclaimPolicyRetain,
+			Type:                      storageTypeRBD,
 			RBD: &RBDConfig{
 				DefaultFSType: "ext4",
 				Pool:          pool,
@@ -382,13 +385,13 @@ var _ = Describe(controller.CephStorageClassCtrlName, func() {
 		Expect(err).NotTo(HaveOccurred())
 
 		cephSCtemplate := generateCephStorageClass(CephStorageClassConfig{
-			Name:                  nameForRBDSC,
-			ClusterConnectionName: clusterConnectionName,
-			ReclaimPolicy:         reclaimPolicyDelete,
-			Type:                  storageTypeCephFS,
+			Name:                      nameForRBDSC,
+			ClusterConnectionName:     clusterConnectionName,
+			ClusterAuthenticationName: clusterAuthenticationName,
+			ReclaimPolicy:             reclaimPolicyDelete,
+			Type:                      storageTypeCephFS,
 			CephFS: &CephFSConfig{
 				FSName: fsName,
-				Pool:   pool,
 			},
 		})
 
@@ -476,13 +479,13 @@ var _ = Describe(controller.CephStorageClassCtrlName, func() {
 
 	It("Create_ceph_sc_with_invalid_type", func() {
 		cephSCtemplate := generateCephStorageClass(CephStorageClassConfig{
-			Name:                  nameForBadSC,
-			ClusterConnectionName: clusterConnectionName,
-			ReclaimPolicy:         reclaimPolicyDelete,
-			Type:                  "invalid",
+			Name:                      nameForBadSC,
+			ClusterConnectionName:     clusterConnectionName,
+			ClusterAuthenticationName: clusterAuthenticationName,
+			ReclaimPolicy:             reclaimPolicyDelete,
+			Type:                      "invalid",
 			CephFS: &CephFSConfig{
 				FSName: fsName,
-				Pool:   pool,
 			},
 		})
 
@@ -518,10 +521,11 @@ var _ = Describe(controller.CephStorageClassCtrlName, func() {
 
 	It("Create_ceph_sc_with_props_for_another_type", func() {
 		cephSCtemplate := generateCephStorageClass(CephStorageClassConfig{
-			Name:                  nameForBadSC,
-			ClusterConnectionName: clusterConnectionName,
-			ReclaimPolicy:         reclaimPolicyDelete,
-			Type:                  storageTypeCephFS,
+			Name:                      nameForBadSC,
+			ClusterConnectionName:     clusterConnectionName,
+			ClusterAuthenticationName: clusterAuthenticationName,
+			ReclaimPolicy:             reclaimPolicyDelete,
+			Type:                      storageTypeCephFS,
 			RBD: &RBDConfig{
 				DefaultFSType: "ext4",
 				Pool:          pool,
@@ -576,12 +580,13 @@ var _ = Describe(controller.CephStorageClassCtrlName, func() {
 })
 
 type CephStorageClassConfig struct {
-	Name                  string
-	ClusterConnectionName string
-	ReclaimPolicy         string
-	Type                  string
-	CephFS                *CephFSConfig
-	RBD                   *RBDConfig
+	Name                      string
+	ClusterConnectionName     string
+	ClusterAuthenticationName string
+	ReclaimPolicy             string
+	Type                      string
+	CephFS                    *CephFSConfig
+	RBD                       *RBDConfig
 }
 
 type CephFSConfig struct {
@@ -601,7 +606,6 @@ func generateCephStorageClass(cfg CephStorageClassConfig) *v1alpha1.CephStorageC
 	if cfg.CephFS != nil {
 		cephFS = &v1alpha1.CephStorageClassCephFS{
 			FSName: cfg.CephFS.FSName,
-			Pool:   cfg.CephFS.Pool,
 		}
 	}
 
@@ -617,11 +621,12 @@ func generateCephStorageClass(cfg CephStorageClassConfig) *v1alpha1.CephStorageC
 			Name: cfg.Name,
 		},
 		Spec: v1alpha1.CephStorageClassSpec{
-			ClusterConnectionName: cfg.ClusterConnectionName,
-			ReclaimPolicy:         cfg.ReclaimPolicy,
-			Type:                  cfg.Type,
-			CephFS:                cephFS,
-			RBD:                   rbd,
+			ClusterConnectionName:     cfg.ClusterConnectionName,
+			ClusterAuthenticationName: cfg.ClusterAuthenticationName,
+			ReclaimPolicy:             cfg.ReclaimPolicy,
+			Type:                      cfg.Type,
+			CephFS:                    cephFS,
+			RBD:                       rbd,
 		},
 	}
 }
@@ -635,12 +640,15 @@ func performStandardChecksForCephSc(sc *v1.StorageClass, nameForTestResource, co
 	Expect(*sc.ReclaimPolicy).To(Equal(corev1.PersistentVolumeReclaimPolicy(cfg.ReclaimPolicy)))
 	Expect(*sc.VolumeBindingMode).To(Equal(v1.VolumeBindingImmediate))
 	Expect(*sc.AllowVolumeExpansion).To(BeTrue())
-	Expect(sc.Parameters).To(HaveKeyWithValue("csi.storage.k8s.io/provisioner-secret-name", internal.CephClusterConnectionSecretPrefix+cfg.ClusterConnectionName))
+	Expect(sc.Parameters).To(HaveKeyWithValue("csi.storage.k8s.io/controller-expand-secret-name", internal.CephClusterAuthenticationSecretPrefix+cfg.ClusterAuthenticationName))
+	Expect(sc.Parameters).To(HaveKeyWithValue("csi.storage.k8s.io/controller-expand-secret-namespace", controllerNamespace))
+	Expect(sc.Parameters).To(HaveKeyWithValue("csi.storage.k8s.io/node-stage-secret-name", internal.CephClusterAuthenticationSecretPrefix+cfg.ClusterAuthenticationName))
+	Expect(sc.Parameters).To(HaveKeyWithValue("csi.storage.k8s.io/node-stage-secret-namespace", controllerNamespace))
+	Expect(sc.Parameters).To(HaveKeyWithValue("csi.storage.k8s.io/provisioner-secret-name", internal.CephClusterAuthenticationSecretPrefix+cfg.ClusterAuthenticationName))
 	Expect(sc.Parameters).To(HaveKeyWithValue("csi.storage.k8s.io/provisioner-secret-namespace", controllerNamespace))
 
 	if cfg.Type == "cephfs" {
 		Expect(sc.Parameters).To(HaveKeyWithValue("fsName", cfg.CephFS.FSName))
-		Expect(sc.Parameters).To(HaveKeyWithValue("pool", cfg.CephFS.Pool))
 	} else if cfg.Type == "rbd" {
 		Expect(sc.Parameters).To(HaveKeyWithValue("pool", cfg.RBD.Pool))
 		Expect(sc.Parameters).To(HaveKeyWithValue("csi.storage.k8s.io/fstype", cfg.RBD.DefaultFSType))

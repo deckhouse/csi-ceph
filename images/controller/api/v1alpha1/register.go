@@ -45,6 +45,8 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 		&CephStorageClassList{},
 		&CephClusterConnection{},
 		&CephClusterConnectionList{},
+		&CephClusterAuthentication{},
+		&CephClusterAuthenticationList{},
 	)
 	metav1.AddToGroupVersion(scheme, SchemeGroupVersion)
 	return nil

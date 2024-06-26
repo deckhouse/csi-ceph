@@ -13,12 +13,6 @@ spec:
                     FSID/UUID кластера Ceph.
 
                     Используйте `ceph fsid`, чтобы получить FSID/UUID кластера Ceph.
-                userID:
-                  description: |
-                    Имя пользователя без префикса `client.`.
-                userKey:
-                  description: |
-                    Авторизационный ключ Ceph, соответствующий `userID`.
                 monitors:
                   description: |
                     Список IP-адресов ceph-mon в формате `10.0.0.10:6789`.

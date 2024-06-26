@@ -13,6 +13,9 @@ spec:
                 clusterConnectionName:
                   description: |
                     Имя ресурса CephClusterConnection.
+                clusterAuthenticationName:
+                  description: |
+                    Имя ресурса CephClusterAuthentication.
                 reclaimPolicy:
                   description: |
                     Режим поведения при удалении PVC. Возможные значения:
@@ -21,19 +24,16 @@ spec:
                 type:
                   description: |
                     Тип storage-класса. Возможные значения:
-                    - cephfs (CephFS)
-                    - rbd (Rados Block Device)
-                cephfs:
+                    - CephFS
+                    - RBD (Rados Block Device)
+                cephFS:
                   description: |
                     Специфические параметры для CephFS.
                   properties:
                     fsName:
                       description: |
                         Имя файловой системы CephFS.
-                    pool:
-                      description: |
-                        Имя пула Ceph.
-                rbd:
+                RBD:
                   description: |
                     Специфические параметры для Rados Block Device.
                   properties:

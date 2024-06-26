@@ -59,7 +59,7 @@ func NewFakeClient() client.Client {
 	}
 
 	// See https://github.com/kubernetes-sigs/controller-runtime/issues/2362#issuecomment-1837270195
-	builder := fake.NewClientBuilder().WithScheme(scheme).WithStatusSubresource(&v1alpha1.CephStorageClass{}, &v1alpha1.CephClusterConnection{})
+	builder := fake.NewClientBuilder().WithScheme(scheme).WithStatusSubresource(&v1alpha1.CephStorageClass{}, &v1alpha1.CephClusterConnection{}, &v1alpha1.CephClusterAuthentication{})
 
 	cl := builder.Build()
 	return cl
