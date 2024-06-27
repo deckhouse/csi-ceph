@@ -22,8 +22,8 @@ import os
 import unittest
 
 
-NAMESPACE   = "d8-csi-nfs"
-MODULE_NAME = "csiNfs"
+NAMESPACE   = "d8-csi-ceph"
+MODULE_NAME = "csiCeph"
 
 def json_load(path: str):
     with open(path, "r", encoding="utf-8") as f:
