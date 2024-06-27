@@ -25,6 +25,14 @@ spec:
 kubectl get cephclusterconnection <cephclusterconnection name>
 ```
 
+## Example of `CephClusterAuthentication`
+
+```yaml
+apiVersion: storage.deckhouse.io/v1alpha1
+kind: CephClusterAuthentication
+metadata:
+  name: ceph-cluster-1
+
 ## Example of `CephStorageClass` configuration
 
 ### RBD

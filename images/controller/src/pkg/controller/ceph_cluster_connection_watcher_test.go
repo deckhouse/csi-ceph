@@ -199,6 +199,83 @@ var _ = Describe(controller.CephClusterConnectionCtrlName, func() {
 
 		By("Verifying no ConfigMap entry created for CephClusterConnection with empty Monitors")
 		verifyConfigMapWithoutClusterConnection(ctx, cl, cephClusterConnection, controllerNamespace)
+
+		By("Fix CephClusterConnection")
+		cephClusterConnection.Spec.Monitors = monitors
+		err = cl.Update(ctx, cephClusterConnection)
+		Expect(err).NotTo(HaveOccurred())
+
+		By("Running reconcile for fixed CephClusterConnection")
+		shouldReconcile, _, err = controller.RunCephClusterConnectionEventReconcile(ctx, cl, log, configMapList, cephClusterConnection, controllerNamespace)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(shouldReconcile).To(BeFalse())
+
+		By("Verifying ConfigMap entry created for fixed CephClusterConnection")
+		verifyConfigMap(ctx, cl, cephClusterConnection, controllerNamespace)
+
+		By("Verifying CephClusterConnection after fix reconcile")
+		cephClusterConnection = &v1alpha1.CephClusterConnection{}
+		err = cl.Get(ctx, client.ObjectKey{Name: nameForClusterConnection}, cephClusterConnection)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(cephClusterConnection).NotTo(BeNil())
+		Expect(cephClusterConnection.Finalizers).To(HaveLen(1))
+		Expect(cephClusterConnection.Finalizers).To(ContainElement(controller.CephClusterConnectionControllerFinalizerName))
+		// Expect(cephClusterConnection.Status).NotTo(BeNil())
+		// Expect(cephClusterConnection.Status.Phase).To(Equal(v1alpha1.PhaseCreated))
+
+		By("Updating CephClusterConnection with empty Monitors after fix")
+		badCephClusterConnection := cephClusterConnection.DeepCopy()
+		badCephClusterConnection.Spec.Monitors = []string{}
+		err = cl.Update(ctx, badCephClusterConnection)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(badCephClusterConnection.Spec.Monitors).To(HaveLen(0))
+
+		By("Running reconcile for CephClusterConnection with empty Monitors after fix")
+		shouldReconcile, _, err = controller.RunCephClusterConnectionEventReconcile(ctx, cl, log, configMapList, badCephClusterConnection, controllerNamespace)
+		Expect(err).To(HaveOccurred())
+		Expect(shouldReconcile).To(BeFalse())
+
+		By("Verifying ConfigMap not changed for CephClusterConnection with empty Monitors after fix")
+		verifyConfigMap(ctx, cl, cephClusterConnection, controllerNamespace)
+
+		By("Verifying CephClusterConnection not changed after fix reconcile")
+		badCephClusterConnection = &v1alpha1.CephClusterConnection{}
+		err = cl.Get(ctx, client.ObjectKey{Name: nameForClusterConnection}, badCephClusterConnection)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(badCephClusterConnection).NotTo(BeNil())
+		Expect(badCephClusterConnection.Finalizers).To(HaveLen(1))
+		Expect(badCephClusterConnection.Finalizers).To(ContainElement(controller.CephClusterConnectionControllerFinalizerName))
+		// Expect(badCephClusterConnection.Status).NotTo(BeNil())
+		// Expect(badCephClusterConnection.Status.Phase).To(Equal(v1alpha1.PhaseFailed))
+
+		By("Deleting CephClusterConnection with empty Monitors")
+		err = cl.Delete(ctx, badCephClusterConnection)
+		Expect(err).NotTo(HaveOccurred())
+
+		badCephClusterConnection = &v1alpha1.CephClusterConnection{}
+		err = cl.Get(ctx, client.ObjectKey{Name: nameForClusterConnection}, badCephClusterConnection)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(badCephClusterConnection).NotTo(BeNil())
+		Expect(badCephClusterConnection.Finalizers).To(HaveLen(1))
+		Expect(badCephClusterConnection.Finalizers).To(ContainElement(controller.CephClusterConnectionControllerFinalizerName))
+		Expect(badCephClusterConnection.DeletionTimestamp).NotTo(BeNil())
+
+		configMapList = &corev1.ConfigMapList{}
+		err = cl.List(ctx, configMapList)
+		Expect(err).NotTo(HaveOccurred())
+
+		By("Running reconcile for CephClusterConnection deletion with empty Monitors")
+		shouldReconcile, _, err = controller.RunCephClusterConnectionEventReconcile(ctx, cl, log, configMapList, badCephClusterConnection, controllerNamespace)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(shouldReconcile).To(BeFalse())
+
+		By("Verifying ConfigMap is empty after deletion of CephClusterConnection with empty Monitors")
+		verifyConfigMapWithoutClusterConnection(ctx, cl, cephClusterConnection, controllerNamespace)
+
+		By("Verifying CephClusterConnection is deleted after deletion of CephClusterConnection with empty Monitors")
+		badCephClusterConnection = &v1alpha1.CephClusterConnection{}
+		err = cl.Get(ctx, client.ObjectKey{Name: nameForClusterConnection}, badCephClusterConnection)
+		Expect(k8serrors.IsNotFound(err)).To(BeTrue())
 	})
 })
 
