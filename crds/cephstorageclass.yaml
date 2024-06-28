@@ -29,11 +29,11 @@ spec:
               type: object
               x-kubernetes-validations:
                 - rule: |
-                    (self.type == "CephFS" && has(self.cephFS) && !has(self.RBD)) || self.type != "CephFS"
-                  message: "Field 'cephFS' is required for 'CephFS' type, and 'RBD' field is forbidden"
+                    (self.type == "CephFS" && has(self.cephFS) && !has(self.rbd)) || self.type != "CephFS"
+                  message: "Field 'cephFS' is required for 'CephFS' type, and 'rbd' field is forbidden"
                 - rule: |
-                    (self.type == "RBD" && has(self.RBD) && !has(self.cephFS)) || self.type != "RBD"
-                  message: "Field 'RBD' is required for 'RBD' type, and 'cephFS' field is forbidden"
+                    (self.type == "RBD" && has(self.rbd) && !has(self.cephFS)) || self.type != "RBD"
+                  message: "Field 'rbd' is required for 'RBD' type, and 'cephFS' field is forbidden"
               required:
                 - clusterConnectionName
                 - clusterAuthenticationName
