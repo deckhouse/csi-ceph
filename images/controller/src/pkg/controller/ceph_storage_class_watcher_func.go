@@ -35,10 +35,6 @@ import (
 )
 
 func IdentifyReconcileFuncForStorageClass(log logger.Logger, scList *v1.StorageClassList, cephSC *storagev1alpha1.CephStorageClass, controllerNamespace, clusterID string) (reconcileType string, err error) {
-	if shouldReconcileByDeleteFunc(cephSC) {
-		return internal.DeleteReconcile, nil
-	}
-
 	if shouldReconcileStorageClassByCreateFunc(scList, cephSC) {
 		return internal.CreateReconcile, nil
 	}

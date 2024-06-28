@@ -157,6 +157,14 @@ func RunCephStorageClassWatcherController(
 
 func RunStorageClassEventReconcile(ctx context.Context, cl client.Client, log logger.Logger, scList *v1.StorageClassList, cephSC *v1alpha1.CephStorageClass, controllerNamespace string) (shouldRequeue bool, msg string, err error) {
 	log.Debug(fmt.Sprintf("[RunStorageClassEventReconcile] starts reconciliataion of CephStorageClass, name: %s", cephSC.Name))
+
+	if cephSC.DeletionTimestamp != nil {
+		log.Debug(fmt.Sprintf("[RunStorageClassEventReconcile] CephStorageClass %s is being deleted", cephSC.Name))
+		shouldRequeue, msg, err = reconcileStorageClassDeleteFunc(ctx, cl, log, scList, cephSC)
+		log.Debug(fmt.Sprintf("[RunStorageClassEventReconcile] ends reconciliataion of StorageClass, name: %s, shouldRequeue: %t, err: %v", cephSC.Name, shouldRequeue, err))
+		return shouldRequeue, msg, err
+	}
+
 	valid, msg := validateCephStorageClassSpec(cephSC)
 	if !valid {
 		err = fmt.Errorf("[RunStorageClassEventReconcile] CephStorageClass %s has invalid spec: %s", cephSC.Name, msg)
@@ -190,8 +198,6 @@ func RunStorageClassEventReconcile(ctx context.Context, cl client.Client, log lo
 		shouldRequeue, msg, err = reconcileStorageClassCreateFunc(ctx, cl, log, scList, cephSC, controllerNamespace, clusterID)
 	case internal.UpdateReconcile:
 		shouldRequeue, msg, err = reconcileStorageClassUpdateFunc(ctx, cl, log, scList, cephSC, controllerNamespace, clusterID)
-	case internal.DeleteReconcile:
-		shouldRequeue, msg, err = reconcileStorageClassDeleteFunc(ctx, cl, log, scList, cephSC)
 	default:
 		log.Debug(fmt.Sprintf("[RunStorageClassEventReconcile] StorageClass for CephStorageClass %s should not be reconciled", cephSC.Name))
 		msg = "Successfully reconciled"
