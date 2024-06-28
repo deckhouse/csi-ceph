@@ -71,7 +71,7 @@ func SCValidate(ctx context.Context, arReview *model.AdmissionReview, obj metav1
 			klog.Infof("User %s is not allowed to manage storage classes with provisioner %s", arReview.UserInfo.Username, sc.Provisioner)
 			return &kwhvalidating.ValidatorResult{
 					Valid:   false,
-					Message: fmt.Sprintf("Direct modifications to the StorageClass (other than annotations) with the provisioner %s are not allowed. Please use NFSStorageClass for such operations.", sc.Provisioner),
+					Message: fmt.Sprintf("Direct modifications to the StorageClass (other than annotations) with the provisioner %s are not allowed. Please use CephStorageClass for such operations.", sc.Provisioner),
 				},
 				nil
 		}
