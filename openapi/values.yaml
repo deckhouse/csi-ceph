@@ -6,94 +6,28 @@ properties:
     type: object
     default: {}
     properties:
+      pythonVersions:
+        type: array
+        default: []
+        items:
+          type: string
       customWebhookCert:
         type: object
         default: {}
-      crs:
-        type: array
-        default: []
-        x-examples:
-          - [{"name":"example","spec":{"clusterID":"42","monitors":["1.2.3.4:6789"],"userID":"example","userKey":"example"}}]
-        items:
-          type: object
-          properties:
-            name:
-              type: string
-            spec:
-              type: object
-              properties:
-                clusterID:
-                  type: string
-                userID:
-                  type: string
-                userKey:
-                  type: string
-                monitors:
-                  type: array
-                  items:
-                    type: string
-                rbd:
-                  type: object
-                  properties:
-                    storageClasses:
-                      type: array
-                      items:
-                        type: object
-                        properties:
-                          namePostfix:
-                            type: string
-                          pool:
-                            type: string
-                          reclaimPolicy:
-                            type: string
-                          allowVolumeExpansion:
-                            type: boolean
-                          mountOptions:
-                            type: array
-                            items:
-                              type: string
-                          defaultFSType:
-                            type: string
-                            enum:
-                              - ext4
-                              - xfs
-                cephfs:
-                  type: object
-                  properties:
-                    subvolumeGroup:
-                      type: string
-                    storageClasses:
-                      type: array
-                      items:
-                        type: object
-                        properties:
-                          namePostfix:
-                            type: string
-                          pool:
-                            type: string
-                          reclaimPolicy:
-                            type: string
-                          allowVolumeExpansion:
-                            type: boolean
-                          mountOptions:
-                            type: array
-                            items:
-                              type: string
-                          fsName:
-                            type: string
-      csiConfig:
-        type: array
-        items:
-          type: object
-          properties:
-            clusterID:
-              type: string
-            monitors:
-              type: array
-              items:
-                type: string
-            cephFS:
-              type: object
-              properties:
-                subvolumeGroup:
-                  type: string
+        x-required-for-helm:
+          - crt
+          - key
+          - ca
+        properties:
+          crt:
+            type: string
+            x-examples: ["YjY0ZW5jX3N0cmluZwo="]
+          key:
+            type: string
+            x-examples: ["YjY0ZW5jX3N0cmluZwo="]
+          ca:
+            type: string
+            x-examples: ["YjY0ZW5jX3N0cmluZwo="]
+  registry:
+    type: object
+    description: "System field, overwritten by Deckhouse. Don't use"
