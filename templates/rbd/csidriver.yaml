@@ -7,4 +7,3 @@ metadata:
 spec:
   attachRequired: true
   podInfoOnMount: false
-  fsGroupPolicy: File
