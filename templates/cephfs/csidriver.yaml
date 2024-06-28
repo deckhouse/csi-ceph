@@ -5,5 +5,7 @@ metadata:
   name: cephfs.csi.ceph.com
 {{ include "helm_lib_module_labels" (list . (dict "app" .Chart.Name)) | indent 2 }}
 spec:
-  attachRequired: true
+  attachRequired: false
   podInfoOnMount: false
+  seLinuxMount: true
+  fsGroupPolicy: File
