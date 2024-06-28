@@ -16,7 +16,7 @@ shell:
     - cp _output/cephcsi /cephcsi
     - /binary_replace.sh -i "{{ $binaries }}" -o /relocate
 ---
-image: {{ $.ImageName }}-distroless-artifact
+artifact: {{ $.ImageName }}-distroless-artifact
 from: {{ $.BASE_ALPINE_DEV }}
 
 shell:
@@ -32,23 +32,23 @@ shell:
     - echo "deckhouse:x:64535:" >> /relocate/etc/group
     - echo "deckhouse:!::0:::::" >> /relocate/etc/shadow
 ---
-image: {{ $.ImageName }}-distroless
+artifact: {{ $.ImageName }}-distroless
 from: {{ $.BASE_SCRATCH }}
 
 import:
-  - image: {{ $.ImageName }}-distroless-artifact
+  - artifact: {{ $.ImageName }}-distroless-artifact
     add: /relocate
     to: /
     before: setup
+
 ---
 image: {{ $.ImageName }}
-fromImage: {{ $.ImageName }}-distroless
+fromArtifact: {{ $.ImageName }}-distroless
 import:
   - artifact: {{ $.ImageName }}-binaries-artifact
     add: /relocate
     to: /
     before: setup
+
 docker:
   ENTRYPOINT: ["/cephcsi"]
-
-# kekw
