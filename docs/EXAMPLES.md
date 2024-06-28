@@ -54,7 +54,7 @@ spec:
   clusterConnectionName: ceph-cluster-1
   clusterAuthenticationName: ceph-auth-1
   reclaimPolicy: Delete
-  type: rbd
+  type: RBD
   rbd:
     defaultFSType: ext4
     pool: ceph-rbd-pool  
@@ -71,10 +71,9 @@ spec:
   clusterConnectionName: ceph-cluster-1
   clusterAuthenticationName: ceph-auth-1
   reclaimPolicy: Delete
-  type: rbd
-  rbd:
-    defaultFSType: ext4
-    pool: ceph-rbd-pool 
+  type: CephFS
+  cephFS:
+    fsName: cephfs
 ```
 
 ### To verify the creation of the object, use the following command (Phase should be `Created`):

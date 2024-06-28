@@ -92,7 +92,7 @@ spec:
                         - rule: self == oldSelf
                           message: Value is immutable.
                       minLength: 1
-                RBD:
+                rbd:
                   type: object
                   description: |
                     Rados Block Device specific parameters.
