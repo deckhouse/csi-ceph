@@ -174,6 +174,24 @@ var _ = Describe(controller.CephStorageClassCtrlName, func() {
 		})
 	})
 
+	It("Annotate_sc_as_default", func() {
+		sc := &v1.StorageClass{}
+		err := cl.Get(ctx, client.ObjectKey{Name: nameForCephSC}, sc)
+		Expect(err).NotTo(HaveOccurred())
+
+		sc.Annotations = map[string]string{
+			"storageclass.kubernetes.io/is-default-class": "true",
+		}
+
+		err = cl.Update(ctx, sc)
+		Expect(err).NotTo(HaveOccurred())
+
+		sc = &v1.StorageClass{}
+		err = cl.Get(ctx, client.ObjectKey{Name: nameForCephSC}, sc)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(sc.Annotations).To(HaveKeyWithValue("storageclass.kubernetes.io/is-default-class", "true"))
+	})
+
 	It("Update_ceph_sc_with_cephfs", func() {
 		csc := &v1alpha1.CephStorageClass{}
 		err := cl.Get(ctx, client.ObjectKey{Name: nameForCephSC}, csc)
@@ -217,6 +235,13 @@ var _ = Describe(controller.CephStorageClassCtrlName, func() {
 				FSName: fsName,
 			},
 		})
+	})
+
+	It("Check_that_sc_is_default_after_update", func() {
+		sc := &v1.StorageClass{}
+		err := cl.Get(ctx, client.ObjectKey{Name: nameForCephSC}, sc)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(sc.Annotations).To(HaveKeyWithValue("storageclass.kubernetes.io/is-default-class", "true"))
 	})
 
 	It("Remove_ceph_sc_with_cephfs", func() {
