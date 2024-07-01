@@ -35,10 +35,6 @@ import (
 )
 
 func IdentifyReconcileFuncForStorageClass(log logger.Logger, scList *v1.StorageClassList, cephSC *storagev1alpha1.CephStorageClass, controllerNamespace, clusterID string) (reconcileType string, err error) {
-	if shouldReconcileByDeleteFunc(cephSC) {
-		return internal.DeleteReconcile, nil
-	}
-
 	if shouldReconcileStorageClassByCreateFunc(scList, cephSC) {
 		return internal.CreateReconcile, nil
 	}
@@ -76,7 +72,7 @@ func shouldReconcileStorageClassByUpdateFunc(log logger.Logger, scList *v1.Stora
 	for _, oldSC := range scList.Items {
 		if oldSC.Name == cephSC.Name {
 			if slices.Contains(allowedProvisioners, oldSC.Provisioner) {
-				newSC, err := ConfigureStorageClass(cephSC, controllerNamespace, clusterID)
+				newSC, err := updateStorageClass(cephSC, &oldSC, controllerNamespace, clusterID)
 				if err != nil {
 					return false, err
 				}
@@ -171,7 +167,7 @@ func reconcileStorageClassUpdateFunc(
 	log.Debug(fmt.Sprintf("[reconcileStorageClassUpdateFunc] successfully found a storage class for the CephStorageClass, name: %s", cephSC.Name))
 	log.Trace(fmt.Sprintf("[reconcileStorageClassUpdateFunc] storage class: %+v", oldSC))
 
-	newSC, err := ConfigureStorageClass(cephSC, controllerNamespace, clusterID)
+	newSC, err := updateStorageClass(cephSC, oldSC, controllerNamespace, clusterID)
 	if err != nil {
 		err = fmt.Errorf("[reconcileStorageClassUpdateFunc] unable to configure a Storage Class for the CephStorageClass %s: %w", cephSC.Name, err)
 		return false, err.Error(), err
@@ -503,4 +499,18 @@ func getClusterID(ctx context.Context, cl client.Client, cephSC *storagev1alpha1
 	}
 
 	return clusterID, nil
+}
+
+func updateStorageClass(cephSC *storagev1alpha1.CephStorageClass, oldSC *v1.StorageClass, controllerNamespace, clusterID string) (*v1.StorageClass, error) {
+	newSC, err := ConfigureStorageClass(cephSC, controllerNamespace, clusterID)
+	if err != nil {
+		err = fmt.Errorf("[updateStorageClass] unable to configure a Storage Class for the CephStorageClass %s: %w", cephSC.Name, err)
+		return nil, err
+	}
+
+	if oldSC.Annotations != nil {
+		newSC.Annotations = oldSC.Annotations
+	}
+
+	return newSC, nil
 }

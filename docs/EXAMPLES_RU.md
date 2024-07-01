@@ -15,6 +15,21 @@ spec:
   - 172.20.1.28:6789
   - 172.20.1.34:6789
   - 172.20.1.37:6789
+```
+
+- Проверить создание объекта можно командой (Phase должен быть `Created`):
+
+```shell
+kubectl get cephclusterconnection <имя cephclusterconnection>
+```
+## Пример описания `CephClusterAuthentication`
+
+```yaml
+apiVersion: storage.deckhouse.io/v1alpha1
+kind: CephClusterAuthentication
+metadata:
+  name: ceph-auth-1
+spec:
   userID: user
   userKey: AQDiVXVmBJVRLxAAg65PhODrtwbwSWrjJwssUg==
 ```
@@ -22,7 +37,7 @@ spec:
 - Проверить создание объекта можно командой (Phase должен быть `Created`):
 
 ```shell
-kubectl get cephclusterconnection <имя cephclusterconnection>
+kubectl get cephclusterauthentication <имя cephclusterauthentication>
 ```
 
 ## Пример описания `CephStorageClass`
@@ -36,8 +51,9 @@ metadata:
   name: ceph-rbd-sc
 spec:
   clusterConnectionName: ceph-cluster-1
+  clusterAuthenticationName: ceph-auth-1
   reclaimPolicy: Delete
-  type: rbd
+  type: RBD
   rbd:
     defaultFSType: ext4
     pool: ceph-rbd-pool  
@@ -52,11 +68,11 @@ metadata:
   name: ceph-fs-sc
 spec:
   clusterConnectionName: ceph-cluster-1
+  clusterAuthenticationName: ceph-auth-1
   reclaimPolicy: Delete
-  type: rbd
-  rbd:
-    defaultFSType: ext4
-    pool: ceph-rbd-pool 
+  type: CephFS
+  cephFS:
+    fsName: cephfs
 ```
 
 ### Проверить создание объекта можно командой (Phase должен быть `Created`):

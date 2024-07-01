@@ -33,7 +33,7 @@ spec:
                     fsName:
                       description: |
                         Имя файловой системы CephFS.
-                RBD:
+                rbd:
                   description: |
                     Специфические параметры для Rados Block Device.
                   properties:

@@ -59,6 +59,8 @@ rules:
       - cephstorageclasses/status
       - cephclusterconnections
       - cephclusterconnections/status
+      - cephclusterauthentications
+      - cephclusterauthentications/status
     verbs:
       - get
       - list

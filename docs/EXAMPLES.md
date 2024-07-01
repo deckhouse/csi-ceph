@@ -15,6 +15,22 @@ spec:
   - 172.20.1.28:6789
   - 172.20.1.34:6789
   - 172.20.1.37:6789
+```
+
+- To verify the creation of the object, use the following command (Phase should be `Created`):
+
+```shell
+kubectl get cephclusterconnection <cephclusterconnection name>
+```
+
+## Example of `CephClusterAuthentication`
+
+```yaml
+apiVersion: storage.deckhouse.io/v1alpha1
+kind: CephClusterAuthentication
+metadata:
+  name: ceph-auth-1
+spec:
   userID: user
   userKey: AQDiVXVmBJVRLxAAg65PhODrtwbwSWrjJwssUg==
 ```
@@ -22,7 +38,7 @@ spec:
 - To verify the creation of the object, use the following command (Phase should be `Created`):
 
 ```shell
-kubectl get cephclusterconnection <cephclusterconnection name>
+kubectl get cephclusterauthentication <cephclusterauthentication name>
 ```
 
 ## Example of `CephStorageClass` configuration
@@ -36,8 +52,9 @@ metadata:
   name: ceph-rbd-sc
 spec:
   clusterConnectionName: ceph-cluster-1
+  clusterAuthenticationName: ceph-auth-1
   reclaimPolicy: Delete
-  type: rbd
+  type: RBD
   rbd:
     defaultFSType: ext4
     pool: ceph-rbd-pool  
@@ -52,11 +69,11 @@ metadata:
   name: ceph-fs-sc
 spec:
   clusterConnectionName: ceph-cluster-1
+  clusterAuthenticationName: ceph-auth-1
   reclaimPolicy: Delete
-  type: rbd
-  rbd:
-    defaultFSType: ext4
-    pool: ceph-rbd-pool 
+  type: CephFS
+  cephFS:
+    fsName: cephfs
 ```
 
 ### To verify the creation of the object, use the following command (Phase should be `Created`):
