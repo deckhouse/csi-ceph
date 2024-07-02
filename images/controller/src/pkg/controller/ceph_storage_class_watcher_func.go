@@ -21,9 +21,10 @@ import (
 	"d8-controller/pkg/internal"
 	"d8-controller/pkg/logger"
 	"fmt"
-	storagev1alpha1 "github.com/deckhouse/csi-ceph/api/v1alpha1"
 	"reflect"
 	"strings"
+
+	storagev1alpha1 "github.com/deckhouse/csi-ceph/api/v1alpha1"
 
 	"slices"
 
@@ -301,7 +302,7 @@ func GetStoragecClassParams(cephSC *storagev1alpha1.CephStorageClass, controller
 	}
 
 	if cephSC.Spec.Type == storagev1alpha1.CephStorageClassTypeRBD {
-		params["imageFeatures"] = "layering,exclusive-lock,object-map,fast-diff"
+		params["imageFeatures"] = "layering,journaling,exclusive-lock,object-map,fast-diff"
 		params["csi.storage.k8s.io/fstype"] = cephSC.Spec.RBD.DefaultFSType
 		params["pool"] = cephSC.Spec.RBD.Pool
 	}
