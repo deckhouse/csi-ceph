@@ -18,11 +18,10 @@ package controller
 
 import (
 	"context"
-	"d8-controller/api/v1alpha1"
-	storagev1alpha1 "d8-controller/api/v1alpha1"
 	"d8-controller/pkg/internal"
 	"d8-controller/pkg/logger"
 	"fmt"
+	storagev1alpha1 "github.com/deckhouse/csi-ceph/api/v1alpha1"
 	"reflect"
 	"strings"
 
@@ -87,7 +86,7 @@ func shouldReconcileStorageClassByUpdateFunc(log logger.Logger, scList *v1.Stora
 					return true, nil
 				}
 
-				if cephSC.Status != nil && cephSC.Status.Phase == v1alpha1.PhaseFailed {
+				if cephSC.Status != nil && cephSC.Status.Phase == internal.PhaseFailed {
 					return true, nil
 				}
 

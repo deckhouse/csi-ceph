@@ -24,6 +24,9 @@ const (
 	UpdateReconcile                       = "Update"
 	DeleteReconcile                       = "Delete"
 
+	PhaseFailed  = "Failed"
+	PhaseCreated = "Created"
+
 	UpdateConfigMapActionUpdate = "update"
 	UpdateConfigMapActionDelete = "delete"
 )
