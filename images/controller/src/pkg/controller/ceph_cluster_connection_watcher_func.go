@@ -18,11 +18,11 @@ package controller
 
 import (
 	"context"
-	v1alpha1 "d8-controller/api/v1alpha1"
 	"d8-controller/pkg/internal"
 	"d8-controller/pkg/logger"
 	"encoding/json"
 	"fmt"
+	v1alpha1 "github.com/deckhouse/csi-ceph/api/v1alpha1"
 	"reflect"
 	"slices"
 	"strings"

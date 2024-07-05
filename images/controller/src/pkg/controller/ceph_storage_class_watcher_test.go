@@ -18,10 +18,10 @@ package controller_test
 
 import (
 	"context"
-	v1alpha1 "d8-controller/api/v1alpha1"
 	"d8-controller/pkg/controller"
 	"d8-controller/pkg/internal"
 	"d8-controller/pkg/logger"
+	v1alpha1 "github.com/deckhouse/csi-ceph/api/v1alpha1"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"

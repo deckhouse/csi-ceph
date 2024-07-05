@@ -1,10 +1,9 @@
 module d8-controller
 
-go 1.22.0
-
-toolchain go1.22.2
+go 1.22.2
 
 require (
+	github.com/deckhouse/csi-ceph/api v0.0.0-20240704080803-ac76d22bedfc
 	github.com/go-logr/logr v1.4.2
 	github.com/onsi/ginkgo/v2 v2.17.2
 	github.com/onsi/gomega v1.33.1

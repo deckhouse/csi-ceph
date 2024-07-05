@@ -18,11 +18,11 @@ package controller
 
 import (
 	"context"
-	v1alpha1 "d8-controller/api/v1alpha1"
 	"d8-controller/pkg/config"
 	"d8-controller/pkg/internal"
 	"d8-controller/pkg/logger"
 	"fmt"
+	v1alpha1 "github.com/deckhouse/csi-ceph/api/v1alpha1"
 	"reflect"
 	"time"
 
@@ -77,10 +77,10 @@ func RunCephClusterConnectionWatcherController(
 
 			shouldRequeue, msg, err := RunCephClusterConnectionEventReconcile(ctx, cl, log, configMapList, cephClusterConnection, cfg.ControllerNamespace)
 			log.Info(fmt.Sprintf("[CephClusterConnectionReconciler] CeohClusterConnection %s has been reconciled with message: %s", cephClusterConnection.Name, msg))
-			phase := v1alpha1.PhaseCreated
+			phase := internal.PhaseCreated
 			if err != nil {
 				log.Error(err, fmt.Sprintf("[CephClusterConnectionReconciler] an error occured while reconciles the CephClusterConnection, name: %s", cephClusterConnection.Name))
-				phase = v1alpha1.PhaseFailed
+				phase = internal.PhaseFailed
 			}
 
 			if msg != "" {

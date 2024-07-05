@@ -18,11 +18,11 @@ package controller
 
 import (
 	"context"
-	v1alpha1 "d8-controller/api/v1alpha1"
 	"d8-controller/pkg/config"
 	"d8-controller/pkg/internal"
 	"d8-controller/pkg/logger"
 	"fmt"
+	v1alpha1 "github.com/deckhouse/csi-ceph/api/v1alpha1"
 	"reflect"
 	"time"
 
@@ -90,10 +90,10 @@ func RunCephStorageClassWatcherController(
 
 			shouldRequeue, msg, err := RunStorageClassEventReconcile(ctx, cl, log, scList, cephSC, cfg.ControllerNamespace)
 			log.Info(fmt.Sprintf("[CephStorageClassReconciler] CephStorageClass %s has been reconciled with message: %s", cephSC.Name, msg))
-			phase := v1alpha1.PhaseCreated
+			phase := internal.PhaseCreated
 			if err != nil {
 				log.Error(err, fmt.Sprintf("[CephStorageClassReconciler] an error occured while reconciles the CephStorageClass, name: %s", cephSC.Name))
-				phase = v1alpha1.PhaseFailed
+				phase = internal.PhaseFailed
 			}
 
 			if msg != "" {
