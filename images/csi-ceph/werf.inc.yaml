@@ -3,8 +3,10 @@
 {{- $_ := set . "BASE_SCRATCH"    "registry.deckhouse.io/base_images/scratch@sha256:b054705fcc9f2205777d80a558d920c0b4209efdc3163c22b5bfcb5dda1db5fc" }}
 {{- $_ := set . "BASE_ALPINE_DEV" "registry.deckhouse.io/base_images/dev-alpine:3.16.3@sha256:c706fa83cc129079e430480369a3f062b8178cac9ec89266ebab753a574aca8e" }}
 ---
-artifact: {{ $.ImageName }}-binaries-artifact
+image: {{ $.ImageName }}-binaries-artifact
 from: {{ $.BASE_ALT_DEV }}
+final: false
+
 shell:
   install:
     - mkdir -p /src
@@ -16,8 +18,9 @@ shell:
     - cp _output/cephcsi /cephcsi
     - /binary_replace.sh -i "{{ $binaries }}" -o /relocate
 ---
-artifact: {{ $.ImageName }}-distroless-artifact
+image: {{ $.ImageName }}-distroless-artifact
 from: {{ $.BASE_ALPINE_DEV }}
+final: false
 
 shell:
   install:
@@ -32,20 +35,21 @@ shell:
     - echo "deckhouse:x:64535:" >> /relocate/etc/group
     - echo "deckhouse:!::0:::::" >> /relocate/etc/shadow
 ---
-artifact: {{ $.ImageName }}-distroless
+image: {{ $.ImageName }}-distroless
 from: {{ $.BASE_SCRATCH }}
+final: false
 
 import:
-  - artifact: {{ $.ImageName }}-distroless-artifact
+  - image: {{ $.ImageName }}-distroless-artifact
     add: /relocate
     to: /
     before: setup
 
 ---
 image: {{ $.ImageName }}
-fromArtifact: {{ $.ImageName }}-distroless
+fromImage: {{ $.ImageName }}-distroless
 import:
-  - artifact: {{ $.ImageName }}-binaries-artifact
+  - image: {{ $.ImageName }}-binaries-artifact
     add: /relocate
     to: /
     before: setup
