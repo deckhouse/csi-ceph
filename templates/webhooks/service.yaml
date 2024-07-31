@@ -4,7 +4,7 @@ kind: Service
 metadata:
   name: webhooks
   namespace: d8-{{ .Chart.Name }}
-  {{- include "helm_lib_module_labels" (list . (dict "app" "webhooks" )) | nindent 2 }}
+  {{- include "helm_lib_module_labels" (list . (dict "app" "webhooks")) | nindent 2 }}
 spec:
   type: ClusterIP
   ports:
