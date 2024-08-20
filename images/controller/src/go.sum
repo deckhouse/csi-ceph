@@ -7,6 +7,7 @@ github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/deckhouse/csi-ceph/api v0.0.0-20240704080803-ac76d22bedfc h1:v8SKPdpWrP6Q6Krd0z2vEDB28LG5GJINOVyUsg9iubU=
 github.com/deckhouse/csi-ceph/api v0.0.0-20240704080803-ac76d22bedfc/go.mod h1:RVauoJf/CAJDIdJGLXBL8QHBxj/g68Wu5PqScJ3sChw=
+github.com/deckhouse/csi-ceph/api v0.0.0-20240803013526-e9ed86f2f125/go.mod h1:RVauoJf/CAJDIdJGLXBL8QHBxj/g68Wu5PqScJ3sChw=
 github.com/emicklei/go-restful/v3 v3.12.1 h1:PJMDIM/ak7btuL8Ex0iYET9hxM3CI2sjZtzpL63nKAU=
 github.com/emicklei/go-restful/v3 v3.12.1/go.mod h1:6n3XBCmQQb25CM2LCACGz8ukIrRry+4bhvbpWn3mrbc=
 github.com/evanphx/json-patch v4.12.0+incompatible h1:4onqiflcdA9EOZ4RxV643DvftH5pOlLGNtQ5lPWQu84=
