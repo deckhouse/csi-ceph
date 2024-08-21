@@ -3,7 +3,7 @@ module d8-controller
 go 1.22.2
 
 require (
-	github.com/deckhouse/csi-ceph/api v0.0.0-20240803013526-e9ed86f2f125
+	github.com/deckhouse/csi-ceph/api v0.0.0-20240820170126-01a5c651eb9d
 	github.com/go-logr/logr v1.4.2
 	github.com/onsi/ginkgo/v2 v2.17.2
 	github.com/onsi/gomega v1.33.1
