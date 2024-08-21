@@ -21,7 +21,7 @@ jobs:
           git clone --depth 1 --branch $version ${{ secrets.SOURCE_REPO }}/ceph/ceph-csi.git ./ceph-csi
           cp -R ./images/csi-ceph/patches ./ceph-csi
           cd ./ceph-csi
-          for patchfile in ./patches/*.patch ; do echo -n "Apply ${patchfile} ... "; git apply ${patchfile}; done
+          #for patchfile in ./patches/*.patch ; do echo -n "Apply ${patchfile} ... "; git apply ${patchfile}; done
           cd ..
 
       - name: Run Trivy vulnerability scanner in fs mode
