@@ -24,7 +24,7 @@ shell:
     - export CGO_ENABLED=1
     - git clone --branch v{{ $version }} --depth 1 {{ env "SOURCE_REPO" }}/ceph/ceph-csi.git /src
     - cd /src
-#    - for patchfile in /patches/*.patch ; do echo -n "Apply ${patchfile} ... "; git apply ${patchfile}; done
+    - for patchfile in /patches/*.patch ; do echo -n "Apply ${patchfile} ... "; git apply ${patchfile}; done
     - make cephcsi
     - cp _output/cephcsi /cephcsi
     - /binary_replace.sh -i "{{ $binaries }}" -o /relocate
