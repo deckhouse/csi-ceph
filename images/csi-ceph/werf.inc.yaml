@@ -1,4 +1,4 @@
-{{- $version := "3.11.0" }}
+{{- $version := "3.8.1" }}
 
 {{- $binaries := "/cephcsi /sbin/mount.ceph /usr/bin/ceph-fuse /bin/mount /bin/umount /sbin/fsck /sbin/modprobe /bin/kmod /usr/bin/rbd /usr/bin/rbd-nbd /sbin/blkid /sbin/mkfs /sbin/mkfs.ext4 /sbin/mkfs.xfs /sbin/blockdev /sbin/dumpe2fs /usr/sbin/xfs_io /usr/sbin/xfs_growfs /sbin/resize2fs" }}
 {{- $_ := set . "BASE_ALT_DEV"    "registry.deckhouse.io/base_images/dev-alt:p10@sha256:76e6e163fa982f03468166203488b569e6d9fc10855d6a259c662706436cdcad" }}
