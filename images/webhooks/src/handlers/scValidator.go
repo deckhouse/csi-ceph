@@ -74,7 +74,6 @@ func SCValidate(_ context.Context, arReview *model.AdmissionReview, obj metav1.O
 				Message: fmt.Sprintf("Direct modifications to the StorageClass (other than annotations) with the provisioner %s are not allowed. Please use CephStorageClass for such operations.", sc.Provisioner),
 			},
 			nil
-
 	}
 
 	return &kwhvalidating.ValidatorResult{Valid: true},
