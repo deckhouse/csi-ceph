@@ -314,10 +314,10 @@ func updateConfigMap(oldConfigMap *corev1.ConfigMap, cephClusterConnection *v1al
 		clusterConfigs = append(clusterConfigs, newClusterConfig)
 	}
 
-	newJsonData, _ := json.Marshal(clusterConfigs)
+	newJSONData, _ := json.Marshal(clusterConfigs)
 
 	configMap := oldConfigMap.DeepCopy()
-	configMap.Data["config.json"] = string(newJsonData)
+	configMap.Data["config.json"] = string(newJSONData)
 
 	if configMap.Labels == nil {
 		configMap.Labels = map[string]string{}

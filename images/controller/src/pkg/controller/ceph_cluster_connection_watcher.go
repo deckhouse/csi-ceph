@@ -108,31 +108,29 @@ func RunCephClusterConnectionWatcherController(
 		return nil, err
 	}
 
-	err = c.Watch(
-		source.Kind(mgr.GetCache(), &v1alpha1.CephClusterConnection{},
-			handler.TypedFuncs[*v1alpha1.CephClusterConnection]{
-				CreateFunc: func(_ context.Context, e event.TypedCreateEvent[*v1alpha1.CephClusterConnection], q workqueue.RateLimitingInterface) {
-					log.Info(fmt.Sprintf("[CreateFunc] get event for CephClusterConnection %q. Add to the queue", e.Object.GetName()))
-					request := reconcile.Request{NamespacedName: types.NamespacedName{Namespace: e.Object.GetNamespace(), Name: e.Object.GetName()}}
-					q.Add(request)
-				},
-				UpdateFunc: func(_ context.Context, e event.TypedUpdateEvent[*v1alpha1.CephClusterConnection], q workqueue.RateLimitingInterface) {
-					log.Info(fmt.Sprintf("[UpdateFunc] get event for CephClusterConnection %q. Check if it should be reconciled", e.ObjectNew.GetName()))
+	err = c.Watch(source.Kind(mgr.GetCache(), &v1alpha1.CephClusterConnection{}, handler.TypedFuncs[*v1alpha1.CephClusterConnection, reconcile.Request]{
+		CreateFunc: func(_ context.Context, e event.TypedCreateEvent[*v1alpha1.CephClusterConnection], q workqueue.TypedRateLimitingInterface[reconcile.Request]) {
+			log.Info(fmt.Sprintf("[CreateFunc] get event for CephClusterConnection %q. Add to the queue", e.Object.GetName()))
+			request := reconcile.Request{NamespacedName: types.NamespacedName{Namespace: e.Object.GetNamespace(), Name: e.Object.GetName()}}
+			q.Add(request)
+		},
+		UpdateFunc: func(_ context.Context, e event.TypedUpdateEvent[*v1alpha1.CephClusterConnection], q workqueue.TypedRateLimitingInterface[reconcile.Request]) {
+			log.Info(fmt.Sprintf("[UpdateFunc] get event for CephClusterConnection %q. Check if it should be reconciled", e.ObjectNew.GetName()))
 
-					oldCephClusterConnection := e.ObjectOld
-					newCephClusterConnection := e.ObjectNew
+			oldCephClusterConnection := e.ObjectOld
+			newCephClusterConnection := e.ObjectNew
 
-					if reflect.DeepEqual(oldCephClusterConnection.Spec, newCephClusterConnection.Spec) && newCephClusterConnection.DeletionTimestamp == nil {
-						log.Info(fmt.Sprintf("[UpdateFunc] an update event for the CephClusterConnection %s has no Spec field updates. It will not be reconciled", newCephClusterConnection.Name))
-						return
-					}
+			if reflect.DeepEqual(oldCephClusterConnection.Spec, newCephClusterConnection.Spec) && newCephClusterConnection.DeletionTimestamp == nil {
+				log.Info(fmt.Sprintf("[UpdateFunc] an update event for the CephClusterConnection %s has no Spec field updates. It will not be reconciled", newCephClusterConnection.Name))
+				return
+			}
 
-					log.Info(fmt.Sprintf("[UpdateFunc] the CephClusterConnection %q will be reconciled. Add to the queue", newCephClusterConnection.Name))
-					request := reconcile.Request{NamespacedName: types.NamespacedName{Namespace: newCephClusterConnection.Namespace, Name: newCephClusterConnection.Name}}
-					q.Add(request)
-				},
-			},
-		),
+			log.Info(fmt.Sprintf("[UpdateFunc] the CephClusterConnection %q will be reconciled. Add to the queue", newCephClusterConnection.Name))
+			request := reconcile.Request{NamespacedName: types.NamespacedName{Namespace: newCephClusterConnection.Namespace, Name: newCephClusterConnection.Name}}
+			q.Add(request)
+		},
+	},
+	),
 	)
 
 	if err != nil {
