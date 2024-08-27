@@ -102,11 +102,7 @@ func shouldReconcileConfigMapByCreateFunc(configMapList *corev1.ConfigMapList, c
 
 	for _, cm := range configMapList.Items {
 		if cm.Name == configMapName {
-			if cm.Data["config.json"] == "" {
-				return true
-			}
-
-			return false
+			return cm.Data["config.json"] == ""
 		}
 	}
 
@@ -268,7 +264,7 @@ func reconcileConfigMapDeleteFunc(ctx context.Context, cl client.Client, log log
 		}
 	}
 
-	_, err = removeFinalizerIfExists(ctx, cl, cephClusterConnection, CephClusterConnectionControllerFinalizerName)
+	err = removeFinalizerIfExists(ctx, cl, cephClusterConnection, CephClusterConnectionControllerFinalizerName)
 	if err != nil {
 		err = fmt.Errorf("[reconcileConfigMapDeleteFunc] unable to remove finalizer from the CephClusterConnection %s: %w", cephClusterConnection.Name, err)
 		return true, err.Error(), err

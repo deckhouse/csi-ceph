@@ -19,10 +19,11 @@ package logger
 import (
 	"flag"
 	"fmt"
+	"os"
 
 	"github.com/go-logr/logr"
 	"k8s.io/klog/v2"
-	"k8s.io/klog/v2/klogr"
+	"k8s.io/klog/v2/textlogger"
 )
 
 const (
@@ -55,7 +56,12 @@ func NewLogger(level Verbosity) (*Logger, error) {
 	}
 	flag.Parse()
 
-	log := klogr.New().WithCallDepth(1)
+	// log := klogr.New().WithCallDepth(1)
+	config := textlogger.NewConfig(
+		textlogger.Output(os.Stdout),
+	)
+
+	log := textlogger.NewLogger(config)
 
 	return &Logger{log: log}, nil
 }

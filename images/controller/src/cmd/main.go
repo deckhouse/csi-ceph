@@ -55,7 +55,7 @@ func main() {
 
 	log, err := logger.NewLogger(cfgParams.Loglevel)
 	if err != nil {
-		fmt.Println(fmt.Sprintf("unable to create NewLogger, err: %v", err))
+		fmt.Printf("unable to create NewLogger, err: %v\n", err)
 		os.Exit(1)
 	}
 

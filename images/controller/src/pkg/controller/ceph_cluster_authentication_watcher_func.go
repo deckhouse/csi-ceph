@@ -225,7 +225,7 @@ func reconcileSecretDeleteFunc(ctx context.Context, cl client.Client, log logger
 		}
 	}
 
-	_, err = removeFinalizerIfExists(ctx, cl, cephClusterAuthentication, CephClusterAuthenticationControllerFinalizerName)
+	err = removeFinalizerIfExists(ctx, cl, cephClusterAuthentication, CephClusterAuthenticationControllerFinalizerName)
 	if err != nil {
 		err = fmt.Errorf("[reconcileSecretDeleteFunc] unable to remove a finalizer %s from the CephClusterAuthentication %s: %w", CephClusterAuthenticationControllerFinalizerName, cephClusterAuthentication.Name, err)
 		return true, err.Error(), err
@@ -237,7 +237,7 @@ func reconcileSecretDeleteFunc(ctx context.Context, cl client.Client, log logger
 }
 
 func deleteSecret(ctx context.Context, cl client.Client, secret *corev1.Secret) error {
-	_, err := removeFinalizerIfExists(ctx, cl, secret, CephClusterAuthenticationControllerFinalizerName)
+	err := removeFinalizerIfExists(ctx, cl, secret, CephClusterAuthenticationControllerFinalizerName)
 	if err != nil {
 		return err
 	}

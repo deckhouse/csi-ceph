@@ -91,11 +91,9 @@ func shouldReconcileStorageClassByUpdateFunc(log logger.Logger, scList *v1.Stora
 				}
 
 				return false, nil
-
 			}
 			err := fmt.Errorf("a storage class %s with provisioner % s does not belong to allowed provisioners: %v", oldSC.Name, oldSC.Provisioner, allowedProvisioners)
 			return false, err
-
 		}
 	}
 
@@ -226,7 +224,7 @@ func reconcileStorageClassDeleteFunc(
 		}
 	}
 
-	_, err = removeFinalizerIfExists(ctx, cl, cephSC, CephStorageClassControllerFinalizerName)
+	err = removeFinalizerIfExists(ctx, cl, cephSC, CephStorageClassControllerFinalizerName)
 	if err != nil {
 		err = fmt.Errorf("[reconcileStorageClassDeleteFunc] unable to remove a finalizer %s from the CephStorageClass %s: %w", CephStorageClassControllerFinalizerName, cephSC.Name, err)
 		return true, err.Error(), err
@@ -285,7 +283,6 @@ func GetStorageClassProvisioner(cephStorageClasstype string) string {
 	}
 
 	return provisioner
-
 }
 
 func GetStoragecClassParams(cephSC *storagev1alpha1.CephStorageClass, controllerNamespace, clusterID string) (map[string]string, error) {
@@ -347,7 +344,6 @@ func createStorageClassIfNotExists(ctx context.Context, cl client.Client, scList
 }
 
 func GetSCDiff(oldSC, newSC *v1.StorageClass) (string, error) {
-
 	if oldSC.Provisioner != newSC.Provisioner {
 		err := fmt.Errorf("CephStorageClass %q: the provisioner field is different in the StorageClass %q", newSC.Name, oldSC.Name)
 		return "", err
@@ -405,7 +401,7 @@ func deleteStorageClass(ctx context.Context, cl client.Client, sc *v1.StorageCla
 		return fmt.Errorf("a storage class %s with provisioner %s does not belong to allowed provisioners: %v", sc.Name, sc.Provisioner, allowedProvisioners)
 	}
 
-	_, err := removeFinalizerIfExists(ctx, cl, sc, CephStorageClassControllerFinalizerName)
+	err := removeFinalizerIfExists(ctx, cl, sc, CephStorageClassControllerFinalizerName)
 	if err != nil {
 		return err
 	}
