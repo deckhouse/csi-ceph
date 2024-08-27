@@ -20,9 +20,8 @@ import (
 	"context"
 	"fmt"
 	"reflect"
-	"strings"
-
 	"slices"
+	"strings"
 
 	storagev1alpha1 "github.com/deckhouse/csi-ceph/api/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
@@ -93,10 +92,10 @@ func shouldReconcileStorageClassByUpdateFunc(log logger.Logger, scList *v1.Stora
 
 				return false, nil
 
-			} else {
-				err := fmt.Errorf("a storage class %s with provisioner % s does not belong to allowed provisioners: %v", oldSC.Name, oldSC.Provisioner, allowedProvisioners)
-				return false, err
 			}
+			err := fmt.Errorf("a storage class %s with provisioner % s does not belong to allowed provisioners: %v", oldSC.Name, oldSC.Provisioner, allowedProvisioners)
+			return false, err
+
 		}
 	}
 

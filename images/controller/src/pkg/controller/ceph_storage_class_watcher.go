@@ -92,7 +92,7 @@ func RunCephStorageClassWatcherController(
 			log.Info(fmt.Sprintf("[CephStorageClassReconciler] CephStorageClass %s has been reconciled with message: %s", cephSC.Name, msg))
 			phase := internal.PhaseCreated
 			if err != nil {
-				log.Error(err, fmt.Sprintf("[CephStorageClassReconciler] an error occured while reconciles the CephStorageClass, name: %s", cephSC.Name))
+				log.Error(err, fmt.Sprintf("[CephStorageClassReconciler] an error occurred while reconciles the CephStorageClass, name: %s", cephSC.Name))
 				phase = internal.PhaseFailed
 			}
 
@@ -124,12 +124,12 @@ func RunCephStorageClassWatcherController(
 	err = c.Watch(
 		source.Kind(mgr.GetCache(), &v1alpha1.CephStorageClass{},
 			handler.TypedFuncs[*v1alpha1.CephStorageClass]{
-				CreateFunc: func(ctx context.Context, e event.TypedCreateEvent[*v1alpha1.CephStorageClass], q workqueue.RateLimitingInterface) {
+				CreateFunc: func(_ context.Context, e event.TypedCreateEvent[*v1alpha1.CephStorageClass], q workqueue.RateLimitingInterface) {
 					log.Info(fmt.Sprintf("[CreateFunc] get event for CephStorageClass %q. Add to the queue", e.Object.GetName()))
 					request := reconcile.Request{NamespacedName: types.NamespacedName{Namespace: e.Object.GetNamespace(), Name: e.Object.GetName()}}
 					q.Add(request)
 				},
-				UpdateFunc: func(ctx context.Context, e event.TypedUpdateEvent[*v1alpha1.CephStorageClass], q workqueue.RateLimitingInterface) {
+				UpdateFunc: func(_ context.Context, e event.TypedUpdateEvent[*v1alpha1.CephStorageClass], q workqueue.RateLimitingInterface) {
 					log.Info(fmt.Sprintf("[UpdateFunc] get event for CephStorageClass %q. Check if it should be reconciled", e.ObjectNew.GetName()))
 
 					oldCephSC := e.ObjectOld
@@ -187,7 +187,7 @@ func RunStorageClassEventReconcile(ctx context.Context, cl client.Client, log lo
 
 	reconcileTypeForStorageClass, err := IdentifyReconcileFuncForStorageClass(log, scList, cephSC, controllerNamespace, clusterID)
 	if err != nil {
-		err = fmt.Errorf("[RunStorageClassEventReconcile] error occured while identifying the reconcile function for StorageClass %s: %w", cephSC.Name, err)
+		err = fmt.Errorf("[RunStorageClassEventReconcile] error occurred while identifying the reconcile function for StorageClass %s: %w", cephSC.Name, err)
 		return true, err.Error(), err
 	}
 

@@ -79,7 +79,7 @@ func RunCephClusterConnectionWatcherController(
 			log.Info(fmt.Sprintf("[CephClusterConnectionReconciler] CeohClusterConnection %s has been reconciled with message: %s", cephClusterConnection.Name, msg))
 			phase := internal.PhaseCreated
 			if err != nil {
-				log.Error(err, fmt.Sprintf("[CephClusterConnectionReconciler] an error occured while reconciles the CephClusterConnection, name: %s", cephClusterConnection.Name))
+				log.Error(err, fmt.Sprintf("[CephClusterConnectionReconciler] an error occurred while reconciles the CephClusterConnection, name: %s", cephClusterConnection.Name))
 				phase = internal.PhaseFailed
 			}
 
@@ -111,12 +111,12 @@ func RunCephClusterConnectionWatcherController(
 	err = c.Watch(
 		source.Kind(mgr.GetCache(), &v1alpha1.CephClusterConnection{},
 			handler.TypedFuncs[*v1alpha1.CephClusterConnection]{
-				CreateFunc: func(ctx context.Context, e event.TypedCreateEvent[*v1alpha1.CephClusterConnection], q workqueue.RateLimitingInterface) {
+				CreateFunc: func(_ context.Context, e event.TypedCreateEvent[*v1alpha1.CephClusterConnection], q workqueue.RateLimitingInterface) {
 					log.Info(fmt.Sprintf("[CreateFunc] get event for CephClusterConnection %q. Add to the queue", e.Object.GetName()))
 					request := reconcile.Request{NamespacedName: types.NamespacedName{Namespace: e.Object.GetNamespace(), Name: e.Object.GetName()}}
 					q.Add(request)
 				},
-				UpdateFunc: func(ctx context.Context, e event.TypedUpdateEvent[*v1alpha1.CephClusterConnection], q workqueue.RateLimitingInterface) {
+				UpdateFunc: func(_ context.Context, e event.TypedUpdateEvent[*v1alpha1.CephClusterConnection], q workqueue.RateLimitingInterface) {
 					log.Info(fmt.Sprintf("[UpdateFunc] get event for CephClusterConnection %q. Check if it should be reconciled", e.ObjectNew.GetName()))
 
 					oldCephClusterConnection := e.ObjectOld
@@ -159,7 +159,7 @@ func RunCephClusterConnectionEventReconcile(ctx context.Context, cl client.Clien
 	log.Debug(fmt.Sprintf("[RunCephClusterConnectionEventReconcile] finalizer %s was added to the CephClusterConnection %s: %t", CephClusterConnectionControllerFinalizerName, cephClusterConnection.Name, added))
 
 	configMapName := internal.CSICephConfigMapName
-	reconcileTypeForConfigMap, err := IdentifyReconcileFuncForConfigMap(log, configMapList, cephClusterConnection, controllerNamespace, configMapName)
+	reconcileTypeForConfigMap, err := IdentifyReconcileFuncForConfigMap(log, configMapList, cephClusterConnection, configMapName)
 	if err != nil {
 		err = fmt.Errorf("[RunCephClusterConnectionEventReconcile] error occurred while identifying the reconcile function for CephClusterConnection %s on ConfigMap %s: %w", cephClusterConnection.Name, internal.CSICephConfigMapName, err)
 		return true, err.Error(), err

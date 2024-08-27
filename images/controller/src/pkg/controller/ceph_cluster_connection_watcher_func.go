@@ -75,7 +75,7 @@ func updateCephClusterConnectionPhase(ctx context.Context, cl client.Client, cep
 }
 
 // ConfigMap
-func IdentifyReconcileFuncForConfigMap(log logger.Logger, configMapList *corev1.ConfigMapList, cephClusterConnection *v1alpha1.CephClusterConnection, controllerNamespace, configMapName string) (reconcileType string, err error) {
+func IdentifyReconcileFuncForConfigMap(log logger.Logger, configMapList *corev1.ConfigMapList, cephClusterConnection *v1alpha1.CephClusterConnection, configMapName string) (reconcileType string, err error) {
 	if shouldReconcileByDeleteFunc(cephClusterConnection) {
 		return internal.DeleteReconcile, nil
 	}
