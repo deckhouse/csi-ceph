@@ -22,7 +22,7 @@ mount:
     to: /go/pkg
 shell:
   setup:
-    - cd /images/controller/src/cmd
+    - cd /controller/src/cmd
     - GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="-s -w" -o /controller
     - chmod +x /controller
 
