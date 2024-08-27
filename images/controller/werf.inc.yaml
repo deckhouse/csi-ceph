@@ -8,7 +8,7 @@ final: false
 
 git:
   - add: /images/controller/src
-    to: /images/controller/src
+    to: /controller/src
     stageDependencies:
       setup:
         - "**/*"
