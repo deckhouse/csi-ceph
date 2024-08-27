@@ -18,20 +18,19 @@ package controller
 
 import (
 	"context"
-	"d8-controller/pkg/internal"
-	"d8-controller/pkg/logger"
 	"fmt"
 	"reflect"
 	"strings"
 
 	storagev1alpha1 "github.com/deckhouse/csi-ceph/api/v1alpha1"
-
-	"slices"
-
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/storage/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"slices"
+
+	"d8-controller/pkg/internal"
+	"d8-controller/pkg/logger"
 )
 
 func IdentifyReconcileFuncForStorageClass(log logger.Logger, scList *v1.StorageClassList, cephSC *storagev1alpha1.CephStorageClass, controllerNamespace, clusterID string) (reconcileType string, err error) {

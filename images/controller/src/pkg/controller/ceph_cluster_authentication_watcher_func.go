@@ -18,16 +18,17 @@ package controller
 
 import (
 	"context"
-	"d8-controller/pkg/internal"
-	"d8-controller/pkg/logger"
 	"fmt"
-	v1alpha1 "github.com/deckhouse/csi-ceph/api/v1alpha1"
 	"reflect"
 	"strings"
 
+	v1alpha1 "github.com/deckhouse/csi-ceph/api/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"d8-controller/pkg/internal"
+	"d8-controller/pkg/logger"
 )
 
 func validateCephClusterAuthenticationSpec(cephClusterAuthentication *v1alpha1.CephClusterAuthentication) (bool, string) {

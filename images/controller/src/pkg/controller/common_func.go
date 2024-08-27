@@ -18,10 +18,10 @@ package controller
 
 import (
 	"context"
-	"slices"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"slices"
 )
 
 func shouldReconcileByDeleteFunc(obj metav1.Object) bool {

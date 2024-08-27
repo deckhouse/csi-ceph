@@ -14,10 +14,11 @@ limitations under the License.
 package config
 
 import (
-	"d8-controller/pkg/logger"
 	"log"
 	"os"
 	"time"
+
+	"d8-controller/pkg/logger"
 )
 
 const (

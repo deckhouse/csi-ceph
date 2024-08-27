@@ -18,14 +18,11 @@ package controller
 
 import (
 	"context"
-	"d8-controller/pkg/config"
-	"d8-controller/pkg/internal"
-	"d8-controller/pkg/logger"
 	"fmt"
-	v1alpha1 "github.com/deckhouse/csi-ceph/api/v1alpha1"
 	"reflect"
 	"time"
 
+	v1alpha1 "github.com/deckhouse/csi-ceph/api/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
@@ -34,10 +31,13 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
+	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
-	"sigs.k8s.io/controller-runtime/pkg/manager"
+	"d8-controller/pkg/config"
+	"d8-controller/pkg/internal"
+	"d8-controller/pkg/logger"
 )
 
 const (

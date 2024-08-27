@@ -18,19 +18,20 @@ package controller
 
 import (
 	"context"
-	"d8-controller/pkg/internal"
-	"d8-controller/pkg/logger"
 	"encoding/json"
 	"fmt"
-	v1alpha1 "github.com/deckhouse/csi-ceph/api/v1alpha1"
 	"reflect"
-	"slices"
 	"strings"
 
+	v1alpha1 "github.com/deckhouse/csi-ceph/api/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"slices"
+
+	"d8-controller/pkg/internal"
+	"d8-controller/pkg/logger"
 )
 
 func validateCephClusterConnectionSpec(cephClusterConnection *v1alpha1.CephClusterConnection) (bool, string) {
