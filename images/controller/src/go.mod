@@ -15,6 +15,8 @@ require (
 	sigs.k8s.io/controller-runtime v0.18.4
 )
 
+replace github.com/deckhouse/csi-ceph/api => ../../../api
+
 require (
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect

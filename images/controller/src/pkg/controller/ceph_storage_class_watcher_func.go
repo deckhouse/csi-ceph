@@ -249,8 +249,6 @@ func ConfigureStorageClass(cephSC *storagev1alpha1.CephStorageClass, controllerN
 		return nil, err
 	}
 
-	mountOpt := storagev1alpha1.DefaultMountOptions
-
 	sc := &v1.StorageClass{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       StorageClassKind,
@@ -269,7 +267,10 @@ func ConfigureStorageClass(cephSC *storagev1alpha1.CephStorageClass, controllerN
 		ReclaimPolicy:        &reclaimPolicy,
 		VolumeBindingMode:    &volumeBindingMode,
 		AllowVolumeExpansion: &allowVolumeExpansion,
-		MountOptions:         mountOpt,
+	}
+
+	if cephSC.Spec.Type == storagev1alpha1.CephStorageClassTypeRBD {
+		sc.MountOptions = storagev1alpha1.DefaultMountOptionsRBD
 	}
 
 	return sc, nil
