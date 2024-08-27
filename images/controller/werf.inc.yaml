@@ -8,13 +8,11 @@ fromCacheVersion: 20240827144204
 final: false
 
 git:
-  - add: /images/controller/src
-    to: /images/controller/src
-    stageDependencies:
-      setup:
-        - "**/*"
-  - add: /api
+  - add: /
     to: /
+    includePaths:
+      - api
+      - images/controller/src
     stageDependencies:
       setup:
         - "**/*"
