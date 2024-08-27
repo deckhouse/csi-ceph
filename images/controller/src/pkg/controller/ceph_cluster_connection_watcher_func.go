@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
+	"slices"
 	"strings"
 
 	v1alpha1 "github.com/deckhouse/csi-ceph/api/v1alpha1"
@@ -28,7 +29,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"slices"
 
 	"d8-controller/pkg/internal"
 	"d8-controller/pkg/logger"

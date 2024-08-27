@@ -22,12 +22,13 @@ import (
 	"reflect"
 	"strings"
 
+	"slices"
+
 	storagev1alpha1 "github.com/deckhouse/csi-ceph/api/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/storage/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"slices"
 
 	"d8-controller/pkg/internal"
 	"d8-controller/pkg/logger"
@@ -305,7 +306,7 @@ func GetStoragecClassParams(cephSC *storagev1alpha1.CephStorageClass, controller
 		params["imageFeatures"] = "layering,exclusive-lock,object-map,fast-diff"
 		params["csi.storage.k8s.io/fstype"] = cephSC.Spec.RBD.DefaultFSType
 		params["pool"] = cephSC.Spec.RBD.Pool
-		//params["mounter"] = "rbd-nbd"
+		// params["mounter"] = "rbd-nbd"
 	}
 
 	if cephSC.Spec.Type == storagev1alpha1.CephStorageClassTypeCephFS {
@@ -470,11 +471,9 @@ func validateCephStorageClassSpec(cephSC *storagev1alpha1.CephStorageClass) (boo
 		if cephSC.Spec.CephFS == nil {
 			validationPassed = false
 			failedMsgBuilder.WriteString(fmt.Sprintf("CephStorageClass type is %s but the spec.cephfs field is empty; ", storagev1alpha1.CephStorageClassTypeRBD))
-		} else {
-			if cephSC.Spec.CephFS.FSName == "" {
-				validationPassed = false
-				failedMsgBuilder.WriteString("the spec.cephfs.fsName field is empty; ")
-			}
+		} else if cephSC.Spec.CephFS.FSName == "" {
+			validationPassed = false
+			failedMsgBuilder.WriteString("the spec.cephfs.fsName field is empty; ")
 		}
 	default:
 		validationPassed = false
