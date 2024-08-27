@@ -302,10 +302,10 @@ func GetStoragecClassParams(cephSC *storagev1alpha1.CephStorageClass, controller
 	}
 
 	if cephSC.Spec.Type == storagev1alpha1.CephStorageClassTypeRBD {
-		params["imageFeatures"] = "layering,journaling,exclusive-lock,object-map,fast-diff"
+		//params["imageFeatures"] = "layering,journaling,exclusive-lock,object-map,fast-diff"
 		params["csi.storage.k8s.io/fstype"] = cephSC.Spec.RBD.DefaultFSType
 		params["pool"] = cephSC.Spec.RBD.Pool
-		params["mounter"] = "rbd-nbd"
+		//params["mounter"] = "rbd-nbd"
 	}
 
 	if cephSC.Spec.Type == storagev1alpha1.CephStorageClassTypeCephFS {
