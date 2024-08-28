@@ -24,7 +24,7 @@ const (
 )
 
 var (
-	DefaultMountOptions = []string{"discard"}
+	DefaultMountOptionsRBD = []string{"discard"}
 )
 
 type CephStorageClass struct {

@@ -18,19 +18,19 @@ package controller_test
 
 import (
 	"context"
-	"d8-controller/pkg/controller"
-	"d8-controller/pkg/internal"
-	"d8-controller/pkg/logger"
-	v1alpha1 "github.com/deckhouse/csi-ceph/api/v1alpha1"
 
+	v1alpha1 "github.com/deckhouse/csi-ceph/api/v1alpha1"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/storage/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"d8-controller/pkg/controller"
+	"d8-controller/pkg/internal"
+	"d8-controller/pkg/logger"
 )
 
 var _ = Describe(controller.CephStorageClassCtrlName, func() {
@@ -163,7 +163,7 @@ var _ = Describe(controller.CephStorageClassCtrlName, func() {
 		sc := &v1.StorageClass{}
 		err = cl.Get(ctx, client.ObjectKey{Name: nameForCephSC}, sc)
 		Expect(err).NotTo(HaveOccurred())
-		performStandardChecksForCephSc(sc, nameForCephSC, controllerNamespace, CephStorageClassConfig{
+		performStandardChecksForCephSc(sc, nameForCephSC, CephStorageClassConfig{
 			ClusterConnectionName:     clusterConnectionName,
 			ClusterAuthenticationName: clusterAuthenticationName,
 			ReclaimPolicy:             reclaimPolicyDelete,
@@ -226,7 +226,7 @@ var _ = Describe(controller.CephStorageClassCtrlName, func() {
 		sc := &v1.StorageClass{}
 		err = cl.Get(ctx, client.ObjectKey{Name: nameForCephSC}, sc)
 		Expect(err).NotTo(HaveOccurred())
-		performStandardChecksForCephSc(sc, nameForCephSC, controllerNamespace, CephStorageClassConfig{
+		performStandardChecksForCephSc(sc, nameForCephSC, CephStorageClassConfig{
 			ClusterConnectionName:     clusterConnectionName,
 			ClusterAuthenticationName: clusterAuthenticationName,
 			ReclaimPolicy:             reclaimPolicyRetain,
@@ -312,7 +312,7 @@ var _ = Describe(controller.CephStorageClassCtrlName, func() {
 		sc := &v1.StorageClass{}
 		err = cl.Get(ctx, client.ObjectKey{Name: nameForRBDSC}, sc)
 		Expect(err).NotTo(HaveOccurred())
-		performStandardChecksForCephSc(sc, nameForRBDSC, controllerNamespace, CephStorageClassConfig{
+		performStandardChecksForCephSc(sc, nameForRBDSC, CephStorageClassConfig{
 			ClusterConnectionName:     clusterConnectionName,
 			ClusterAuthenticationName: clusterAuthenticationName,
 			ReclaimPolicy:             reclaimPolicyDelete,
@@ -358,7 +358,7 @@ var _ = Describe(controller.CephStorageClassCtrlName, func() {
 		sc := &v1.StorageClass{}
 		err = cl.Get(ctx, client.ObjectKey{Name: nameForRBDSC}, sc)
 		Expect(err).NotTo(HaveOccurred())
-		performStandardChecksForCephSc(sc, nameForRBDSC, controllerNamespace, CephStorageClassConfig{
+		performStandardChecksForCephSc(sc, nameForRBDSC, CephStorageClassConfig{
 			ClusterConnectionName:     clusterConnectionName,
 			ClusterAuthenticationName: clusterAuthenticationName,
 			ReclaimPolicy:             reclaimPolicyRetain,
@@ -627,7 +627,7 @@ var _ = Describe(controller.CephStorageClassCtrlName, func() {
 		sc := &v1.StorageClass{}
 		err = cl.Get(ctx, client.ObjectKey{Name: nameForCephSC}, sc)
 		Expect(err).NotTo(HaveOccurred())
-		performStandardChecksForCephSc(sc, nameForCephSC, controllerNamespace, CephStorageClassConfig{
+		performStandardChecksForCephSc(sc, nameForCephSC, CephStorageClassConfig{
 			ClusterConnectionName:     clusterConnectionName,
 			ClusterAuthenticationName: clusterAuthenticationName,
 			ReclaimPolicy:             reclaimPolicyDelete,
@@ -738,7 +738,8 @@ func generateCephStorageClass(cfg CephStorageClassConfig) *v1alpha1.CephStorageC
 	}
 }
 
-func performStandardChecksForCephSc(sc *v1.StorageClass, nameForTestResource, controllerNamespace string, cfg CephStorageClassConfig) {
+func performStandardChecksForCephSc(sc *v1.StorageClass, nameForTestResource string, cfg CephStorageClassConfig) {
+	controllerNamespace := "test-namespace"
 	Expect(sc).NotTo(BeNil())
 	Expect(sc.Name).To(Equal(nameForTestResource))
 	Expect(sc.Finalizers).To(HaveLen(1))

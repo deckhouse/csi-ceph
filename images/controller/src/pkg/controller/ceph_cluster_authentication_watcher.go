@@ -18,14 +18,11 @@ package controller
 
 import (
 	"context"
-	"d8-controller/pkg/config"
-	"d8-controller/pkg/internal"
-	"d8-controller/pkg/logger"
 	"fmt"
-	v1alpha1 "github.com/deckhouse/csi-ceph/api/v1alpha1"
 	"reflect"
 	"time"
 
+	v1alpha1 "github.com/deckhouse/csi-ceph/api/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
@@ -34,10 +31,13 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
+	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
-	"sigs.k8s.io/controller-runtime/pkg/manager"
+	"d8-controller/pkg/config"
+	"d8-controller/pkg/internal"
+	"d8-controller/pkg/logger"
 )
 
 const (
@@ -79,7 +79,7 @@ func RunCephClusterAuthenticationWatcherController(
 			log.Info(fmt.Sprintf("[CephClusterAuthenticationReconciler] CephClusterAuthentication %s has been reconciled with message: %s", cephClusterAuthentication.Name, msg))
 			phase := internal.PhaseCreated
 			if err != nil {
-				log.Error(err, fmt.Sprintf("[CephClusterAuthenticationReconciler] an error occured while reconciles the CephClusterAuthentication, name: %s", cephClusterAuthentication.Name))
+				log.Error(err, fmt.Sprintf("[CephClusterAuthenticationReconciler] an error occurred while reconciles the CephClusterAuthentication, name: %s", cephClusterAuthentication.Name))
 				phase = internal.PhaseFailed
 			}
 
@@ -108,31 +108,29 @@ func RunCephClusterAuthenticationWatcherController(
 		return nil, err
 	}
 
-	err = c.Watch(
-		source.Kind(mgr.GetCache(), &v1alpha1.CephClusterAuthentication{},
-			handler.TypedFuncs[*v1alpha1.CephClusterAuthentication]{
-				CreateFunc: func(ctx context.Context, e event.TypedCreateEvent[*v1alpha1.CephClusterAuthentication], q workqueue.RateLimitingInterface) {
-					log.Info(fmt.Sprintf("[CreateFunc] get event for CephClusterAuthentication %q. Add to the queue", e.Object.GetName()))
-					request := reconcile.Request{NamespacedName: types.NamespacedName{Namespace: e.Object.GetNamespace(), Name: e.Object.GetName()}}
-					q.Add(request)
-				},
-				UpdateFunc: func(ctx context.Context, e event.TypedUpdateEvent[*v1alpha1.CephClusterAuthentication], q workqueue.RateLimitingInterface) {
-					log.Info(fmt.Sprintf("[UpdateFunc] get event for CephClusterAuthentication %q. Check if it should be reconciled", e.ObjectNew.GetName()))
+	err = c.Watch(source.Kind(mgr.GetCache(), &v1alpha1.CephClusterAuthentication{}, handler.TypedFuncs[*v1alpha1.CephClusterAuthentication, reconcile.Request]{
+		CreateFunc: func(_ context.Context, e event.TypedCreateEvent[*v1alpha1.CephClusterAuthentication], q workqueue.TypedRateLimitingInterface[reconcile.Request]) {
+			log.Info(fmt.Sprintf("[CreateFunc] get event for CephClusterAuthentication %q. Add to the queue", e.Object.GetName()))
+			request := reconcile.Request{NamespacedName: types.NamespacedName{Namespace: e.Object.GetNamespace(), Name: e.Object.GetName()}}
+			q.Add(request)
+		},
+		UpdateFunc: func(_ context.Context, e event.TypedUpdateEvent[*v1alpha1.CephClusterAuthentication], q workqueue.TypedRateLimitingInterface[reconcile.Request]) {
+			log.Info(fmt.Sprintf("[UpdateFunc] get event for CephClusterAuthentication %q. Check if it should be reconciled", e.ObjectNew.GetName()))
 
-					oldCephClusterAuthentication := e.ObjectOld
-					newCephClusterAuthentication := e.ObjectNew
+			oldCephClusterAuthentication := e.ObjectOld
+			newCephClusterAuthentication := e.ObjectNew
 
-					if reflect.DeepEqual(oldCephClusterAuthentication.Spec, newCephClusterAuthentication.Spec) && newCephClusterAuthentication.DeletionTimestamp == nil {
-						log.Info(fmt.Sprintf("[UpdateFunc] an update event for the CephClusterAuthentication %s has no Spec field updates. It will not be reconciled", newCephClusterAuthentication.Name))
-						return
-					}
+			if reflect.DeepEqual(oldCephClusterAuthentication.Spec, newCephClusterAuthentication.Spec) && newCephClusterAuthentication.DeletionTimestamp == nil {
+				log.Info(fmt.Sprintf("[UpdateFunc] an update event for the CephClusterAuthentication %s has no Spec field updates. It will not be reconciled", newCephClusterAuthentication.Name))
+				return
+			}
 
-					log.Info(fmt.Sprintf("[UpdateFunc] the CephClusterAuthentication %q will be reconciled. Add to the queue", newCephClusterAuthentication.Name))
-					request := reconcile.Request{NamespacedName: types.NamespacedName{Namespace: newCephClusterAuthentication.Namespace, Name: newCephClusterAuthentication.Name}}
-					q.Add(request)
-				},
-			},
-		),
+			log.Info(fmt.Sprintf("[UpdateFunc] the CephClusterAuthentication %q will be reconciled. Add to the queue", newCephClusterAuthentication.Name))
+			request := reconcile.Request{NamespacedName: types.NamespacedName{Namespace: newCephClusterAuthentication.Namespace, Name: newCephClusterAuthentication.Name}}
+			q.Add(request)
+		},
+	},
+	),
 	)
 
 	if err != nil {

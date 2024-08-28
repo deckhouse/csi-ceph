@@ -4,11 +4,15 @@
 ---
 image: {{ $.ImageName }}-golang-artifact
 from: {{ $.BASE_GOLANG_22_ALPINE }}
+fromCacheVersion: 20240827144204
 final: false
 
 git:
-  - add: /images/controller/src
-    to: /src
+  - add: /
+    to: /
+    includePaths:
+      - api
+      - images/controller/src
     stageDependencies:
       setup:
         - "**/*"
@@ -17,9 +21,8 @@ mount:
     to: /go/pkg
 shell:
   setup:
-    - cd /src/cmd
-    - GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="-s -w" -o controller
-    - mv controller /controller
+    - cd /images/controller/src/cmd
+    - GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="-s -w" -o /controller
     - chmod +x /controller
 
 ---

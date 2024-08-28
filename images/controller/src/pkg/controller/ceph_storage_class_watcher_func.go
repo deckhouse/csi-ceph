@@ -18,20 +18,19 @@ package controller
 
 import (
 	"context"
-	"d8-controller/pkg/internal"
-	"d8-controller/pkg/logger"
 	"fmt"
 	"reflect"
+	"slices"
 	"strings"
 
 	storagev1alpha1 "github.com/deckhouse/csi-ceph/api/v1alpha1"
-
-	"slices"
-
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/storage/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"d8-controller/pkg/internal"
+	"d8-controller/pkg/logger"
 )
 
 func IdentifyReconcileFuncForStorageClass(log logger.Logger, scList *v1.StorageClassList, cephSC *storagev1alpha1.CephStorageClass, controllerNamespace, clusterID string) (reconcileType string, err error) {
@@ -92,11 +91,9 @@ func shouldReconcileStorageClassByUpdateFunc(log logger.Logger, scList *v1.Stora
 				}
 
 				return false, nil
-
-			} else {
-				err := fmt.Errorf("a storage class %s with provisioner % s does not belong to allowed provisioners: %v", oldSC.Name, oldSC.Provisioner, allowedProvisioners)
-				return false, err
 			}
+			err := fmt.Errorf("a storage class %s with provisioner % s does not belong to allowed provisioners: %v", oldSC.Name, oldSC.Provisioner, allowedProvisioners)
+			return false, err
 		}
 	}
 
@@ -227,7 +224,7 @@ func reconcileStorageClassDeleteFunc(
 		}
 	}
 
-	_, err = removeFinalizerIfExists(ctx, cl, cephSC, CephStorageClassControllerFinalizerName)
+	err = removeFinalizerIfExists(ctx, cl, cephSC, CephStorageClassControllerFinalizerName)
 	if err != nil {
 		err = fmt.Errorf("[reconcileStorageClassDeleteFunc] unable to remove a finalizer %s from the CephStorageClass %s: %w", CephStorageClassControllerFinalizerName, cephSC.Name, err)
 		return true, err.Error(), err
@@ -249,8 +246,6 @@ func ConfigureStorageClass(cephSC *storagev1alpha1.CephStorageClass, controllerN
 		return nil, err
 	}
 
-	mountOpt := storagev1alpha1.DefaultMountOptions
-
 	sc := &v1.StorageClass{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       StorageClassKind,
@@ -269,7 +264,10 @@ func ConfigureStorageClass(cephSC *storagev1alpha1.CephStorageClass, controllerN
 		ReclaimPolicy:        &reclaimPolicy,
 		VolumeBindingMode:    &volumeBindingMode,
 		AllowVolumeExpansion: &allowVolumeExpansion,
-		MountOptions:         mountOpt,
+	}
+
+	if cephSC.Spec.Type == storagev1alpha1.CephStorageClassTypeRBD {
+		sc.MountOptions = storagev1alpha1.DefaultMountOptionsRBD
 	}
 
 	return sc, nil
@@ -285,7 +283,6 @@ func GetStorageClassProvisioner(cephStorageClasstype string) string {
 	}
 
 	return provisioner
-
 }
 
 func GetStoragecClassParams(cephSC *storagev1alpha1.CephStorageClass, controllerNamespace, clusterID string) (map[string]string, error) {
@@ -302,10 +299,10 @@ func GetStoragecClassParams(cephSC *storagev1alpha1.CephStorageClass, controller
 	}
 
 	if cephSC.Spec.Type == storagev1alpha1.CephStorageClassTypeRBD {
-		params["imageFeatures"] = "layering,journaling,exclusive-lock,object-map,fast-diff"
+		params["imageFeatures"] = "layering,exclusive-lock,object-map,fast-diff"
 		params["csi.storage.k8s.io/fstype"] = cephSC.Spec.RBD.DefaultFSType
 		params["pool"] = cephSC.Spec.RBD.Pool
-		params["mounter"] = "rbd-nbd"
+		// params["mounter"] = "rbd-nbd"
 	}
 
 	if cephSC.Spec.Type == storagev1alpha1.CephStorageClassTypeCephFS {
@@ -347,7 +344,6 @@ func createStorageClassIfNotExists(ctx context.Context, cl client.Client, scList
 }
 
 func GetSCDiff(oldSC, newSC *v1.StorageClass) (string, error) {
-
 	if oldSC.Provisioner != newSC.Provisioner {
 		err := fmt.Errorf("CephStorageClass %q: the provisioner field is different in the StorageClass %q", newSC.Name, oldSC.Name)
 		return "", err
@@ -405,7 +401,7 @@ func deleteStorageClass(ctx context.Context, cl client.Client, sc *v1.StorageCla
 		return fmt.Errorf("a storage class %s with provisioner %s does not belong to allowed provisioners: %v", sc.Name, sc.Provisioner, allowedProvisioners)
 	}
 
-	_, err := removeFinalizerIfExists(ctx, cl, sc, CephStorageClassControllerFinalizerName)
+	err := removeFinalizerIfExists(ctx, cl, sc, CephStorageClassControllerFinalizerName)
 	if err != nil {
 		return err
 	}
@@ -470,11 +466,9 @@ func validateCephStorageClassSpec(cephSC *storagev1alpha1.CephStorageClass) (boo
 		if cephSC.Spec.CephFS == nil {
 			validationPassed = false
 			failedMsgBuilder.WriteString(fmt.Sprintf("CephStorageClass type is %s but the spec.cephfs field is empty; ", storagev1alpha1.CephStorageClassTypeRBD))
-		} else {
-			if cephSC.Spec.CephFS.FSName == "" {
-				validationPassed = false
-				failedMsgBuilder.WriteString("the spec.cephfs.fsName field is empty; ")
-			}
+		} else if cephSC.Spec.CephFS.FSName == "" {
+			validationPassed = false
+			failedMsgBuilder.WriteString("the spec.cephfs.fsName field is empty; ")
 		}
 	default:
 		validationPassed = false

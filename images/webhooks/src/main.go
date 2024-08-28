@@ -21,11 +21,12 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"webhooks/handlers"
 
 	"github.com/sirupsen/logrus"
 	kwhlogrus "github.com/slok/kubewebhook/v2/pkg/log/logrus"
 	storagev1 "k8s.io/api/storage/v1"
+
+	"webhooks/handlers"
 )
 
 type config struct {
@@ -33,7 +34,7 @@ type config struct {
 	keyFile  string
 }
 
-func httpHandlerHealthz(w http.ResponseWriter, r *http.Request) {
+func httpHandlerHealthz(w http.ResponseWriter, _ *http.Request) {
 	fmt.Fprint(w, "Ok.")
 }
 
@@ -44,13 +45,17 @@ func initFlags() config {
 	fl.StringVar(&cfg.certFile, "tls-cert-file", "", "TLS certificate file")
 	fl.StringVar(&cfg.keyFile, "tls-key-file", "", "TLS key file")
 
-	fl.Parse(os.Args[1:])
+	err := fl.Parse(os.Args[1:])
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error parsing flags: %s", err)
+		os.Exit(1)
+	}
 	return cfg
 }
 
 const (
 	port          = ":8443"
-	SCValidatorId = "SCValidator"
+	SCValidatorID = "SCValidator"
 )
 
 func main() {
@@ -60,7 +65,7 @@ func main() {
 
 	cfg := initFlags()
 
-	scValidatingWebhookHandler, err := handlers.GetValidatingWebhookHandler(handlers.SCValidate, SCValidatorId, &storagev1.StorageClass{}, logger)
+	scValidatingWebhookHandler, err := handlers.GetValidatingWebhookHandler(handlers.SCValidate, SCValidatorID, &storagev1.StorageClass{}, logger)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error creating scValidatingWebhookHandler: %s", err)
 		os.Exit(1)

@@ -20,17 +20,17 @@ import (
 	"context"
 	"encoding/json"
 
-	"d8-controller/pkg/controller"
-	"d8-controller/pkg/internal"
-	"d8-controller/pkg/logger"
 	v1alpha1 "github.com/deckhouse/csi-ceph/api/v1alpha1"
-
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"d8-controller/pkg/controller"
+	"d8-controller/pkg/internal"
+	"d8-controller/pkg/logger"
 )
 
 var _ = Describe(controller.CephClusterConnectionCtrlName, func() {
@@ -82,7 +82,7 @@ var _ = Describe(controller.CephClusterConnectionCtrlName, func() {
 		Expect(shouldReconcile).To(BeFalse())
 
 		By("Verifying dependent ConfigMap")
-		verifyConfigMap(ctx, cl, cephClusterConnection, controllerNamespace)
+		verifyConfigMap(ctx, cl, cephClusterConnection)
 
 		By("Verifying CephClusterConnection after create reconcile")
 		createdCephClusterConnection = &v1alpha1.CephClusterConnection{}
@@ -116,7 +116,7 @@ var _ = Describe(controller.CephClusterConnectionCtrlName, func() {
 		Expect(shouldReconcile).To(BeFalse())
 
 		By("Verifying updated ConfigMap")
-		verifyConfigMap(ctx, cl, updatedCephClusterConnection, controllerNamespace)
+		verifyConfigMap(ctx, cl, updatedCephClusterConnection)
 
 		By("Verifying CephClusterConnection after update reconcile")
 		updatedCephClusterConnection = &v1alpha1.CephClusterConnection{}
@@ -149,7 +149,7 @@ var _ = Describe(controller.CephClusterConnectionCtrlName, func() {
 		Expect(shouldReconcile).To(BeFalse())
 
 		By("Verifying ConfigMap update after deletion")
-		verifyConfigMapWithoutClusterConnection(ctx, cl, cephClusterConnection, controllerNamespace)
+		verifyConfigMapWithoutClusterConnection(ctx, cl, cephClusterConnection)
 
 		By("Verifying CephClusterConnection after delete reconcile")
 		deletedCephClusterConnection = &v1alpha1.CephClusterConnection{}
@@ -182,7 +182,7 @@ var _ = Describe(controller.CephClusterConnectionCtrlName, func() {
 		Expect(shouldReconcile).To(BeFalse())
 
 		By("Verifying no ConfigMap entry created for invalid CephClusterConnection")
-		verifyConfigMapWithoutClusterConnection(ctx, cl, cephClusterConnection, controllerNamespace)
+		verifyConfigMapWithoutClusterConnection(ctx, cl, cephClusterConnection)
 
 		By("Creating CephClusterConnection with empty Monitors")
 		cephClusterConnection.Spec.ClusterID = clusterID
@@ -198,7 +198,7 @@ var _ = Describe(controller.CephClusterConnectionCtrlName, func() {
 		Expect(shouldReconcile).To(BeFalse())
 
 		By("Verifying no ConfigMap entry created for CephClusterConnection with empty Monitors")
-		verifyConfigMapWithoutClusterConnection(ctx, cl, cephClusterConnection, controllerNamespace)
+		verifyConfigMapWithoutClusterConnection(ctx, cl, cephClusterConnection)
 
 		By("Fix CephClusterConnection")
 		cephClusterConnection.Spec.Monitors = monitors
@@ -211,7 +211,7 @@ var _ = Describe(controller.CephClusterConnectionCtrlName, func() {
 		Expect(shouldReconcile).To(BeFalse())
 
 		By("Verifying ConfigMap entry created for fixed CephClusterConnection")
-		verifyConfigMap(ctx, cl, cephClusterConnection, controllerNamespace)
+		verifyConfigMap(ctx, cl, cephClusterConnection)
 
 		By("Verifying CephClusterConnection after fix reconcile")
 		cephClusterConnection = &v1alpha1.CephClusterConnection{}
@@ -236,7 +236,7 @@ var _ = Describe(controller.CephClusterConnectionCtrlName, func() {
 		Expect(shouldReconcile).To(BeFalse())
 
 		By("Verifying ConfigMap not changed for CephClusterConnection with empty Monitors after fix")
-		verifyConfigMap(ctx, cl, cephClusterConnection, controllerNamespace)
+		verifyConfigMap(ctx, cl, cephClusterConnection)
 
 		By("Verifying CephClusterConnection not changed after fix reconcile")
 		badCephClusterConnection = &v1alpha1.CephClusterConnection{}
@@ -270,7 +270,7 @@ var _ = Describe(controller.CephClusterConnectionCtrlName, func() {
 		Expect(shouldReconcile).To(BeFalse())
 
 		By("Verifying ConfigMap is empty after deletion of CephClusterConnection with empty Monitors")
-		verifyConfigMapWithoutClusterConnection(ctx, cl, cephClusterConnection, controllerNamespace)
+		verifyConfigMapWithoutClusterConnection(ctx, cl, cephClusterConnection)
 
 		By("Verifying CephClusterConnection is deleted after deletion of CephClusterConnection with empty Monitors")
 		badCephClusterConnection = &v1alpha1.CephClusterConnection{}
@@ -279,7 +279,8 @@ var _ = Describe(controller.CephClusterConnectionCtrlName, func() {
 	})
 })
 
-func verifyConfigMap(ctx context.Context, cl client.Client, cephClusterConnection *v1alpha1.CephClusterConnection, controllerNamespace string) {
+func verifyConfigMap(ctx context.Context, cl client.Client, cephClusterConnection *v1alpha1.CephClusterConnection) {
+	controllerNamespace := "test-namespace"
 	configMap := &corev1.ConfigMap{}
 	err := cl.Get(ctx, client.ObjectKey{Name: internal.CSICephConfigMapName, Namespace: controllerNamespace}, configMap)
 	Expect(err).NotTo(HaveOccurred())
@@ -302,7 +303,8 @@ func verifyConfigMap(ctx context.Context, cl client.Client, cephClusterConnectio
 	Expect(found).To(BeTrue(), "Cluster config not found in ConfigMap")
 }
 
-func verifyConfigMapWithoutClusterConnection(ctx context.Context, cl client.Client, cephClusterConnection *v1alpha1.CephClusterConnection, controllerNamespace string) {
+func verifyConfigMapWithoutClusterConnection(ctx context.Context, cl client.Client, cephClusterConnection *v1alpha1.CephClusterConnection) {
+	controllerNamespace := "test-namespace"
 	configMap := &corev1.ConfigMap{}
 	err := cl.Get(ctx, client.ObjectKey{Name: internal.CSICephConfigMapName, Namespace: controllerNamespace}, configMap)
 	Expect(err).NotTo(HaveOccurred())

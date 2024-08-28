@@ -25,14 +25,10 @@ import (
 )
 
 func shouldReconcileByDeleteFunc(obj metav1.Object) bool {
-	if obj.GetDeletionTimestamp() != nil {
-		return true
-	}
-
-	return false
+	return obj.GetDeletionTimestamp() != nil
 }
 
-func removeFinalizerIfExists(ctx context.Context, cl client.Client, obj metav1.Object, finalizerName string) (bool, error) {
+func removeFinalizerIfExists(ctx context.Context, cl client.Client, obj metav1.Object, finalizerName string) error {
 	removed := false
 	finalizers := obj.GetFinalizers()
 	for i, f := range finalizers {
@@ -47,11 +43,11 @@ func removeFinalizerIfExists(ctx context.Context, cl client.Client, obj metav1.O
 		obj.SetFinalizers(finalizers)
 		err := cl.Update(ctx, obj.(client.Object))
 		if err != nil {
-			return false, err
+			return err
 		}
 	}
 
-	return removed, nil
+	return nil
 }
 
 func addFinalizerIfNotExists(ctx context.Context, cl client.Client, obj metav1.Object, finalizerName string) (bool, error) {

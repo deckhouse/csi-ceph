@@ -13,6 +13,10 @@ linters-settings:
     sections:
       - standard
       - default
+      - prefix(d8-controller)
+      - prefix(webhooks)
+
+
   errcheck:
     ignore: fmt:.*,[rR]ead|[wW]rite|[cC]lose,io:Copy
 
@@ -24,7 +28,7 @@ linters:
   - gci
   - gocritic
   - gofmt
-  - goimports
+# - goimports
   - gosimple
   - govet
   - ineffassign

@@ -1,3 +1,5 @@
+{{- $version := "3.12.1" }}
+
 {{- $binaries := "/cephcsi /sbin/mount.ceph /usr/bin/ceph-fuse /bin/mount /bin/umount /sbin/fsck /sbin/modprobe /bin/kmod /usr/bin/rbd /usr/bin/rbd-nbd /sbin/blkid /sbin/mkfs /sbin/mkfs.ext4 /sbin/mkfs.xfs /sbin/blockdev /sbin/dumpe2fs /usr/sbin/xfs_io /usr/sbin/xfs_growfs /sbin/resize2fs" }}
 {{- $_ := set . "BASE_ALT_DEV"    "registry.deckhouse.io/base_images/dev-alt:p10@sha256:76e6e163fa982f03468166203488b569e6d9fc10855d6a259c662706436cdcad" }}
 {{- $_ := set . "BASE_SCRATCH"    "registry.deckhouse.io/base_images/scratch@sha256:b054705fcc9f2205777d80a558d920c0b4209efdc3163c22b5bfcb5dda1db5fc" }}
@@ -7,13 +9,22 @@ image: {{ $.ImageName }}-binaries-artifact
 from: {{ $.BASE_ALT_DEV }}
 final: false
 
+git:
+  - add: /images/{{ $.ImageName }}
+    to: /
+    stageDependencies:
+      setup:
+        - "**/*"
+    includePaths:
+      - patches
+
 shell:
   install:
-    - mkdir -p /src
-    - cd /src
-    - git clone --branch v3.7.2 --depth 1 {{ env "SOURCE_REPO" }}/ceph/ceph-csi.git .
     - export GOPROXY={{ env "GOPROXY" }}
     - export CGO_ENABLED=1
+    - git clone --branch v{{ $version }} --depth 1 {{ env "SOURCE_REPO" }}/ceph/ceph-csi.git /src
+    - cd /src
+    - for patchfile in /patches/*.patch ; do echo -n "Apply ${patchfile} ... "; git apply ${patchfile}; done
     - make cephcsi
     - cp _output/cephcsi /cephcsi
     - /binary_replace.sh -i "{{ $binaries }}" -o /relocate

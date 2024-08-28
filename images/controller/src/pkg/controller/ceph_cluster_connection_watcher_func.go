@@ -18,19 +18,20 @@ package controller
 
 import (
 	"context"
-	"d8-controller/pkg/internal"
-	"d8-controller/pkg/logger"
 	"encoding/json"
 	"fmt"
-	v1alpha1 "github.com/deckhouse/csi-ceph/api/v1alpha1"
 	"reflect"
 	"slices"
 	"strings"
 
+	v1alpha1 "github.com/deckhouse/csi-ceph/api/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"d8-controller/pkg/internal"
+	"d8-controller/pkg/logger"
 )
 
 func validateCephClusterConnectionSpec(cephClusterConnection *v1alpha1.CephClusterConnection) (bool, string) {
@@ -74,7 +75,7 @@ func updateCephClusterConnectionPhase(ctx context.Context, cl client.Client, cep
 }
 
 // ConfigMap
-func IdentifyReconcileFuncForConfigMap(log logger.Logger, configMapList *corev1.ConfigMapList, cephClusterConnection *v1alpha1.CephClusterConnection, controllerNamespace, configMapName string) (reconcileType string, err error) {
+func IdentifyReconcileFuncForConfigMap(log logger.Logger, configMapList *corev1.ConfigMapList, cephClusterConnection *v1alpha1.CephClusterConnection, configMapName string) (reconcileType string, err error) {
 	if shouldReconcileByDeleteFunc(cephClusterConnection) {
 		return internal.DeleteReconcile, nil
 	}
@@ -101,11 +102,7 @@ func shouldReconcileConfigMapByCreateFunc(configMapList *corev1.ConfigMapList, c
 
 	for _, cm := range configMapList.Items {
 		if cm.Name == configMapName {
-			if cm.Data["config.json"] == "" {
-				return true
-			}
-
-			return false
+			return cm.Data["config.json"] == ""
 		}
 	}
 
@@ -267,7 +264,7 @@ func reconcileConfigMapDeleteFunc(ctx context.Context, cl client.Client, log log
 		}
 	}
 
-	_, err = removeFinalizerIfExists(ctx, cl, cephClusterConnection, CephClusterConnectionControllerFinalizerName)
+	err = removeFinalizerIfExists(ctx, cl, cephClusterConnection, CephClusterConnectionControllerFinalizerName)
 	if err != nil {
 		err = fmt.Errorf("[reconcileConfigMapDeleteFunc] unable to remove finalizer from the CephClusterConnection %s: %w", cephClusterConnection.Name, err)
 		return true, err.Error(), err
@@ -313,10 +310,10 @@ func updateConfigMap(oldConfigMap *corev1.ConfigMap, cephClusterConnection *v1al
 		clusterConfigs = append(clusterConfigs, newClusterConfig)
 	}
 
-	newJsonData, _ := json.Marshal(clusterConfigs)
+	newJSONData, _ := json.Marshal(clusterConfigs)
 
 	configMap := oldConfigMap.DeepCopy()
-	configMap.Data["config.json"] = string(newJsonData)
+	configMap.Data["config.json"] = string(newJSONData)
 
 	if configMap.Labels == nil {
 		configMap.Labels = map[string]string{}
