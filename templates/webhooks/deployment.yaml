@@ -87,7 +87,7 @@ spec:
 {{- end }}
 
       imagePullSecrets:
-        - name: deckhouse-registry
+        - name: {{ .Chart.Name }}-module-registry
       serviceAccount: webhooks
       serviceAccountName: webhooks
       volumes:
