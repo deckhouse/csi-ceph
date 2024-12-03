@@ -96,7 +96,7 @@ jobs:
 
   prod_se_plus_setup_build:
     runs-on: [self-hosted, regular, selectel]
-    name: Build and Push SE
+    name: Build and Push SE+
     steps:
       - name: SET VAR
         run: |
