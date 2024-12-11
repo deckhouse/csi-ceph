@@ -24,10 +24,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-func shouldReconcileByDeleteFunc(obj metav1.Object) bool {
-	return obj.GetDeletionTimestamp() != nil
-}
-
 func removeFinalizerIfExists(ctx context.Context, cl client.Client, obj metav1.Object, finalizerName string) error {
 	removed := false
 	finalizers := obj.GetFinalizers()
