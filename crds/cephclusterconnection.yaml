@@ -31,6 +31,8 @@ spec:
               required:
                 - clusterID
                 - monitors
+                # - userID
+                # - userKey
               properties:
                 clusterID:
                   description: |
@@ -47,6 +49,15 @@ spec:
                   type: array
                   items:
                     type: string
+                userID:
+                  description: |
+                    Ceph user name.
+                  type: string
+                userKey:
+                  description: |
+                    Ceph user key.
+                  type: string
+                  minLength: 1
             status:
               type: object
               description: |

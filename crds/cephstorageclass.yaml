@@ -37,7 +37,6 @@ spec:
                   message: "Field 'rbd' is required for 'RBD' type, and 'cephFS' field is forbidden"
               required:
                 - clusterConnectionName
-                - clusterAuthenticationName
                 - reclaimPolicy
                 - type
               properties:

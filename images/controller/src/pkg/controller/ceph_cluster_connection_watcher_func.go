@@ -27,7 +27,6 @@ import (
 	v1alpha1 "github.com/deckhouse/csi-ceph/api/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/labels"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"d8-controller/pkg/internal"
@@ -56,117 +55,80 @@ func validateCephClusterConnectionSpec(cephClusterConnection *v1alpha1.CephClust
 		failedMsgBuilder.WriteString("the spec.monitors field is empty; ")
 	}
 
+	if cephClusterConnection.Spec.UserID == "" {
+		validationPassed = false
+		failedMsgBuilder.WriteString("the spec.userID field is empty; ")
+	}
+
+	if cephClusterConnection.Spec.UserKey == "" {
+		validationPassed = false
+		failedMsgBuilder.WriteString("the spec.userKey field is empty; ")
+	}
+
 	return validationPassed, failedMsgBuilder.String()
 }
 
-func updateCephClusterConnectionPhase(ctx context.Context, cl client.Client, cephClusterConnection *v1alpha1.CephClusterConnection, phase, reason string) error {
+func updateCephClusterConnectionPhaseIfNeeded(ctx context.Context, cl client.Client, cephClusterConnection *v1alpha1.CephClusterConnection, phase, reason string) error {
+	needUpdate := false
+
 	if cephClusterConnection.Status == nil {
 		cephClusterConnection.Status = &v1alpha1.CephClusterConnectionStatus{}
+		needUpdate = true
 	}
-	cephClusterConnection.Status.Phase = phase
-	cephClusterConnection.Status.Reason = reason
+	if cephClusterConnection.Status.Phase != phase {
+		cephClusterConnection.Status.Phase = phase
+		needUpdate = true
+	}
 
-	err := cl.Status().Update(ctx, cephClusterConnection)
-	if err != nil {
-		return err
+	if cephClusterConnection.Status.Reason != reason {
+		cephClusterConnection.Status.Reason = reason
+		needUpdate = true
+	}
+
+	if needUpdate {
+		err := cl.Status().Update(ctx, cephClusterConnection)
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil
 }
 
-// ConfigMap
-func IdentifyReconcileFuncForConfigMap(log logger.Logger, configMapList *corev1.ConfigMapList, cephClusterConnection *v1alpha1.CephClusterConnection, configMapName string) (reconcileType string, err error) {
-	if shouldReconcileByDeleteFunc(cephClusterConnection) {
-		return internal.DeleteReconcile, nil
-	}
-
-	if shouldReconcileConfigMapByCreateFunc(configMapList, cephClusterConnection, configMapName) {
-		return internal.CreateReconcile, nil
-	}
-
-	should, err := shouldReconcileConfigMapByUpdateFunc(log, configMapList, cephClusterConnection, configMapName)
-	if err != nil {
-		return "", err
-	}
-	if should {
-		return internal.UpdateReconcile, nil
-	}
-
-	return "", nil
-}
-
-func shouldReconcileConfigMapByCreateFunc(configMapList *corev1.ConfigMapList, cephClusterConnection *v1alpha1.CephClusterConnection, configMapName string) bool {
-	if cephClusterConnection.DeletionTimestamp != nil {
-		return false
-	}
-
+func reconcileConfigMap(ctx context.Context, cl client.Client, log logger.Logger, configMapList *corev1.ConfigMapList, cephClusterConnection *v1alpha1.CephClusterConnection, configMapName string) (shouldRequeue bool, msg string, err error) {
+	var configMap *corev1.ConfigMap
 	for _, cm := range configMapList.Items {
 		if cm.Name == configMapName {
-			return cm.Data["config.json"] == ""
+			configMap = &cm
+			break
 		}
 	}
 
-	return true
-}
+	if configMap == nil && cephClusterConnection.DeletionTimestamp != nil {
+		return createConfigMap(ctx, cl, log, cephClusterConnection, cephClusterConnection.Namespace, configMapName)
+	}
 
-func shouldReconcileConfigMapByUpdateFunc(log logger.Logger, configMapList *corev1.ConfigMapList, cephClusterConnection *v1alpha1.CephClusterConnection, configMapName string) (bool, error) {
+	updateAction := internal.UpdateConfigMapActionUpdate
 	if cephClusterConnection.DeletionTimestamp != nil {
-		return false, nil
+		updateAction = internal.UpdateConfigMapActionDelete
 	}
 
-	configMapSelector := labels.Set(map[string]string{
-		internal.StorageManagedLabelKey: CephClusterConnectionCtrlName,
-	})
-
-	for _, oldConfigMap := range configMapList.Items {
-		if oldConfigMap.Name == configMapName {
-			oldClusterConfigs, err := getClusterConfigsFromConfigMap(oldConfigMap)
-			if err != nil {
-				return false, err
-			}
-
-			equal := false
-			clusterConfigExists := false
-			for _, oldClusterConfig := range oldClusterConfigs {
-				if oldClusterConfig.ClusterID == cephClusterConnection.Spec.ClusterID {
-					clusterConfigExists = true
-					newClusterConfig := configureClusterConfig(cephClusterConnection)
-					equal = reflect.DeepEqual(oldClusterConfig, newClusterConfig)
-
-					log.Trace(fmt.Sprintf("[shouldReconcileConfigMapByUpdateFunc] old cluster config: %+v", oldClusterConfig))
-					log.Trace(fmt.Sprintf("[shouldReconcileConfigMapByUpdateFunc] new cluster config: %+v", newClusterConfig))
-					log.Trace(fmt.Sprintf("[shouldReconcileConfigMapByUpdateFunc] are cluster configs equal: %t", equal))
-					break
-				}
-			}
-
-			if !equal || !labels.Set(oldConfigMap.Labels).AsSelector().Matches(configMapSelector) {
-				if !clusterConfigExists {
-					log.Trace(fmt.Sprintf("[shouldReconcileConfigMapByUpdateFunc] a cluster config for the cluster %s does not exist in the ConfigMap %+v", cephClusterConnection.Spec.ClusterID, oldConfigMap))
-				}
-				if !labels.Set(oldConfigMap.Labels).AsSelector().Matches(configMapSelector) {
-					log.Trace(fmt.Sprintf("[shouldReconcileConfigMapByUpdateFunc] a configMap %s labels %+v does not match the selector %+v", oldConfigMap.Name, oldConfigMap.Labels, configMapSelector))
-				}
-
-				log.Debug(fmt.Sprintf("[shouldReconcileConfigMapByUpdateFunc] a configMap %s should be updated", configMapName))
-				return true, nil
-			}
-
-			return false, nil
-		}
+	err = updateConfigMapIfNeeded(ctx, cl, log, configMap, cephClusterConnection, updateAction)
+	if err != nil {
+		return true, err.Error(), err
 	}
 
-	err := fmt.Errorf("[shouldReconcileConfigMapByUpdateFunc] a configMap %s not found in the list: %+v. It should be created", configMapName, configMapList.Items)
-	return false, err
+	return false, fmt.Sprintf("Successfully reconciled ConfigMap %s", configMapName), nil
 }
 
-func getClusterConfigsFromConfigMap(configMap corev1.ConfigMap) ([]v1alpha1.ClusterConfig, error) {
+func getClusterConfigsFromConfigMap(configMap *corev1.ConfigMap) ([]v1alpha1.ClusterConfig, error) {
+	var clusterConfigs []v1alpha1.ClusterConfig
+
 	jsonData, ok := configMap.Data["config.json"]
 	if !ok {
 		return nil, fmt.Errorf("[getClusterConfigsFromConfigMap] config.json key not found in the ConfigMap %s", configMap.Name)
 	}
 
-	var clusterConfigs []v1alpha1.ClusterConfig
 	err := json.Unmarshal([]byte(jsonData), &clusterConfigs)
 	if err != nil {
 		return nil, fmt.Errorf("[getClusterConfigsFromConfigMap] unable to unmarshal data from the ConfigMap %s: %w", configMap.Name, err)
@@ -175,7 +137,7 @@ func getClusterConfigsFromConfigMap(configMap corev1.ConfigMap) ([]v1alpha1.Clus
 	return clusterConfigs, nil
 }
 
-func configureClusterConfig(cephClusterConnection *v1alpha1.CephClusterConnection) v1alpha1.ClusterConfig {
+func generateClusterConfig(cephClusterConnection *v1alpha1.CephClusterConnection) v1alpha1.ClusterConfig {
 	cephFs := map[string]string{}
 
 	clusterConfig := v1alpha1.ClusterConfig{
@@ -187,97 +149,34 @@ func configureClusterConfig(cephClusterConnection *v1alpha1.CephClusterConnectio
 	return clusterConfig
 }
 
-func reconcileConfigMapCreateFunc(ctx context.Context, cl client.Client, log logger.Logger, cephClusterConnection *v1alpha1.CephClusterConnection, controllerNamespace, configMapName string) (shouldRequeue bool, msg string, err error) {
-	log.Debug(fmt.Sprintf("[reconcileConfigMapCreateFunc] starts reconciliation of ConfigMap %s for CephClusterConnection %s", configMapName, cephClusterConnection.Name))
+func createConfigMap(ctx context.Context, cl client.Client, log logger.Logger, cephClusterConnection *v1alpha1.CephClusterConnection, controllerNamespace, configMapName string) (shouldRequeue bool, msg string, err error) {
+	log.Debug(fmt.Sprintf("[createConfigMap] starts creation of ConfigMap %s for CephClusterConnection %s", configMapName, cephClusterConnection.Name))
 
-	newClusterConfig := configureClusterConfig(cephClusterConnection)
-	newConfigMap := createConfigMap(newClusterConfig, controllerNamespace, configMapName)
-	log.Debug(fmt.Sprintf("[reconcileConfigMapCreateFunc] successfully configurated ConfigMap %s for the CephClusterConnection %s", configMapName, cephClusterConnection.Name))
-	log.Trace(fmt.Sprintf("[reconcileConfigMapCreateFunc] configMap: %+v", newConfigMap))
+	newClusterConfig := generateClusterConfig(cephClusterConnection)
+	newConfigMap, err := generateNewConfigMap(newClusterConfig, controllerNamespace, configMapName)
+	if err != nil {
+		err = fmt.Errorf("[createConfigMap] unable to generate the ConfigMap %s for CephClusterConnection %s: %w", configMapName, cephClusterConnection.Name, err)
+		return true, err.Error(), err
+	}
+	log.Debug(fmt.Sprintf("[createConfigMap] successfully generate the ConfigMap %s for the CephClusterConnection %s", configMapName, cephClusterConnection.Name))
+	log.Trace(fmt.Sprintf("[createConfigMap] configMap: %+v", newConfigMap))
 
 	err = cl.Create(ctx, newConfigMap)
 	if err != nil {
-		err = fmt.Errorf("[reconcileConfigMapCreateFunc] unable to create a ConfigMap %s for CephClusterConnection %s: %w", newConfigMap.Name, cephClusterConnection.Name, err)
+		err = fmt.Errorf("[createConfigMap] unable to create a ConfigMap %s for CephClusterConnection %s: %w", newConfigMap.Name, cephClusterConnection.Name, err)
 		return true, err.Error(), err
 	}
 
-	return false, "Successfully created", nil
+	log.Debug(fmt.Sprintf("[createConfigMap] successfully created ConfigMap %s for the CephClusterConnection %s", newConfigMap.Name, cephClusterConnection.Name))
+	return false, fmt.Sprintf("Successfully created ConfigMap %s", newConfigMap.Name), nil
 }
 
-func reconcileConfigMapUpdateFunc(ctx context.Context, cl client.Client, log logger.Logger, configMapList *corev1.ConfigMapList, cephClusterConnection *v1alpha1.CephClusterConnection, configMapName string) (shouldRequeue bool, msg string, err error) {
-	log.Debug(fmt.Sprintf("[reconcileConfigMapUpdateFunc] starts reconciliation of ConfigMap %s for CephClusterConnection %s", configMapName, cephClusterConnection.Name))
-
-	var oldConfigMap *corev1.ConfigMap
-	for _, cm := range configMapList.Items {
-		if cm.Name == configMapName {
-			oldConfigMap = &cm
-			break
-		}
-	}
-
-	if oldConfigMap == nil {
-		err := fmt.Errorf("[reconcileConfigMapUpdateFunc] unable to find a ConfigMap %s for the CephClusterConnection %s", configMapName, cephClusterConnection.Name)
-		return true, err.Error(), err
-	}
-
-	log.Debug(fmt.Sprintf("[reconcileConfigMapUpdateFunc] ConfigMap %s was found for the CephClusterConnection %s", configMapName, cephClusterConnection.Name))
-
-	updatedConfigMap := updateConfigMap(oldConfigMap, cephClusterConnection, internal.UpdateConfigMapActionUpdate)
-	log.Debug(fmt.Sprintf("[reconcileConfigMapUpdateFunc] successfully configurated new ConfigMap %s for the CephClusterConnection %s", configMapName, cephClusterConnection.Name))
-	log.Trace(fmt.Sprintf("[reconcileConfigMapUpdateFunc] updated ConfigMap: %+v", updatedConfigMap))
-	log.Trace(fmt.Sprintf("[reconcileConfigMapUpdateFunc] old ConfigMap: %+v", oldConfigMap))
-
-	err = cl.Update(ctx, updatedConfigMap)
-	if err != nil {
-		err = fmt.Errorf("[reconcileConfigMapUpdateFunc] unable to update the ConfigMap %s for CephClusterConnection %s: %w", updatedConfigMap.Name, cephClusterConnection.Name, err)
-		return true, err.Error(), err
-	}
-
-	log.Info(fmt.Sprintf("[reconcileConfigMapUpdateFunc] successfully updated the ConfigMap %s for the CephClusterConnection %s", updatedConfigMap.Name, cephClusterConnection.Name))
-
-	return false, "Successfully updated", nil
-}
-
-func reconcileConfigMapDeleteFunc(ctx context.Context, cl client.Client, log logger.Logger, configMapList *corev1.ConfigMapList, cephClusterConnection *v1alpha1.CephClusterConnection, configMapName string) (shouldRequeue bool, msg string, err error) {
-	log.Debug(fmt.Sprintf("[reconcileConfigMapDeleteFunc] starts reconciliation of ConfigMap %s for CephClusterConnection %s", configMapName, cephClusterConnection.Name))
-
-	var configMap *corev1.ConfigMap
-	for _, cm := range configMapList.Items {
-		if cm.Name == configMapName {
-			configMap = &cm
-			break
-		}
-	}
-
-	if configMap == nil {
-		log.Info(fmt.Sprintf("[reconcileConfigMapDeleteFunc] no ConfigMap with name %s found for the CephClusterConnection %s", configMapName, cephClusterConnection.Name))
-	}
-
-	if configMap != nil {
-		log.Info(fmt.Sprintf("[reconcileConfigMapDeleteFunc] successfully found a ConfigMap %s for the CephClusterConnection %s", configMapName, cephClusterConnection.Name))
-		newConfigMap := updateConfigMap(configMap, cephClusterConnection, internal.UpdateConfigMapActionDelete)
-
-		err := cl.Update(ctx, newConfigMap)
-		if err != nil {
-			err = fmt.Errorf("[reconcileConfigMapDeleteFunc] unable to delete cluster config for the CephClusterConnection %s from the ConfigMap %s: %w", cephClusterConnection.Name, configMapName, err)
-			return true, err.Error(), err
-		}
-	}
-
-	err = removeFinalizerIfExists(ctx, cl, cephClusterConnection, CephClusterConnectionControllerFinalizerName)
-	if err != nil {
-		err = fmt.Errorf("[reconcileConfigMapDeleteFunc] unable to remove finalizer from the CephClusterConnection %s: %w", cephClusterConnection.Name, err)
-		return true, err.Error(), err
-	}
-
-	log.Info(fmt.Sprintf("[reconcileConfigMapDeleteFunc] ends reconciliation of ConfigMap %s for CephClusterConnection %s", configMapName, cephClusterConnection.Name))
-
-	return false, "", nil
-}
-
-func createConfigMap(clusterConfig v1alpha1.ClusterConfig, controllerNamespace, configMapName string) *corev1.ConfigMap {
+func generateNewConfigMap(clusterConfig v1alpha1.ClusterConfig, controllerNamespace, configMapName string) (*corev1.ConfigMap, error) {
 	clusterConfigs := []v1alpha1.ClusterConfig{clusterConfig}
-	jsonData, _ := json.Marshal(clusterConfigs)
+	jsonData, err := json.Marshal(clusterConfigs)
+	if err != nil {
+		return nil, fmt.Errorf("[generateConfigMap] unable to marshal clusterConfigs: %w", err)
+	}
 
 	configMap := &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
@@ -293,40 +192,278 @@ func createConfigMap(clusterConfig v1alpha1.ClusterConfig, controllerNamespace, 
 		},
 	}
 
-	return configMap
+	return configMap, nil
 }
 
-func updateConfigMap(oldConfigMap *corev1.ConfigMap, cephClusterConnection *v1alpha1.CephClusterConnection, updateAction string) *corev1.ConfigMap {
-	clusterConfigs, _ := getClusterConfigsFromConfigMap(*oldConfigMap)
+func updateConfigMapIfNeeded(ctx context.Context, cl client.Client, log logger.Logger, configMap *corev1.ConfigMap, cephClusterConnection *v1alpha1.CephClusterConnection, updateAction string) error {
+	log.Debug(fmt.Sprintf("[updateConfigMapIfNeeded] starts for the ConfigMap %s/%s", configMap.Namespace, configMap.Name))
+	log.Trace(fmt.Sprintf("[updateConfigMapIfNeeded] ConfigMap: %+v", configMap))
+	log.Trace(fmt.Sprintf("[updateConfigMapIfNeeded] Update action: %s", updateAction))
 
+	needUpdate := false
+
+	clusterConfigs, err := getClusterConfigsFromConfigMap(configMap)
+	if err != nil {
+		log.Warning(fmt.Sprintf("[updateConfigMapIfNeeded] unable to get cluster configs from the ConfigMap %s. New cluster config will be created. Error: %s", configMap.Name, err.Error()))
+		clusterConfigs = []v1alpha1.ClusterConfig{}
+		needUpdate = true
+	}
+
+	log.Trace(fmt.Sprintf("[updateConfigMapIfNeeded] clusterConfigs: %+v", clusterConfigs))
+
+	clusterConfigs, updated := updateClusterConfigsIfNeeded(log, clusterConfigs, cephClusterConnection, updateAction)
+	if updated {
+		needUpdate = true
+	}
+
+	obj, metadataAdded := addRequiredMetadataIfNeeded(configMap)
+	configMap = obj.(*corev1.ConfigMap)
+	if metadataAdded {
+		needUpdate = true
+	}
+
+	if !needUpdate {
+		log.Debug(fmt.Sprintf("[updateConfigMapIfNeeded] no changes required for the ConfigMap %s", configMap.Name))
+		return nil
+	}
+
+	log.Debug(fmt.Sprintf("[updateConfigMapIfNeeded] changes required for the ConfigMap %s", configMap.Name))
+	newJSONData, err := json.Marshal(clusterConfigs)
+	if err != nil {
+		return fmt.Errorf("[updateConfigMapIfNeeded] unable to marshal clusterConfigs: %w", err)
+	}
+	log.Trace(fmt.Sprintf("[updateConfigMapIfNeeded] newJSONData: %s", newJSONData))
+
+	if configMap.Data == nil {
+		configMap.Data = map[string]string{}
+	}
+
+	if newJSONData == nil {
+		return fmt.Errorf("[updateConfigMapIfNeeded] newJSONData is nil")
+	}
+
+	configMap.Data["config.json"] = string(newJSONData)
+
+	log.Trace(fmt.Sprintf("[updateConfigMapIfNeeded] updated ConfigMap: %+v", configMap))
+
+	err = cl.Update(ctx, configMap)
+	if err != nil {
+		return fmt.Errorf("[updateConfigMapIfNeeded] unable to update the ConfigMap %s: %w", configMap.Name, err)
+	}
+
+	return nil
+}
+
+func findClusterConfigByClusterID(clusterConfigs []v1alpha1.ClusterConfig, clusterID string) (int, bool) {
 	for i, clusterConfig := range clusterConfigs {
-		if clusterConfig.ClusterID == cephClusterConnection.Spec.ClusterID {
-			clusterConfigs = slices.Delete(clusterConfigs, i, i+1)
+		if clusterConfig.ClusterID == clusterID {
+			return i, true
 		}
 	}
 
-	if updateAction == internal.UpdateConfigMapActionUpdate {
-		newClusterConfig := configureClusterConfig(cephClusterConnection)
-		clusterConfigs = append(clusterConfigs, newClusterConfig)
+	return -1, false
+}
+
+func updateClusterConfigsIfNeeded(log logger.Logger, clusterConfigs []v1alpha1.ClusterConfig, cephClusterConnection *v1alpha1.CephClusterConnection, updateAction string) ([]v1alpha1.ClusterConfig, bool) {
+	updated := false
+
+	clusterConfigIndex, clusterConfigExists := findClusterConfigByClusterID(clusterConfigs, cephClusterConnection.Spec.ClusterID)
+	log.Debug(fmt.Sprintf("[updateClusterConfigsIfNeeded] Find cluster config by cluster ID: %d, %t. Index: %d", clusterConfigIndex, clusterConfigExists, clusterConfigIndex))
+
+	switch updateAction {
+	case internal.UpdateConfigMapActionDelete:
+		if clusterConfigExists {
+			log.Debug(fmt.Sprintf("[updateClusterConfigsIfNeeded] clusterConfigExists %t and updateAction == internal.UpdateConfigMapActionDelete. Delete clusterConfig", clusterConfigExists))
+			clusterConfigs = append(clusterConfigs[:clusterConfigIndex], clusterConfigs[clusterConfigIndex+1:]...)
+			updated = true
+		} else {
+			log.Debug(fmt.Sprintf("[updateClusterConfigsIfNeeded] clusterConfigExists %t. No need to delete clusterConfig", clusterConfigExists))
+		}
+	default:
+		newClusterConfig := generateClusterConfig(cephClusterConnection)
+		log.Trace(fmt.Sprintf("[updateClusterConfigsIfNeeded] updateAction %s, newClusterConfig: %+v", updateAction, newClusterConfig))
+
+		if clusterConfigExists {
+			log.Trace(fmt.Sprintf("[updateClusterConfigsIfNeeded] existedClusterConfig: %+v", clusterConfigs[clusterConfigIndex]))
+			if !reflect.DeepEqual(clusterConfigs[clusterConfigIndex], newClusterConfig) {
+				log.Debug(fmt.Sprintf("[updateClusterConfigsIfNeeded] clusterConfigExists: %t and configs differ. Updating clusterConfig at index %d", clusterConfigExists, clusterConfigIndex))
+				clusterConfigs[clusterConfigIndex] = newClusterConfig
+				updated = true
+			} else {
+				log.Debug(fmt.Sprintf("[updateClusterConfigsIfNeeded] clusterConfigExists: %t and configs are equal. No need to update", clusterConfigExists))
+			}
+		} else {
+			log.Debug(fmt.Sprintf("[updateClusterConfigsIfNeeded] clusterConfigExists %t. Append newClusterConfig", clusterConfigExists))
+			clusterConfigs = append(clusterConfigs, newClusterConfig)
+			updated = true
+		}
 	}
 
-	newJSONData, _ := json.Marshal(clusterConfigs)
+	return clusterConfigs, updated
+}
 
-	configMap := oldConfigMap.DeepCopy()
-	configMap.Data["config.json"] = string(newJSONData)
-
-	if configMap.Labels == nil {
-		configMap.Labels = map[string]string{}
-	}
-	configMap.Labels[internal.StorageManagedLabelKey] = CephClusterConnectionCtrlName
-
-	if configMap.Finalizers == nil {
-		configMap.Finalizers = []string{}
-	}
-
-	if !slices.Contains(configMap.Finalizers, CephClusterConnectionControllerFinalizerName) {
-		configMap.Finalizers = append(configMap.Finalizers, CephClusterConnectionControllerFinalizerName)
+// Secret
+func reconcileSecret(ctx context.Context, cl client.Client, log logger.Logger, secretList *corev1.SecretList, cephClusterConnection *v1alpha1.CephClusterConnection, secretName string) (shouldRequeue bool, msg string, err error) {
+	var secret *corev1.Secret
+	for _, s := range secretList.Items {
+		if s.Name == secretName {
+			secret = &s
+			break
+		}
 	}
 
-	return configMap
+	if secret == nil && cephClusterConnection.DeletionTimestamp != nil {
+		return createSecret(ctx, cl, log, cephClusterConnection, cephClusterConnection.Namespace, secretName)
+	}
+
+	if cephClusterConnection.DeletionTimestamp != nil {
+		return removeFinalizerAndDeleteSecret(ctx, cl, log, secret, CephClusterConnectionControllerFinalizerName)
+	}
+
+	err = updateSecretIfNeeded(ctx, cl, log, secret, cephClusterConnection)
+	if err != nil {
+		return true, err.Error(), err
+	}
+
+	return false, fmt.Sprintf("Successfully reconciled Secret %s", secretName), nil
+}
+
+func createSecret(ctx context.Context, cl client.Client, log logger.Logger, cephClusterConnection *v1alpha1.CephClusterConnection, controllerNamespace, secretName string) (shouldRequeue bool, msg string, err error) {
+	log.Debug(fmt.Sprintf("[createSecret] starts creation of Secret %s for CephClusterConnection %s", secretName, cephClusterConnection.Name))
+
+	newSecret := generateNewSecret(cephClusterConnection, controllerNamespace, secretName)
+	log.Debug(fmt.Sprintf("[createSecret] successfully generate the Secret %s for the CephClusterConnection %s", secretName, cephClusterConnection.Name))
+	log.Trace(fmt.Sprintf("[createSecret] secret: %+v", newSecret))
+
+	err = cl.Create(ctx, newSecret)
+	if err != nil {
+		err = fmt.Errorf("[createSecret] unable to create a Secret %s for CephClusterConnection %s: %w", newSecret.Name, cephClusterConnection.Name, err)
+		return true, err.Error(), err
+	}
+
+	log.Debug(fmt.Sprintf("[createSecret] successfully created Secret %s for the CephClusterConnection %s", newSecret.Name, cephClusterConnection.Name))
+	return false, fmt.Sprintf("Successfully created Secret %s", newSecret.Name), nil
+}
+
+func generateNewSecret(cephClusterConnection *v1alpha1.CephClusterConnection, controllerNamespace, secretName string) *corev1.Secret {
+	userID := cephClusterConnection.Spec.UserID
+	userKey := cephClusterConnection.Spec.UserKey
+
+	secret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      secretName,
+			Namespace: controllerNamespace,
+			Labels: map[string]string{
+				internal.StorageManagedLabelKey: CephClusterConnectionCtrlName,
+			},
+			Finalizers: []string{CephClusterConnectionControllerFinalizerName},
+		},
+		StringData: map[string]string{
+			// Credentials for RBD
+			"userID":  userID,
+			"userKey": userKey,
+
+			// Credentials for CephFS
+			"adminID":  userID,
+			"adminKey": userKey,
+		},
+	}
+
+	return secret
+}
+
+func removeFinalizerAndDeleteSecret(ctx context.Context, cl client.Client, log logger.Logger, secret *corev1.Secret, finalizerName string) (shouldRequeue bool, msg string, err error) {
+	log.Trace(fmt.Sprintf("[deleteSecret] starts deletion of Secret %+v", secret))
+
+	if secret == nil {
+		log.Debug("[deleteSecret] Secret is nil. No need to delete")
+		return false, "[deleteSecret] Secret is nil. No need to delete", nil
+	}
+
+	err = removeFinalizerIfExists(ctx, cl, secret, finalizerName)
+	if err != nil {
+		err = fmt.Errorf("[deleteSecret] unable to remove finalizer from the Secret %s: %w", secret.Name, err)
+		return true, err.Error(), err
+	}
+
+	err = cl.Delete(ctx, secret)
+	if err != nil {
+		err = fmt.Errorf("[deleteSecret] unable to delete the Secret %s: %w", secret.Name, err)
+		return true, err.Error(), err
+	}
+
+	log.Debug(fmt.Sprintf("[deleteSecret] successfully deleted Secret %s", secret.Name))
+	return false, fmt.Sprintf("[deleteSecret] Successfully deleted Secret %s", secret.Name), nil
+
+}
+
+func updateSecretIfNeeded(ctx context.Context, cl client.Client, log logger.Logger, secret *corev1.Secret, cephClusterConnection *v1alpha1.CephClusterConnection) error {
+	log.Debug(fmt.Sprintf("[updateSecretIfNeeded] starts for the Secret %s/%s", secret.Namespace, secret.Name))
+	log.Trace(fmt.Sprintf("[updateSecretIfNeeded] Secret: %+v", secret))
+
+	needUpdate := false
+
+	newSecret := generateNewSecret(cephClusterConnection, secret.Namespace, secret.Name)
+	if !reflect.DeepEqual(secret.StringData, newSecret.StringData) {
+		secret.StringData = newSecret.StringData
+		needUpdate = true
+	}
+
+	obj, metadataAdded := addRequiredMetadataIfNeeded(secret)
+	secret = obj.(*corev1.Secret)
+	if metadataAdded {
+		needUpdate = true
+	}
+
+	if !needUpdate {
+		log.Debug(fmt.Sprintf("[updateSecretIfNeeded] no changes required for the Secret %s", secret.Name))
+		return nil
+	}
+
+	log.Debug(fmt.Sprintf("[updateSecretIfNeeded] changes required for the Secret %s", secret.Name))
+	log.Trace(fmt.Sprintf("[updateSecretIfNeeded] updated Secret: %+v", secret))
+
+	err := cl.Update(ctx, secret)
+	if err != nil {
+		return fmt.Errorf("[updateSecretIfNeeded] unable to update the Secret %s: %w", secret.Name, err)
+	}
+
+	return nil
+}
+
+func addRequiredMetadataIfNeeded(obj metav1.Object) (metav1.Object, bool) {
+	labelsAdded := false
+	finalizersAdded := false
+
+	labels := obj.GetLabels()
+	if labels == nil {
+		labels = map[string]string{}
+		labelsAdded = true
+	}
+
+	if labels[internal.StorageManagedLabelKey] != CephClusterConnectionCtrlName {
+		labels[internal.StorageManagedLabelKey] = CephClusterConnectionCtrlName
+		labelsAdded = true
+	}
+
+	if labelsAdded {
+		obj.SetLabels(labels)
+	}
+
+	finalizers := obj.GetFinalizers()
+	if finalizers == nil {
+		finalizers = []string{}
+		finalizersAdded = true
+	}
+
+	if !slices.Contains(finalizers, CephClusterConnectionControllerFinalizerName) {
+		finalizers = append(finalizers, CephClusterConnectionControllerFinalizerName)
+		finalizersAdded = true
+	}
+
+	if finalizersAdded {
+		obj.SetFinalizers(finalizers)
+	}
+
+	return obj, labelsAdded || finalizersAdded
 }

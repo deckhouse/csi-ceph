@@ -1,3 +1,4 @@
+{{- if .Values.csiCeph.cephfsEnabled }}
 ---
 apiVersion: storage.k8s.io/v1
 kind: CSIDriver
@@ -9,3 +10,5 @@ spec:
   podInfoOnMount: false
   seLinuxMount: true
   fsGroupPolicy: File
+
+{{- end }}

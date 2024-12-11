@@ -17,12 +17,12 @@ limitations under the License.
 package internal
 
 const (
-	CephClusterAuthenticationSecretPrefix = "csi-ceph-secret-for-"
-	StorageManagedLabelKey                = "storage.deckhouse.io/managed-by"
-	CSICephConfigMapName                  = "ceph-csi-config"
-	CreateReconcile                       = "Create"
-	UpdateReconcile                       = "Update"
-	DeleteReconcile                       = "Delete"
+	CephClusterConnectionSecretPrefix = "csi-ceph-secret-for-"
+	StorageManagedLabelKey            = "storage.deckhouse.io/managed-by"
+	CSICephConfigMapName              = "ceph-csi-config"
+	CreateReconcile                   = "Create"
+	UpdateReconcile                   = "Update"
+	DeleteReconcile                   = "Delete"
 
 	PhaseFailed  = "Failed"
 	PhaseCreated = "Created"
