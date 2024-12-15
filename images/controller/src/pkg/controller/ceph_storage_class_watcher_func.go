@@ -286,7 +286,7 @@ func GetStorageClassProvisioner(cephStorageClasstype string) string {
 }
 
 func GetStoragecClassParams(cephSC *storagev1alpha1.CephStorageClass, controllerNamespace, clusterID string) (map[string]string, error) {
-	secretName := internal.CephClusterConnectionSecretPrefix + cephSC.Spec.ClusterAuthenticationName
+	secretName := internal.CephClusterConnectionSecretPrefix + cephSC.Spec.ClusterConnectionName
 
 	params := map[string]string{
 		"clusterID": clusterID,
