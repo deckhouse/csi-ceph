@@ -95,7 +95,7 @@ func updateCephClusterConnectionPhaseIfNeeded(ctx context.Context, cl client.Cli
 	return nil
 }
 
-func reconcileConfigMap(ctx context.Context, cl client.Client, log logger.Logger, configMapList *corev1.ConfigMapList, cephClusterConnection *v1alpha1.CephClusterConnection, configMapName string) (shouldRequeue bool, msg string, err error) {
+func reconcileConfigMap(ctx context.Context, cl client.Client, log logger.Logger, configMapList *corev1.ConfigMapList, cephClusterConnection *v1alpha1.CephClusterConnection, configMapNamespace, configMapName string) (shouldRequeue bool, msg string, err error) {
 	var configMap *corev1.ConfigMap
 	for _, cm := range configMapList.Items {
 		if cm.Name == configMapName {
@@ -104,8 +104,8 @@ func reconcileConfigMap(ctx context.Context, cl client.Client, log logger.Logger
 		}
 	}
 
-	if configMap == nil && cephClusterConnection.DeletionTimestamp != nil {
-		return createConfigMap(ctx, cl, log, cephClusterConnection, cephClusterConnection.Namespace, configMapName)
+	if configMap == nil && cephClusterConnection.DeletionTimestamp == nil {
+		return createConfigMap(ctx, cl, log, cephClusterConnection, configMapNamespace, configMapName)
 	}
 
 	updateAction := internal.UpdateConfigMapActionUpdate
@@ -176,6 +176,10 @@ func generateNewConfigMap(clusterConfig v1alpha1.ClusterConfig, controllerNamesp
 	jsonData, err := json.Marshal(clusterConfigs)
 	if err != nil {
 		return nil, fmt.Errorf("[generateConfigMap] unable to marshal clusterConfigs: %w", err)
+	}
+
+	if controllerNamespace == "" {
+		return nil, fmt.Errorf("[generateConfigMap] controllerNamespace is empty")
 	}
 
 	configMap := &corev1.ConfigMap{
@@ -303,7 +307,7 @@ func updateClusterConfigsIfNeeded(log logger.Logger, clusterConfigs []v1alpha1.C
 }
 
 // Secret
-func reconcileSecret(ctx context.Context, cl client.Client, log logger.Logger, secretList *corev1.SecretList, cephClusterConnection *v1alpha1.CephClusterConnection, secretName string) (shouldRequeue bool, msg string, err error) {
+func reconcileSecret(ctx context.Context, cl client.Client, log logger.Logger, secretList *corev1.SecretList, cephClusterConnection *v1alpha1.CephClusterConnection, secretNamespace, secretName string) (shouldRequeue bool, msg string, err error) {
 	var secret *corev1.Secret
 	for _, s := range secretList.Items {
 		if s.Name == secretName {
@@ -312,8 +316,8 @@ func reconcileSecret(ctx context.Context, cl client.Client, log logger.Logger, s
 		}
 	}
 
-	if secret == nil && cephClusterConnection.DeletionTimestamp != nil {
-		return createSecret(ctx, cl, log, cephClusterConnection, cephClusterConnection.Namespace, secretName)
+	if secret == nil && cephClusterConnection.DeletionTimestamp == nil {
+		return createSecret(ctx, cl, log, cephClusterConnection, secretNamespace, secretName)
 	}
 
 	if cephClusterConnection.DeletionTimestamp != nil {
