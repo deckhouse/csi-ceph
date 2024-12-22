@@ -316,12 +316,12 @@ func reconcileSecret(ctx context.Context, cl client.Client, log logger.Logger, s
 		}
 	}
 
-	if secret == nil && cephClusterConnection.DeletionTimestamp == nil {
-		return createSecret(ctx, cl, log, cephClusterConnection, secretNamespace, secretName)
-	}
-
 	if cephClusterConnection.DeletionTimestamp != nil {
 		return removeFinalizerAndDeleteSecret(ctx, cl, log, secret, CephClusterConnectionControllerFinalizerName)
+	}
+
+	if secret == nil {
+		return createSecret(ctx, cl, log, cephClusterConnection, secretNamespace, secretName)
 	}
 
 	err = updateSecretIfNeeded(ctx, cl, log, secret, cephClusterConnection)
@@ -337,7 +337,6 @@ func createSecret(ctx context.Context, cl client.Client, log logger.Logger, ceph
 
 	newSecret := generateNewSecret(cephClusterConnection, controllerNamespace, secretName)
 	log.Debug(fmt.Sprintf("[createSecret] successfully generate the Secret %s for the CephClusterConnection %s", secretName, cephClusterConnection.Name))
-	log.Trace(fmt.Sprintf("[createSecret] secret: %+v", newSecret))
 
 	err = cl.Create(ctx, newSecret)
 	if err != nil {
@@ -377,8 +376,6 @@ func generateNewSecret(cephClusterConnection *v1alpha1.CephClusterConnection, co
 }
 
 func removeFinalizerAndDeleteSecret(ctx context.Context, cl client.Client, log logger.Logger, secret *corev1.Secret, finalizerName string) (shouldRequeue bool, msg string, err error) {
-	log.Trace(fmt.Sprintf("[deleteSecret] starts deletion of Secret %+v", secret))
-
 	if secret == nil {
 		log.Debug("[deleteSecret] Secret is nil. No need to delete")
 		return false, "[deleteSecret] Secret is nil. No need to delete", nil
@@ -401,35 +398,35 @@ func removeFinalizerAndDeleteSecret(ctx context.Context, cl client.Client, log l
 
 }
 
-func updateSecretIfNeeded(ctx context.Context, cl client.Client, log logger.Logger, secret *corev1.Secret, cephClusterConnection *v1alpha1.CephClusterConnection) error {
-	log.Debug(fmt.Sprintf("[updateSecretIfNeeded] starts for the Secret %s/%s", secret.Namespace, secret.Name))
-	log.Trace(fmt.Sprintf("[updateSecretIfNeeded] Secret: %+v", secret))
+func updateSecretIfNeeded(ctx context.Context, cl client.Client, log logger.Logger, oldSecret *corev1.Secret, cephClusterConnection *v1alpha1.CephClusterConnection) error {
+	log.Debug(fmt.Sprintf("[updateSecretIfNeeded] starts for the Secret %s/%s", oldSecret.Namespace, oldSecret.Name))
 
 	needUpdate := false
 
-	newSecret := generateNewSecret(cephClusterConnection, secret.Namespace, secret.Name)
-	if !reflect.DeepEqual(secret.StringData, newSecret.StringData) {
-		secret.StringData = newSecret.StringData
-		needUpdate = true
+	newSecret := generateNewSecret(cephClusterConnection, oldSecret.Namespace, oldSecret.Name)
+	needUpdate = compareSecretsData(oldSecret, newSecret)
+	if needUpdate {
+		log.Debug(fmt.Sprintf("[updateSecretIfNeeded] data in the Secret %s has been changed", oldSecret.Name))
+		oldSecret.StringData = newSecret.StringData
 	}
 
-	obj, metadataAdded := addRequiredMetadataIfNeeded(secret)
-	secret = obj.(*corev1.Secret)
+	obj, metadataAdded := addRequiredMetadataIfNeeded(oldSecret)
+	oldSecret = obj.(*corev1.Secret)
 	if metadataAdded {
+		log.Trace(fmt.Sprintf("[updateSecretIfNeeded] metadataAdded: %t", metadataAdded))
 		needUpdate = true
 	}
 
 	if !needUpdate {
-		log.Debug(fmt.Sprintf("[updateSecretIfNeeded] no changes required for the Secret %s", secret.Name))
+		log.Debug(fmt.Sprintf("[updateSecretIfNeeded] no changes required for the Secret %s", oldSecret.Name))
 		return nil
 	}
 
-	log.Debug(fmt.Sprintf("[updateSecretIfNeeded] changes required for the Secret %s", secret.Name))
-	log.Trace(fmt.Sprintf("[updateSecretIfNeeded] updated Secret: %+v", secret))
+	log.Debug(fmt.Sprintf("[updateSecretIfNeeded] changes required for the Secret %s", oldSecret.Name))
 
-	err := cl.Update(ctx, secret)
+	err := cl.Update(ctx, oldSecret)
 	if err != nil {
-		return fmt.Errorf("[updateSecretIfNeeded] unable to update the Secret %s: %w", secret.Name, err)
+		return fmt.Errorf("[updateSecretIfNeeded] unable to update the Secret %s: %w", oldSecret.Name, err)
 	}
 
 	return nil
@@ -470,4 +467,24 @@ func addRequiredMetadataIfNeeded(obj metav1.Object) (metav1.Object, bool) {
 	}
 
 	return obj, labelsAdded || finalizersAdded
+}
+
+func compareSecretsData(oldSecret, newSecret *corev1.Secret) bool {
+	if len(newSecret.StringData) != len(oldSecret.Data) {
+		return true
+	}
+
+	for key, newValue := range newSecret.StringData {
+		oldValBytes, found := oldSecret.Data[key]
+		if !found {
+			return true
+		}
+
+		oldValue := string(oldValBytes)
+		if newValue != oldValue {
+			return true
+		}
+	}
+
+	return false
 }
