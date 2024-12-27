@@ -1,0 +1,20 @@
+{{- if (.Values.global.enabledModules | has "snapshot-controller") }}
+---
+apiVersion: snapshot.storage.k8s.io/v1
+kind: VolumeSnapshotClass
+metadata:
+  {{- include "helm_lib_module_labels" (list . (dict "app" "csi-ceph")) | nindent 2 }}
+  name: {{ .Chart.Name }}-cephfs
+driver: cephfs.csi.ceph.com
+deletionPolicy: Delete
+parameters:
+---
+apiVersion: snapshot.storage.k8s.io/v1
+kind: VolumeSnapshotClass
+metadata:
+  {{- include "helm_lib_module_labels" (list . (dict "app" "csi-ceph")) | nindent 2 }}
+  name: {{ .Chart.Name }}-rbd
+driver: rbd.csi.ceph.com
+deletionPolicy: Delete
+parameters:
+{{ end }}
