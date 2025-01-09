@@ -78,6 +78,12 @@ image: {{ $.ImageName }}-binaries-artifact
 fromImage: {{ $.ImageName }}-binary-replace-artifact
 final: false
 
+import:
+  - image: {{ $.ImageName }}-src-artifact
+    add: /cephcsi
+    to: /cephcsi
+    before: install
+
 shell:
   install:
     - export GOPROXY={{ env "GOPROXY" }}
