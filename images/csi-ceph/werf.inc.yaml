@@ -66,6 +66,8 @@ shell:
   install:
     - export GO_VERSION={{ env "GOLANG_VERSION" }}
     - export GOPROXY={{ env "GOPROXY" }}
+    - apk install git
+    - apt install git
     - cd /src/ceph-csi
     - make cephcsi
     - cp _output/cephcsi /cephcsi
