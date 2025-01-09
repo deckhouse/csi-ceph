@@ -5,6 +5,7 @@
 {{- $_ := set . "BASE_SCRATCH"    "registry.deckhouse.io/base_images/scratch@sha256:b054705fcc9f2205777d80a558d920c0b4209efdc3163c22b5bfcb5dda1db5fc" }}
 {{- $_ := set . "BASE_ALPINE_DEV" "registry.deckhouse.io/base_images/dev-alpine:3.16.3@sha256:c706fa83cc129079e430480369a3f062b8178cac9ec89266ebab753a574aca8e" }}
 {{- $_ := set . "BASE_ALT"    "registry.deckhouse.io/base_images/alt:p11@sha256:e47d84424485d3674240cb2f67d3a1801b37d327e6d1eb8cc8d01be8ed3b34f3" }}
+{{- $_ := set . "BASE_GOLANG" "registry.deckhouse.io/base_images/golang:1.23.4-bullseye@sha256:9b3176d53704a9b1be19d307b660733cc691af02906d7e918dbe4d11427a422c" }}
 ---
 image: {{ $.ImageName }}-src-artifact
 from: {{ $.BASE_ALT }}
