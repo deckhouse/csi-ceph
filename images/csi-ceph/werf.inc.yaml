@@ -55,7 +55,7 @@ import:
   - image: {{ $.ImageName }}-src-artifact
     add: /src
     to: /src
-    before: setup
+    before: install
 
 shell:
   install:
