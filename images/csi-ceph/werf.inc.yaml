@@ -4,47 +4,69 @@
 {{- $_ := set . "BASE_ALT_DEV"    "registry.deckhouse.io/base_images/dev-alt:p10@sha256:76e6e163fa982f03468166203488b569e6d9fc10855d6a259c662706436cdcad" }}
 {{- $_ := set . "BASE_SCRATCH"    "registry.deckhouse.io/base_images/scratch@sha256:b054705fcc9f2205777d80a558d920c0b4209efdc3163c22b5bfcb5dda1db5fc" }}
 {{- $_ := set . "BASE_ALPINE_DEV" "registry.deckhouse.io/base_images/dev-alpine:3.16.3@sha256:c706fa83cc129079e430480369a3f062b8178cac9ec89266ebab753a574aca8e" }}
+{{- $_ := set . "BASE_ALT"    "registry.deckhouse.io/base_images/alt:p11@sha256:e47d84424485d3674240cb2f67d3a1801b37d327e6d1eb8cc8d01be8ed3b34f3" }}
 ---
 image: {{ $.ImageName }}-src-artifact
 from: {{ $.BASE_ALT }}
 final: false
 
 git:
-  - add: /images/{{ $.ImageName }}
-    to: /
+  - add: /
+    to: /src
     stageDependencies:
       install:
         - "**/*"
     includePaths:
-      - patches
+      - images/csi-ceph/patches
 
 shell:
   install:
-    - echo "src artifact"
+    - apt-get update
+    - apt-get -y install git
+    - git clone --branch v{{ $version }} --depth 1 {{ env "SOURCE_REPO" }}/ceph/ceph-csi.git /src/ceph-csi
+    - cd /src/ceph-csi
+    - for patchfile in /src/images/csi-ceph/patches/*.patch ; do echo -n "Apply ${patchfile} ... "; git apply ${patchfile}; done
+    - rm -rf /src/images/csi-ceph/patches/
+    - rm -rf /src/ceph-csi/.git
+
 ---
-image: {{ $.ImageName }}-binaries-artifact
-from: {{ $.BASE_ALT_DEV }}
-final: false
+image: {{ $.ImageName }}-binary-replace-artifact
+from: {{ $.BASE_ALT }}
 
 git:
-  - add: /images/{{ $.ImageName }}
-    to: /
+  - add: /tools/dev_images/additional_tools/alt/binary_replace.sh
+    to: /binary_replace.sh
     stageDependencies:
-      setup:
-        - "**/*"
-    includePaths:
-      - patches
+      install:
+        - '**/*'
+shell:
+  install:
+    - apt-get update
+    - apt-get -y install glibc-utils
+    - rm -rf /var/lib/apt/lists/* /var/cache/apt/* && mkdir -p /var/lib/apt/lists/partial /var/cache/apt/archives/partial
+    - chmod +x /binary_replace.sh
+
+---
+image: {{ $.ImageName }}-binaries-artifact
+fromImage: {{ $.ImageName }}-binary-replace-artifact
+final: false
+
+import:
+  - image: {{ $.ImageName }}-src-artifact
+    add: /src
+    to: /src
+    before: setup
 
 shell:
   install:
     - export GOPROXY={{ env "GOPROXY" }}
     - export CGO_ENABLED=1
-    - git clone --branch v{{ $version }} --depth 1 {{ env "SOURCE_REPO" }}/ceph/ceph-csi.git /src
-    - cd /src
-    - for patchfile in /patches/*.patch ; do echo -n "Apply ${patchfile} ... "; git apply ${patchfile}; done
+    - ls -lah /src
+    - cd /src/ceph-csi
     - make cephcsi
     - cp _output/cephcsi /cephcsi
     - /binary_replace.sh -i "{{ $binaries }}" -o /relocate
+
 ---
 image: {{ $.ImageName }}-distroless-artifact
 from: {{ $.BASE_ALPINE_DEV }}
