@@ -52,6 +52,7 @@ shell:
     - apt-get update
     - apt-get -y install make golang librbd-devel librados-devel
     - cd /src/ceph-csi
+    - set CGO_ENABLED=1
     - make cephcsi
     - cp _output/cephcsi /cephcsi
 
