@@ -79,7 +79,7 @@ fromImage: {{ $.ImageName }}-binary-replace-artifact
 final: false
 
 import:
-  - image: {{ $.ImageName }}-src-artifact
+  - image: {{ $.ImageName }}-golang-artifact
     add: /cephcsi
     to: /cephcsi
     before: install
