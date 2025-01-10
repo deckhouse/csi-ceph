@@ -50,7 +50,7 @@ shell:
     - export GO_VERSION={{ env "GOLANG_VERSION" }}
     - export GOPROXY={{ env "GOPROXY" }}
     - apt-get update
-    - apt-get -y install make
+    - apt-get -y install make golang-1.23.4-alt1
     - cd /src/ceph-csi
     - make cephcsi
     - cp _output/cephcsi /cephcsi
