@@ -31,8 +31,8 @@ shell:
     - rm -rf /src/ceph-csi/.git
 
 ---
-image: {{ $.ImageName }}-golang-artifact
-from: {{ $.BASE_GOLANG }}
+image: {{ $.ImageName }}-base-binaries-artifact
+from: {{ $.BASE_ALT }}
 final: false
 
 import:
@@ -79,7 +79,7 @@ fromImage: {{ $.ImageName }}-binary-replace-artifact
 final: false
 
 import:
-  - image: {{ $.ImageName }}-golang-artifact
+  - image: {{ $.ImageName }}-base-binaries-artifact
     add: /cephcsi
     to: /cephcsi
     before: install
