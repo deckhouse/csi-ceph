@@ -49,6 +49,8 @@ shell:
   install:
     - export GO_VERSION={{ env "GOLANG_VERSION" }}
     - export GOPROXY={{ env "GOPROXY" }}
+    - apt-get update
+    - apt-get -y install make
     - cd /src/ceph-csi
     - make cephcsi
     - cp _output/cephcsi /cephcsi
