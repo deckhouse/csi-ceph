@@ -7,7 +7,7 @@ Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
 ===================================================================
 diff --git a/actions/retest/go.mod b/actions/retest/go.mod
 --- a/actions/retest/go.mod	(revision bc203c35da3576fba4b32d5a9f2713f8c9f96ee2)
-+++ b/actions/retest/go.mod	(revision e32af2a228deb81a3772c00b73f05a3c11465d59)
++++ b/actions/retest/go.mod	(revision 203d48e74e6d1a7555d48c87d5f9b186bc879737)
 @@ -10,7 +10,7 @@
  require (
  	github.com/golang/protobuf v1.5.3 // indirect
@@ -24,7 +24,7 @@ Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
 ===================================================================
 diff --git a/actions/retest/go.sum b/actions/retest/go.sum
 --- a/actions/retest/go.sum	(revision bc203c35da3576fba4b32d5a9f2713f8c9f96ee2)
-+++ b/actions/retest/go.sum	(revision e32af2a228deb81a3772c00b73f05a3c11465d59)
++++ b/actions/retest/go.sum	(revision 203d48e74e6d1a7555d48c87d5f9b186bc879737)
 @@ -11,8 +11,8 @@
  github.com/google/go-querystring v1.1.0/go.mod h1:Kcdr2DB4koayq7X8pmAG4sNG59So17icRSOU623lUBU=
  golang.org/x/crypto v0.0.0-20190308221718-c2843e01d9a2/go.mod h1:djNgcEr1/C05ACkg1iLfiJU5Ep61QUkGW8qpdssI0+w=
@@ -43,7 +43,7 @@ Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
 ===================================================================
 diff --git a/go.mod b/go.mod
 --- a/go.mod	(revision bc203c35da3576fba4b32d5a9f2713f8c9f96ee2)
-+++ b/go.mod	(revision e32af2a228deb81a3772c00b73f05a3c11465d59)
++++ b/go.mod	(revision 203d48e74e6d1a7555d48c87d5f9b186bc879737)
 @@ -26,7 +26,7 @@
  	github.com/prometheus/client_golang v1.19.1
  	github.com/stretchr/testify v1.9.0
@@ -53,3 +53,22 @@ diff --git a/go.mod b/go.mod
  	golang.org/x/sys v0.28.0
  	google.golang.org/grpc v1.65.0
  	google.golang.org/protobuf v1.34.2
+Index: go.sum
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/go.sum b/go.sum
+--- a/go.sum	(revision bc203c35da3576fba4b32d5a9f2713f8c9f96ee2)
++++ b/go.sum	(revision 203d48e74e6d1a7555d48c87d5f9b186bc879737)
+@@ -1872,8 +1872,8 @@
+ golang.org/x/net v0.20.0/go.mod h1:z8BVo6PvndSri0LbOE3hAn0apkU+1YvI6E70E9jsnvY=
+ golang.org/x/net v0.21.0/go.mod h1:bIjVDfnllIU7BJ2DNgfnXvpSvtn8VRwhlsaeUTyUS44=
+ golang.org/x/net v0.23.0/go.mod h1:JKghWKKOSdJwpW2GEx0Ja7fmaKnMsbu+MWVZTokSYmg=
+-golang.org/x/net v0.28.0 h1:a9JDOJc5GMUJ0+UDqmLT86WiEy7iWyIhz8gz8E4e5hE=
+-golang.org/x/net v0.28.0/go.mod h1:yqtgsTWOOnlGLG9GFRrK3++bGOUEkNBoHZc8MEDWPNg=
++golang.org/x/net v0.33.0 h1:74SYHlV8BIgHIFC/LrYkOGIwL19eTYXQ5wc6TBuO36I=
++golang.org/x/net v0.33.0/go.mod h1:HXLR5J+9DxmrqMwG9qjGCxZ+zKXxBru04zlTvWlWuN4=
+ golang.org/x/oauth2 v0.0.0-20180821212333-d2e6202438be/go.mod h1:N/0e6XlmueqKjAGxoOufVs8QHGRruUQn6yWY3a++T0U=
+ golang.org/x/oauth2 v0.0.0-20190226205417-e64efc72b421/go.mod h1:gOpvHmFTYa4IltrdGE7lF6nIHvwfUNPOp7c8zoXwtLw=
+ golang.org/x/oauth2 v0.0.0-20190604053449-0f29369cfe45/go.mod h1:gOpvHmFTYa4IltrdGE7lF6nIHvwfUNPOp7c8zoXwtLw=
