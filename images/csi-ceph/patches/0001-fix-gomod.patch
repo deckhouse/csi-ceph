@@ -1,9 +1,11 @@
-From 520fa9b5c824089a94ba55881bc1a99aaea1b6d0 Mon Sep 17 00:00:00 2001
+From c2362ee73f916e2cb0be76719db6275117970021 Mon Sep 17 00:00:00 2001
 From: "alexandr.zimin@flant.com" <azimin@Aleksandrs-MacBook-Pro.local>
-Date: Tue, 14 Jan 2025 16:18:42 +0300
+Date: Tue, 14 Jan 2025 16:31:43 +0300
 Subject: [PATCH] fix go.mod
 
 ---
+ actions/retest/go.mod                         |    2 +-
+ actions/retest/go.sum                         |    4 +-
  api/go.mod                                    |    4 +-
  api/go.sum                                    |    8 +-
  go.mod                                        |   12 +-
@@ -110,7 +112,7 @@ Subject: [PATCH] fix go.mod
  vendor/golang.org/x/term/term_windows.go      |    1 +
  .../x/text/internal/catmsg/codec.go           |    2 +-
  vendor/modules.txt                            |   12 +-
- 106 files changed, 12506 insertions(+), 2570 deletions(-)
+ 108 files changed, 12509 insertions(+), 2573 deletions(-)
  rename vendor/golang.org/x/crypto/chacha20/{chacha_ppc64le.go => chacha_ppc64x.go} (89%)
  rename vendor/golang.org/x/crypto/chacha20/{chacha_ppc64le.s => chacha_ppc64x.s} (76%)
  rename vendor/golang.org/x/crypto/internal/poly1305/{sum_ppc64le.go => sum_ppc64x.go} (95%)
@@ -129,6 +131,34 @@ Subject: [PATCH] fix go.mod
  create mode 100644 vendor/golang.org/x/sys/unix/vgetrandom_linux.go
  create mode 100644 vendor/golang.org/x/sys/unix/vgetrandom_unsupported.go
 
+diff --git a/actions/retest/go.mod b/actions/retest/go.mod
+index 483bea4fa..999acd0cf 100644
+--- a/actions/retest/go.mod
++++ b/actions/retest/go.mod
+@@ -10,7 +10,7 @@ require (
+ require (
+ 	github.com/golang/protobuf v1.5.3 // indirect
+ 	github.com/google/go-querystring v1.1.0 // indirect
+-	golang.org/x/net v0.22.0 // indirect
++	golang.org/x/net v0.33.0 // indirect
+ 	google.golang.org/appengine v1.6.7 // indirect
+ 	google.golang.org/protobuf v1.33.0 // indirect
+ )
+diff --git a/actions/retest/go.sum b/actions/retest/go.sum
+index f20ccff1e..9e710ae8a 100644
+--- a/actions/retest/go.sum
++++ b/actions/retest/go.sum
+@@ -11,8 +11,8 @@ github.com/google/go-querystring v1.1.0 h1:AnCroh3fv4ZBgVIf1Iwtovgjaw/GiKJo8M8yD
+ github.com/google/go-querystring v1.1.0/go.mod h1:Kcdr2DB4koayq7X8pmAG4sNG59So17icRSOU623lUBU=
+ golang.org/x/crypto v0.0.0-20190308221718-c2843e01d9a2/go.mod h1:djNgcEr1/C05ACkg1iLfiJU5Ep61QUkGW8qpdssI0+w=
+ golang.org/x/net v0.0.0-20190603091049-60506f45cf65/go.mod h1:HSz+uSET+XFnRR8LxR5pz3Of3rY3CfYBVs4xY44aLks=
+-golang.org/x/net v0.22.0 h1:9sGLhx7iRIHEiX0oAJ3MRZMUCElJgy7Br1nO+AMN3Tc=
+-golang.org/x/net v0.22.0/go.mod h1:JKghWKKOSdJwpW2GEx0Ja7fmaKnMsbu+MWVZTokSYmg=
++golang.org/x/net v0.33.0 h1:74SYHlV8BIgHIFC/LrYkOGIwL19eTYXQ5wc6TBuO36I=
++golang.org/x/net v0.33.0/go.mod h1:HXLR5J+9DxmrqMwG9qjGCxZ+zKXxBru04zlTvWlWuN4=
+ golang.org/x/oauth2 v0.18.0 h1:09qnuIAgzdx1XplqJvW6CQqMCtGZykZWcXzPMPUusvI=
+ golang.org/x/oauth2 v0.18.0/go.mod h1:Wf7knwG0MPoWIMMBgFlEaSUDaKskp0dCfrlJRJXbBi8=
+ golang.org/x/sys v0.0.0-20190215142949-d0b11bdaac8a/go.mod h1:STP8DvDyc/dI5b8T5hshtkjS+E42TnysNCUPdjciGhY=
 diff --git a/api/go.mod b/api/go.mod
 index 93cd4daaa..49865ccb7 100644
 --- a/api/go.mod
