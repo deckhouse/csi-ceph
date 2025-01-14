@@ -45,7 +45,7 @@ shell:
   beforeInstall:
     - apt-get update
     - apt-get install -y openssl libtirpc
-    - {{ $.Root.ALT_CLEANUP_CMD }}
+    - rm -rf /var/lib/apt/lists/* /var/cache/apt/* && mkdir -p /var/lib/apt/lists/partial /var/cache/apt/archives/partial
   install:
     - mkdir -p /relocate/bin /relocate/sbin /relocate/etc /relocate/var/lib/ssl /relocate/usr/bin /relocate/usr/sbin /relocate/usr/share
     - cp -pr /tmp /relocate
