@@ -7,7 +7,7 @@ Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
 ===================================================================
 diff --git a/actions/retest/go.mod b/actions/retest/go.mod
 --- a/actions/retest/go.mod	(revision bc203c35da3576fba4b32d5a9f2713f8c9f96ee2)
-+++ b/actions/retest/go.mod	(revision 4279976bc8928eb6c06131b69b4a3e42c483d1fb)
++++ b/actions/retest/go.mod	(revision e32af2a228deb81a3772c00b73f05a3c11465d59)
 @@ -10,7 +10,7 @@
  require (
  	github.com/golang/protobuf v1.5.3 // indirect
@@ -24,7 +24,7 @@ Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
 ===================================================================
 diff --git a/actions/retest/go.sum b/actions/retest/go.sum
 --- a/actions/retest/go.sum	(revision bc203c35da3576fba4b32d5a9f2713f8c9f96ee2)
-+++ b/actions/retest/go.sum	(revision 4279976bc8928eb6c06131b69b4a3e42c483d1fb)
++++ b/actions/retest/go.sum	(revision e32af2a228deb81a3772c00b73f05a3c11465d59)
 @@ -11,8 +11,8 @@
  github.com/google/go-querystring v1.1.0/go.mod h1:Kcdr2DB4koayq7X8pmAG4sNG59So17icRSOU623lUBU=
  golang.org/x/crypto v0.0.0-20190308221718-c2843e01d9a2/go.mod h1:djNgcEr1/C05ACkg1iLfiJU5Ep61QUkGW8qpdssI0+w=
@@ -36,3 +36,20 @@ diff --git a/actions/retest/go.sum b/actions/retest/go.sum
  golang.org/x/oauth2 v0.18.0 h1:09qnuIAgzdx1XplqJvW6CQqMCtGZykZWcXzPMPUusvI=
  golang.org/x/oauth2 v0.18.0/go.mod h1:Wf7knwG0MPoWIMMBgFlEaSUDaKskp0dCfrlJRJXbBi8=
  golang.org/x/sys v0.0.0-20190215142949-d0b11bdaac8a/go.mod h1:STP8DvDyc/dI5b8T5hshtkjS+E42TnysNCUPdjciGhY=
+Index: go.mod
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/go.mod b/go.mod
+--- a/go.mod	(revision bc203c35da3576fba4b32d5a9f2713f8c9f96ee2)
++++ b/go.mod	(revision e32af2a228deb81a3772c00b73f05a3c11465d59)
+@@ -26,7 +26,7 @@
+ 	github.com/prometheus/client_golang v1.19.1
+ 	github.com/stretchr/testify v1.9.0
+ 	golang.org/x/crypto v0.31.0
+-	golang.org/x/net v0.28.0
++	golang.org/x/net v0.33.0
+ 	golang.org/x/sys v0.28.0
+ 	google.golang.org/grpc v1.65.0
+ 	google.golang.org/protobuf v1.34.2
