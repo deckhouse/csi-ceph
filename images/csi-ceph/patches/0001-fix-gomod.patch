@@ -7,7 +7,7 @@ Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
 ===================================================================
 diff --git a/go.mod b/go.mod
 --- a/go.mod	(revision bc203c35da3576fba4b32d5a9f2713f8c9f96ee2)
-+++ b/go.mod	(revision b4a59ab47bd80f574d9a61beba184aa714da76d6)
++++ b/go.mod	(revision 482cd6919e3d02cb0fd9ed6cc51fd89b9fc30c47)
 @@ -26,7 +26,7 @@
  	github.com/prometheus/client_golang v1.19.1
  	github.com/stretchr/testify v1.9.0
@@ -24,7 +24,7 @@ Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
 ===================================================================
 diff --git a/go.sum b/go.sum
 --- a/go.sum	(revision bc203c35da3576fba4b32d5a9f2713f8c9f96ee2)
-+++ b/go.sum	(revision b4a59ab47bd80f574d9a61beba184aa714da76d6)
++++ b/go.sum	(revision 482cd6919e3d02cb0fd9ed6cc51fd89b9fc30c47)
 @@ -1872,8 +1872,8 @@
  golang.org/x/net v0.20.0/go.mod h1:z8BVo6PvndSri0LbOE3hAn0apkU+1YvI6E70E9jsnvY=
  golang.org/x/net v0.21.0/go.mod h1:bIjVDfnllIU7BJ2DNgfnXvpSvtn8VRwhlsaeUTyUS44=
@@ -36,3 +36,340 @@ diff --git a/go.sum b/go.sum
  golang.org/x/oauth2 v0.0.0-20180821212333-d2e6202438be/go.mod h1:N/0e6XlmueqKjAGxoOufVs8QHGRruUQn6yWY3a++T0U=
  golang.org/x/oauth2 v0.0.0-20190226205417-e64efc72b421/go.mod h1:gOpvHmFTYa4IltrdGE7lF6nIHvwfUNPOp7c8zoXwtLw=
  golang.org/x/oauth2 v0.0.0-20190604053449-0f29369cfe45/go.mod h1:gOpvHmFTYa4IltrdGE7lF6nIHvwfUNPOp7c8zoXwtLw=
+Index: vendor/golang.org/x/net/html/iter.go
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/vendor/golang.org/x/net/html/iter.go b/vendor/golang.org/x/net/html/iter.go
+new file mode 100644
+--- /dev/null	(revision 482cd6919e3d02cb0fd9ed6cc51fd89b9fc30c47)
++++ b/vendor/golang.org/x/net/html/iter.go	(revision 482cd6919e3d02cb0fd9ed6cc51fd89b9fc30c47)
+@@ -0,0 +1,56 @@
++// Copyright 2024 The Go Authors. All rights reserved.
++// Use of this source code is governed by a BSD-style
++// license that can be found in the LICENSE file.
++
++//go:build go1.23
++
++package html
++
++import "iter"
++
++// Ancestors returns an iterator over the ancestors of n, starting with n.Parent.
++//
++// Mutating a Node or its parents while iterating may have unexpected results.
++func (n *Node) Ancestors() iter.Seq[*Node] {
++	_ = n.Parent // eager nil check
++
++	return func(yield func(*Node) bool) {
++		for p := n.Parent; p != nil && yield(p); p = p.Parent {
++		}
++	}
++}
++
++// ChildNodes returns an iterator over the immediate children of n,
++// starting with n.FirstChild.
++//
++// Mutating a Node or its children while iterating may have unexpected results.
++func (n *Node) ChildNodes() iter.Seq[*Node] {
++	_ = n.FirstChild // eager nil check
++
++	return func(yield func(*Node) bool) {
++		for c := n.FirstChild; c != nil && yield(c); c = c.NextSibling {
++		}
++	}
++
++}
++
++// Descendants returns an iterator over all nodes recursively beneath
++// n, excluding n itself. Nodes are visited in depth-first preorder.
++//
++// Mutating a Node or its descendants while iterating may have unexpected results.
++func (n *Node) Descendants() iter.Seq[*Node] {
++	_ = n.FirstChild // eager nil check
++
++	return func(yield func(*Node) bool) {
++		n.descendants(yield)
++	}
++}
++
++func (n *Node) descendants(yield func(*Node) bool) bool {
++	for c := range n.ChildNodes() {
++		if !yield(c) || !c.descendants(yield) {
++			return false
++		}
++	}
++	return true
++}
+Index: vendor/golang.org/x/net/http2/config.go
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/vendor/golang.org/x/net/http2/config.go b/vendor/golang.org/x/net/http2/config.go
+new file mode 100644
+--- /dev/null	(revision 482cd6919e3d02cb0fd9ed6cc51fd89b9fc30c47)
++++ b/vendor/golang.org/x/net/http2/config.go	(revision 482cd6919e3d02cb0fd9ed6cc51fd89b9fc30c47)
+@@ -0,0 +1,122 @@
++// Copyright 2024 The Go Authors. All rights reserved.
++// Use of this source code is governed by a BSD-style
++// license that can be found in the LICENSE file.
++
++package http2
++
++import (
++	"math"
++	"net/http"
++	"time"
++)
++
++// http2Config is a package-internal version of net/http.HTTP2Config.
++//
++// http.HTTP2Config was added in Go 1.24.
++// When running with a version of net/http that includes HTTP2Config,
++// we merge the configuration with the fields in Transport or Server
++// to produce an http2Config.
++//
++// Zero valued fields in http2Config are interpreted as in the
++// net/http.HTTPConfig documentation.
++//
++// Precedence order for reconciling configurations is:
++//
++//   - Use the net/http.{Server,Transport}.HTTP2Config value, when non-zero.
++//   - Otherwise use the http2.{Server.Transport} value.
++//   - If the resulting value is zero or out of range, use a default.
++type http2Config struct {
++	MaxConcurrentStreams         uint32
++	MaxDecoderHeaderTableSize    uint32
++	MaxEncoderHeaderTableSize    uint32
++	MaxReadFrameSize             uint32
++	MaxUploadBufferPerConnection int32
++	MaxUploadBufferPerStream     int32
++	SendPingTimeout              time.Duration
++	PingTimeout                  time.Duration
++	WriteByteTimeout             time.Duration
++	PermitProhibitedCipherSuites bool
++	CountError                   func(errType string)
++}
++
++// configFromServer merges configuration settings from
++// net/http.Server.HTTP2Config and http2.Server.
++func configFromServer(h1 *http.Server, h2 *Server) http2Config {
++	conf := http2Config{
++		MaxConcurrentStreams:         h2.MaxConcurrentStreams,
++		MaxEncoderHeaderTableSize:    h2.MaxEncoderHeaderTableSize,
++		MaxDecoderHeaderTableSize:    h2.MaxDecoderHeaderTableSize,
++		MaxReadFrameSize:             h2.MaxReadFrameSize,
++		MaxUploadBufferPerConnection: h2.MaxUploadBufferPerConnection,
++		MaxUploadBufferPerStream:     h2.MaxUploadBufferPerStream,
++		SendPingTimeout:              h2.ReadIdleTimeout,
++		PingTimeout:                  h2.PingTimeout,
++		WriteByteTimeout:             h2.WriteByteTimeout,
++		PermitProhibitedCipherSuites: h2.PermitProhibitedCipherSuites,
++		CountError:                   h2.CountError,
++	}
++	fillNetHTTPServerConfig(&conf, h1)
++	setConfigDefaults(&conf, true)
++	return conf
++}
++
++// configFromServer merges configuration settings from h2 and h2.t1.HTTP2
++// (the net/http Transport).
++func configFromTransport(h2 *Transport) http2Config {
++	conf := http2Config{
++		MaxEncoderHeaderTableSize: h2.MaxEncoderHeaderTableSize,
++		MaxDecoderHeaderTableSize: h2.MaxDecoderHeaderTableSize,
++		MaxReadFrameSize:          h2.MaxReadFrameSize,
++		SendPingTimeout:           h2.ReadIdleTimeout,
++		PingTimeout:               h2.PingTimeout,
++		WriteByteTimeout:          h2.WriteByteTimeout,
++	}
++
++	// Unlike most config fields, where out-of-range values revert to the default,
++	// Transport.MaxReadFrameSize clips.
++	if conf.MaxReadFrameSize < minMaxFrameSize {
++		conf.MaxReadFrameSize = minMaxFrameSize
++	} else if conf.MaxReadFrameSize > maxFrameSize {
++		conf.MaxReadFrameSize = maxFrameSize
++	}
++
++	if h2.t1 != nil {
++		fillNetHTTPTransportConfig(&conf, h2.t1)
++	}
++	setConfigDefaults(&conf, false)
++	return conf
++}
++
++func setDefault[T ~int | ~int32 | ~uint32 | ~int64](v *T, minval, maxval, defval T) {
++	if *v < minval || *v > maxval {
++		*v = defval
++	}
++}
++
++func setConfigDefaults(conf *http2Config, server bool) {
++	setDefault(&conf.MaxConcurrentStreams, 1, math.MaxUint32, defaultMaxStreams)
++	setDefault(&conf.MaxEncoderHeaderTableSize, 1, math.MaxUint32, initialHeaderTableSize)
++	setDefault(&conf.MaxDecoderHeaderTableSize, 1, math.MaxUint32, initialHeaderTableSize)
++	if server {
++		setDefault(&conf.MaxUploadBufferPerConnection, initialWindowSize, math.MaxInt32, 1<<20)
++	} else {
++		setDefault(&conf.MaxUploadBufferPerConnection, initialWindowSize, math.MaxInt32, transportDefaultConnFlow)
++	}
++	if server {
++		setDefault(&conf.MaxUploadBufferPerStream, 1, math.MaxInt32, 1<<20)
++	} else {
++		setDefault(&conf.MaxUploadBufferPerStream, 1, math.MaxInt32, transportDefaultStreamFlow)
++	}
++	setDefault(&conf.MaxReadFrameSize, minMaxFrameSize, maxFrameSize, defaultMaxReadFrameSize)
++	setDefault(&conf.PingTimeout, 1, math.MaxInt64, 15*time.Second)
++}
++
++// adjustHTTP1MaxHeaderSize converts a limit in bytes on the size of an HTTP/1 header
++// to an HTTP/2 MAX_HEADER_LIST_SIZE value.
++func adjustHTTP1MaxHeaderSize(n int64) int64 {
++	// http2's count is in a slightly different unit and includes 32 bytes per pair.
++	// So, take the net/http.Server value and pad it up a bit, assuming 10 headers.
++	const perFieldOverhead = 32 // per http2 spec
++	const typicalHeaders = 10   // conservative
++	return n + typicalHeaders*perFieldOverhead
++}
+Index: vendor/golang.org/x/net/http2/config_go124.go
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/vendor/golang.org/x/net/http2/config_go124.go b/vendor/golang.org/x/net/http2/config_go124.go
+new file mode 100644
+--- /dev/null	(revision 482cd6919e3d02cb0fd9ed6cc51fd89b9fc30c47)
++++ b/vendor/golang.org/x/net/http2/config_go124.go	(revision 482cd6919e3d02cb0fd9ed6cc51fd89b9fc30c47)
+@@ -0,0 +1,61 @@
++// Copyright 2024 The Go Authors. All rights reserved.
++// Use of this source code is governed by a BSD-style
++// license that can be found in the LICENSE file.
++
++//go:build go1.24
++
++package http2
++
++import "net/http"
++
++// fillNetHTTPServerConfig sets fields in conf from srv.HTTP2.
++func fillNetHTTPServerConfig(conf *http2Config, srv *http.Server) {
++	fillNetHTTPConfig(conf, srv.HTTP2)
++}
++
++// fillNetHTTPServerConfig sets fields in conf from tr.HTTP2.
++func fillNetHTTPTransportConfig(conf *http2Config, tr *http.Transport) {
++	fillNetHTTPConfig(conf, tr.HTTP2)
++}
++
++func fillNetHTTPConfig(conf *http2Config, h2 *http.HTTP2Config) {
++	if h2 == nil {
++		return
++	}
++	if h2.MaxConcurrentStreams != 0 {
++		conf.MaxConcurrentStreams = uint32(h2.MaxConcurrentStreams)
++	}
++	if h2.MaxEncoderHeaderTableSize != 0 {
++		conf.MaxEncoderHeaderTableSize = uint32(h2.MaxEncoderHeaderTableSize)
++	}
++	if h2.MaxDecoderHeaderTableSize != 0 {
++		conf.MaxDecoderHeaderTableSize = uint32(h2.MaxDecoderHeaderTableSize)
++	}
++	if h2.MaxConcurrentStreams != 0 {
++		conf.MaxConcurrentStreams = uint32(h2.MaxConcurrentStreams)
++	}
++	if h2.MaxReadFrameSize != 0 {
++		conf.MaxReadFrameSize = uint32(h2.MaxReadFrameSize)
++	}
++	if h2.MaxReceiveBufferPerConnection != 0 {
++		conf.MaxUploadBufferPerConnection = int32(h2.MaxReceiveBufferPerConnection)
++	}
++	if h2.MaxReceiveBufferPerStream != 0 {
++		conf.MaxUploadBufferPerStream = int32(h2.MaxReceiveBufferPerStream)
++	}
++	if h2.SendPingTimeout != 0 {
++		conf.SendPingTimeout = h2.SendPingTimeout
++	}
++	if h2.PingTimeout != 0 {
++		conf.PingTimeout = h2.PingTimeout
++	}
++	if h2.WriteByteTimeout != 0 {
++		conf.WriteByteTimeout = h2.WriteByteTimeout
++	}
++	if h2.PermitProhibitedCipherSuites {
++		conf.PermitProhibitedCipherSuites = true
++	}
++	if h2.CountError != nil {
++		conf.CountError = h2.CountError
++	}
++}
+Index: vendor/golang.org/x/net/http2/config_pre_go124.go
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/vendor/golang.org/x/net/http2/config_pre_go124.go b/vendor/golang.org/x/net/http2/config_pre_go124.go
+new file mode 100644
+--- /dev/null	(revision 482cd6919e3d02cb0fd9ed6cc51fd89b9fc30c47)
++++ b/vendor/golang.org/x/net/http2/config_pre_go124.go	(revision 482cd6919e3d02cb0fd9ed6cc51fd89b9fc30c47)
+@@ -0,0 +1,16 @@
++// Copyright 2024 The Go Authors. All rights reserved.
++// Use of this source code is governed by a BSD-style
++// license that can be found in the LICENSE file.
++
++//go:build !go1.24
++
++package http2
++
++import "net/http"
++
++// Pre-Go 1.24 fallback.
++// The Server.HTTP2 and Transport.HTTP2 config fields were added in Go 1.24.
++
++func fillNetHTTPServerConfig(conf *http2Config, srv *http.Server) {}
++
++func fillNetHTTPTransportConfig(conf *http2Config, tr *http.Transport) {}
+Index: vendor/golang.org/x/net/http2/unencrypted.go
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/vendor/golang.org/x/net/http2/unencrypted.go b/vendor/golang.org/x/net/http2/unencrypted.go
+new file mode 100644
+--- /dev/null	(revision 482cd6919e3d02cb0fd9ed6cc51fd89b9fc30c47)
++++ b/vendor/golang.org/x/net/http2/unencrypted.go	(revision 482cd6919e3d02cb0fd9ed6cc51fd89b9fc30c47)
+@@ -0,0 +1,32 @@
++// Copyright 2024 The Go Authors. All rights reserved.
++// Use of this source code is governed by a BSD-style
++// license that can be found in the LICENSE file.
++
++package http2
++
++import (
++	"crypto/tls"
++	"errors"
++	"net"
++)
++
++const nextProtoUnencryptedHTTP2 = "unencrypted_http2"
++
++// unencryptedNetConnFromTLSConn retrieves a net.Conn wrapped in a *tls.Conn.
++//
++// TLSNextProto functions accept a *tls.Conn.
++//
++// When passing an unencrypted HTTP/2 connection to a TLSNextProto function,
++// we pass a *tls.Conn with an underlying net.Conn containing the unencrypted connection.
++// To be extra careful about mistakes (accidentally dropping TLS encryption in a place
++// where we want it), the tls.Conn contains a net.Conn with an UnencryptedNetConn method
++// that returns the actual connection we want to use.
++func unencryptedNetConnFromTLSConn(tc *tls.Conn) (net.Conn, error) {
++	conner, ok := tc.NetConn().(interface {
++		UnencryptedNetConn() net.Conn
++	})
++	if !ok {
++		return nil, errors.New("http2: TLS conn unexpectedly found in unencrypted handoff")
++	}
++	return conner.UnencryptedNetConn(), nil
++}
