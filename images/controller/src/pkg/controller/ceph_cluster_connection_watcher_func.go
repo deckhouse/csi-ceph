@@ -227,6 +227,10 @@ func reconcileConfigMapUpdateFunc(ctx context.Context, cl client.Client, log log
 	log.Trace(fmt.Sprintf("[reconcileConfigMapUpdateFunc] updated ConfigMap: %+v", updatedConfigMap))
 	log.Trace(fmt.Sprintf("[reconcileConfigMapUpdateFunc] old ConfigMap: %+v", oldConfigMap))
 
+	if updatedConfigMap.Data["config.json"] == "null" {
+		panic("NULLLLL")
+	}
+
 	err = cl.Update(ctx, updatedConfigMap)
 	if err != nil {
 		err = fmt.Errorf("[reconcileConfigMapUpdateFunc] unable to update the ConfigMap %s for CephClusterConnection %s: %w", updatedConfigMap.Name, cephClusterConnection.Name, err)
@@ -313,6 +317,7 @@ func updateConfigMap(oldConfigMap *corev1.ConfigMap, cephClusterConnection *v1al
 	newJSONData, _ := json.Marshal(clusterConfigs)
 
 	configMap := oldConfigMap.DeepCopy()
+
 	configMap.Data["config.json"] = string(newJSONData)
 
 	if configMap.Labels == nil {
