@@ -120,6 +120,11 @@ func shouldReconcileConfigMapByUpdateFunc(log logger.Logger, configMapList *core
 
 	for _, oldConfigMap := range configMapList.Items {
 		if oldConfigMap.Name == configMapName {
+			if oldConfigMap.DeletionTimestamp != nil {
+				// oldConfigMap needs finalizers to be removed and be recreated
+				return true, nil
+			}
+
 			oldClusterConfigs, err := getClusterConfigsFromConfigMap(oldConfigMap)
 			if err != nil {
 				return false, err
@@ -222,14 +227,26 @@ func reconcileConfigMapUpdateFunc(ctx context.Context, cl client.Client, log log
 
 	log.Debug(fmt.Sprintf("[reconcileConfigMapUpdateFunc] ConfigMap %s was found for the CephClusterConnection %s", configMapName, cephClusterConnection.Name))
 
+	if oldConfigMap.DeletionTimestamp != nil {
+		// delete finalizers
+		oldConfigMap.Finalizers = slices.DeleteFunc(
+			oldConfigMap.Finalizers,
+			func(f string) bool { return f == CephClusterConnectionControllerFinalizerName },
+		)
+		err = cl.Update(ctx, oldConfigMap)
+		msg := ""
+		if err != nil {
+			err = fmt.Errorf("[reconcileConfigMapUpdateFunc] unable to remove ConfigMap %s finalizer for CephClusterConnection %s: %w", oldConfigMap.Name, cephClusterConnection.Name, err)
+			msg = err.Error()
+		}
+		// requeue in order to re-create config map
+		return true, msg, err
+	}
+
 	updatedConfigMap := updateConfigMap(oldConfigMap, cephClusterConnection, internal.UpdateConfigMapActionUpdate)
 	log.Debug(fmt.Sprintf("[reconcileConfigMapUpdateFunc] successfully configurated new ConfigMap %s for the CephClusterConnection %s", configMapName, cephClusterConnection.Name))
 	log.Trace(fmt.Sprintf("[reconcileConfigMapUpdateFunc] updated ConfigMap: %+v", updatedConfigMap))
 	log.Trace(fmt.Sprintf("[reconcileConfigMapUpdateFunc] old ConfigMap: %+v", oldConfigMap))
-
-	if updatedConfigMap.Data["config.json"] == "null" {
-		panic("NULLLLL")
-	}
 
 	err = cl.Update(ctx, updatedConfigMap)
 	if err != nil {
@@ -317,7 +334,6 @@ func updateConfigMap(oldConfigMap *corev1.ConfigMap, cephClusterConnection *v1al
 	newJSONData, _ := json.Marshal(clusterConfigs)
 
 	configMap := oldConfigMap.DeepCopy()
-
 	configMap.Data["config.json"] = string(newJSONData)
 
 	if configMap.Labels == nil {
