@@ -102,7 +102,7 @@ func shouldReconcileConfigMapByCreateFunc(configMapList *corev1.ConfigMapList, c
 
 	for _, cm := range configMapList.Items {
 		if cm.Name == configMapName {
-			return cm.Data["config.json"] == ""
+			return false
 		}
 	}
 
@@ -122,6 +122,11 @@ func shouldReconcileConfigMapByUpdateFunc(log logger.Logger, configMapList *core
 		if oldConfigMap.Name == configMapName {
 			if oldConfigMap.DeletionTimestamp != nil {
 				// oldConfigMap needs finalizers to be removed and be recreated
+				return true, nil
+			}
+
+			if oldConfigMap.Data["config.json"] == "" {
+				log.Info("[shouldReconcileConfigMapByUpdateFunc] Key 'config.json' is missing, will be updated")
 				return true, nil
 			}
 
@@ -318,6 +323,11 @@ func createConfigMap(clusterConfig v1alpha1.ClusterConfig, controllerNamespace, 
 }
 
 func updateConfigMap(oldConfigMap *corev1.ConfigMap, cephClusterConnection *v1alpha1.CephClusterConnection, updateAction string) *corev1.ConfigMap {
+	// recreating non-existing key
+	if oldConfigMap.Data["config.json"] == "" {
+		oldConfigMap.Data["config.json"] = "[]"
+	}
+
 	clusterConfigs, _ := getClusterConfigsFromConfigMap(*oldConfigMap)
 
 	for i, clusterConfig := range clusterConfigs {
