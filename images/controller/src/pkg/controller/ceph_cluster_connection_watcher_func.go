@@ -102,7 +102,7 @@ func shouldReconcileConfigMapByCreateFunc(configMapList *corev1.ConfigMapList, c
 
 	for _, cm := range configMapList.Items {
 		if cm.Name == configMapName {
-			return cm.Data["config.json"] == ""
+			return false
 		}
 	}
 
@@ -120,6 +120,16 @@ func shouldReconcileConfigMapByUpdateFunc(log logger.Logger, configMapList *core
 
 	for _, oldConfigMap := range configMapList.Items {
 		if oldConfigMap.Name == configMapName {
+			if oldConfigMap.DeletionTimestamp != nil {
+				// oldConfigMap needs finalizers to be removed and be recreated
+				return true, nil
+			}
+
+			if oldConfigMap.Data["config.json"] == "" {
+				log.Info("[shouldReconcileConfigMapByUpdateFunc] Key 'config.json' is missing, will be updated")
+				return true, nil
+			}
+
 			oldClusterConfigs, err := getClusterConfigsFromConfigMap(oldConfigMap)
 			if err != nil {
 				return false, err
@@ -222,6 +232,22 @@ func reconcileConfigMapUpdateFunc(ctx context.Context, cl client.Client, log log
 
 	log.Debug(fmt.Sprintf("[reconcileConfigMapUpdateFunc] ConfigMap %s was found for the CephClusterConnection %s", configMapName, cephClusterConnection.Name))
 
+	if oldConfigMap.DeletionTimestamp != nil {
+		// delete finalizers
+		oldConfigMap.Finalizers = slices.DeleteFunc(
+			oldConfigMap.Finalizers,
+			func(f string) bool { return f == CephClusterConnectionControllerFinalizerName },
+		)
+		err = cl.Update(ctx, oldConfigMap)
+		msg := ""
+		if err != nil {
+			err = fmt.Errorf("[reconcileConfigMapUpdateFunc] unable to remove ConfigMap %s finalizer for CephClusterConnection %s: %w", oldConfigMap.Name, cephClusterConnection.Name, err)
+			msg = err.Error()
+		}
+		// requeue in order to re-create config map
+		return true, msg, err
+	}
+
 	updatedConfigMap := updateConfigMap(oldConfigMap, cephClusterConnection, internal.UpdateConfigMapActionUpdate)
 	log.Debug(fmt.Sprintf("[reconcileConfigMapUpdateFunc] successfully configurated new ConfigMap %s for the CephClusterConnection %s", configMapName, cephClusterConnection.Name))
 	log.Trace(fmt.Sprintf("[reconcileConfigMapUpdateFunc] updated ConfigMap: %+v", updatedConfigMap))
@@ -297,6 +323,11 @@ func createConfigMap(clusterConfig v1alpha1.ClusterConfig, controllerNamespace, 
 }
 
 func updateConfigMap(oldConfigMap *corev1.ConfigMap, cephClusterConnection *v1alpha1.CephClusterConnection, updateAction string) *corev1.ConfigMap {
+	// recreating non-existing key
+	if oldConfigMap.Data["config.json"] == "" {
+		oldConfigMap.Data["config.json"] = "[]"
+	}
+
 	clusterConfigs, _ := getClusterConfigsFromConfigMap(*oldConfigMap)
 
 	for i, clusterConfig := range clusterConfigs {
