@@ -1,6 +1,5 @@
 ---
 title: "The csi-ceph module"
-moduleStatus: experimental
 ---
 
 The module installs and configures the CSI driver for RBD and CephFS.

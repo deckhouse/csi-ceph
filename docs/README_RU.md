@@ -1,6 +1,5 @@
 ---
 title: "Модуль csi-ceph"
-moduleStatus: experimental
 ---
 
 Модуль устанавливает и настраивает CSI-драйвер для RBD и CephFS.
