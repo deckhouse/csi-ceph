@@ -204,6 +204,7 @@ func updateConfigMapIfNeeded(ctx context.Context, cl client.Client, log logger.L
 	log.Trace(fmt.Sprintf("[updateConfigMapIfNeeded] ConfigMap: %+v", configMap))
 	log.Trace(fmt.Sprintf("[updateConfigMapIfNeeded] Update action: %s", updateAction))
 
+
 	needUpdate := false
 
 	clusterConfigs, err := getClusterConfigsFromConfigMap(configMap)

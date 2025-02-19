@@ -124,7 +124,7 @@ jobs:
   job-SE:
     name: Edition SE
     runs-on: [self-hosted, regular, selectel]
-    if: github.event.inputs.se-plus == 'true'
+    if: github.event.inputs.se == 'true'
     steps:
       - run: echo "SE"
       - name: SET VAR
