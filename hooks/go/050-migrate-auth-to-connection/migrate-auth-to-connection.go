@@ -89,7 +89,7 @@ func handlerMigrateAuthToConnection(_ context.Context, input *pkg.HookInput) err
 	}
 
 	for _, item := range cephClusterAuthenticationList.Items {
-		fmt.Printf(item.Name)
+		fmt.Print(item.Name)
 	}
 
 	return nil
