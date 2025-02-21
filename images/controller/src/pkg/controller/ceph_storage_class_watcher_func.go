@@ -302,11 +302,13 @@ func GetStoragecClassParams(cephSC *storagev1alpha1.CephStorageClass, controller
 		params["imageFeatures"] = "layering,exclusive-lock,object-map,fast-diff"
 		params["csi.storage.k8s.io/fstype"] = cephSC.Spec.RBD.DefaultFSType
 		params["pool"] = cephSC.Spec.RBD.Pool
-		// params["mounter"] = "rbd-nbd"
 	}
 
 	if cephSC.Spec.Type == storagev1alpha1.CephStorageClassTypeCephFS {
 		params["fsName"] = cephSC.Spec.CephFS.FSName
+		if cephSC.Spec.CephFS.Pool != "" {
+			params["pool"] = cephSC.Spec.CephFS.Pool
+		}
 	}
 
 	return params, nil
@@ -429,11 +431,6 @@ func validateCephStorageClassSpec(cephSC *storagev1alpha1.CephStorageClass) (boo
 	if cephSC.Spec.ClusterConnectionName == "" {
 		validationPassed = false
 		failedMsgBuilder.WriteString("the spec.clusterConnectionName field is empty; ")
-	}
-
-	if cephSC.Spec.ClusterAuthenticationName == "" {
-		validationPassed = false
-		failedMsgBuilder.WriteString("the spec.clusterAuthenticationName field is empty; ")
 	}
 
 	if cephSC.Spec.ReclaimPolicy == "" {
