@@ -72,7 +72,7 @@ func NewKubeClient(kubeconfigPath string) (client.Client, error) {
 }
 
 func handlerMigrateAuthToConnection(_ context.Context, input *pkg.HookInput) error {
-	fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: Started migration from CephClusterAuthetication\n")
+	fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: Started migration from CephClusterAuthentication\n")
 
 	ctx := context.Background()
 	cl, err := NewKubeClient("")
@@ -100,7 +100,7 @@ func handlerMigrateAuthToConnection(_ context.Context, input *pkg.HookInput) err
 			continue
 		}
 
-		fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: Got %s CephClusterConnection\n", cephClusterConnection.Name)
+		fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: %s CephClusterConnection received\n", cephClusterConnection.Name)
 
 		err = cl.Get(ctx, types.NamespacedName{Name: item.Spec.ClusterAuthenticationName, Namespace: ""}, cephClusterAuthentication)
 		if err != nil {
@@ -108,7 +108,7 @@ func handlerMigrateAuthToConnection(_ context.Context, input *pkg.HookInput) err
 			continue
 		}
 
-		fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: Got %s CephClusterAuthentication\n", cephClusterAuthentication.Name)
+		fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: %s CephClusterAuthentication received\n", cephClusterAuthentication.Name)
 
 		if cephClusterConnection.Spec.UserID != "" || cephClusterConnection.Spec.UserKey != "" {
 			fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: CephClusterConnection %s already has UserID or UserKey\n", cephClusterConnection.Name)
@@ -125,7 +125,7 @@ func handlerMigrateAuthToConnection(_ context.Context, input *pkg.HookInput) err
 		}
 	}
 
-	fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: Finished migration from CephClusterAuthetication\n")
+	fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: Finished migration from CephClusterAuthentication\n")
 
 	return nil
 }
