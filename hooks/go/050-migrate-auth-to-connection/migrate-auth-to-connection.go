@@ -72,7 +72,7 @@ func NewKubeClient(kubeconfigPath string) (client.Client, error) {
 }
 
 func handlerMigrateAuthToConnection(_ context.Context, input *pkg.HookInput) error {
-	fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: Started migration from CephClusterAuthetication")
+	fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: Started migration from CephClusterAuthetication\n")
 
 	ctx := context.Background()
 	cl, err := NewKubeClient("")
@@ -84,34 +84,48 @@ func handlerMigrateAuthToConnection(_ context.Context, input *pkg.HookInput) err
 
 	err = cl.List(ctx, cephStorageClassList)
 	if err != nil {
-		fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: CephStorageClassList get error %s", err)
+		fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: CephStorageClassList get error %s\n", err)
 		return err
 	}
 
 	for _, item := range cephStorageClassList.Items {
-		fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: migrating %s", item.Name)
+		fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: Migrating %s\n", item.Name)
 
 		cephClusterConnection := &v1alpha1.CephClusterConnection{}
 		cephClusterAuthentication := &v1alpha1.CephClusterAuthentication{}
 
 		err = cl.Get(ctx, types.NamespacedName{Name: item.Spec.ClusterConnectionName, Namespace: ""}, cephClusterConnection)
 		if err != nil {
-			fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: CephClusterConnection get error %s", err)
-			return err
+			fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: CephClusterConnection get error %s\n", err)
+			continue
 		}
 
-		fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: got %s CephClusterConnection", cephClusterConnection.Name)
+		fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: Got %s CephClusterConnection\n", cephClusterConnection.Name)
 
 		err = cl.Get(ctx, types.NamespacedName{Name: item.Spec.ClusterAuthenticationName, Namespace: ""}, cephClusterAuthentication)
 		if err != nil {
-			fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: CephClusterAuthentication get error %s", err)
-			return err
+			fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: CephClusterAuthentication get error %s\n", err)
+			continue
 		}
 
-		fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: got %s CephClusterAuthentication", cephClusterAuthentication.Name)
+		fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: Got %s CephClusterAuthentication\n", cephClusterAuthentication.Name)
+
+		if cephClusterConnection.Spec.UserID != "" || cephClusterConnection.Spec.UserKey != "" {
+			fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: CephClusterConnection %s already has UserID or UserKey\n", cephClusterConnection.Name)
+			continue
+		}
+
+		cephClusterConnection.Spec.UserID = cephClusterAuthentication.Spec.UserID
+		cephClusterConnection.Spec.UserKey = cephClusterAuthentication.Spec.UserKey
+
+		err = cl.Update(ctx, cephClusterConnection)
+		if err != nil {
+			fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: CephClusterConnection update error %s\n", err)
+			return err
+		}
 	}
 
-	fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: Finished migration from CephClusterAuthetication")
+	fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: Finished migration from CephClusterAuthetication\n")
 
 	return nil
 }
