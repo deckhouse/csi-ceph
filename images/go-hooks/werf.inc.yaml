@@ -1,0 +1,28 @@
+---
+image: {{ $.ImageName }}-artifact
+from: {{ $.Root.BASE_GOLANG_1_23 }}
+final: false
+
+git:
+  - add: /
+    to: /usr/src/app
+    includePaths:
+      - hooks/go
+    stageDependencies:
+      install:
+        - '**/go.mod'
+        - '**/go.sum'
+      beforeSetup:
+        - '**/*.go'
+mount:
+- fromPath: ~/go-pkg-cache
+  to: /go/pkg
+
+shell:
+  install:
+    - cd /usr/src/app/hooks/go
+    - go mod download
+  beforeSetup:
+    - |
+      cd /usr/src/app/hooks/go;
+      CGO_ENABLED=0 go build -a -gcflags=all="-l -B" -ldflags="-w -s" -o /usr/local/bin/go-hooks *.go;
