@@ -4,16 +4,23 @@ from: {{ $.Root.BASE_GOLANG_1_23 }}
 final: false
 
 git:
-  - add: /
-    to: /usr/src/app
-    includePaths:
-      - hooks/go
+  - add: /hooks/go
+    to: /usr/src/app/hooks/go
     stageDependencies:
       install:
         - '**/go.mod'
         - '**/go.sum'
       beforeSetup:
         - '**/*.go'
+  - add: /api
+    to: /usr/src/app/api
+    stageDependencies:
+      install:
+        - '**/go.mod'
+        - '**/go.sum'
+      beforeSetup:
+        - '**/*.go'
+
 mount:
 - fromPath: ~/go-pkg-cache
   to: /go/pkg
