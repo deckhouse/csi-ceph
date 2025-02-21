@@ -72,7 +72,7 @@ func NewKubeClient(kubeconfigPath string) (client.Client, error) {
 }
 
 func handlerMigrateAuthToConnection(_ context.Context, input *pkg.HookInput) error {
-	fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: Start migration from CephClusterAuthetication")
+	fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: Started migration from CephClusterAuthetication")
 
 	ctx := context.Background()
 	cl, err := NewKubeClient("")
@@ -100,34 +100,18 @@ func handlerMigrateAuthToConnection(_ context.Context, input *pkg.HookInput) err
 			return err
 		}
 
+		fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: got %s CephClusterConnection", cephClusterConnection.Name)
+
 		err = cl.Get(ctx, types.NamespacedName{Name: item.Spec.ClusterAuthenticationName, Namespace: ""}, cephClusterAuthentication)
 		if err != nil {
 			fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: CephClusterAuthentication get error %s", err)
 			return err
 		}
+
+		fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: got %s CephClusterAuthentication", cephClusterAuthentication.Name)
 	}
 
-	// cephClusterAuthenticationList := &v1alpha1.CephClusterAuthenticationList{}
-
-	// err = cl.List(ctx, cephClusterAuthenticationList)
-	// if err != nil {
-	// 	fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: CephClusterConnection get error %s", err)
-	// 	return err
-	// }
-
-	// for _, item := range cephClusterAuthenticationList.Items {
-	// 	for _, label := range item.Labels {
-	// 		fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: Label: %s", label)
-	// 	}
-
-	// 	cephClusterConnection := &v1alpha1.CephClusterConnection{}
-
-	// 	err = cl.Get(ctx, types.NamespacedName{Name: item.Name, Namespace: ""}, cephClusterConnection)
-	// 	if err != nil {
-	// 		fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: CephClusterConnection get error %s", err)
-	// 		return err
-	// 	}
-	// }
+	fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: Finished migration from CephClusterAuthetication")
 
 	return nil
 }
