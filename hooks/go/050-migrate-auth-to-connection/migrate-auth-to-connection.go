@@ -152,6 +152,10 @@ func handlerMigrateAuthToConnection(_ context.Context, input *pkg.HookInput) err
 			return err
 		}
 
+		if cephStorageClass.Labels == nil {
+			cephStorageClass.Labels = make(map[string]string)
+		}
+
 		cephStorageClass.Labels[MigratedLabel] = MigratedLabelValue
 		err = cl.Update(ctx, &cephStorageClass)
 		if err != nil {
