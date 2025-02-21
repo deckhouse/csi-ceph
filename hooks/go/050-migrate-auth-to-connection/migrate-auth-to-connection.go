@@ -80,27 +80,54 @@ func handlerMigrateAuthToConnection(_ context.Context, input *pkg.HookInput) err
 		klog.Fatal(err.Error())
 	}
 
-	cephClusterAuthenticationList := &v1alpha1.CephClusterAuthenticationList{}
+	cephStorageClassList := &v1alpha1.CephStorageClassList{}
 
-	err = cl.List(ctx, cephClusterAuthenticationList)
+	err = cl.List(ctx, cephStorageClassList)
 	if err != nil {
 		fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: CephClusterConnection get error %s", err)
 		return err
 	}
 
-	for _, item := range cephClusterAuthenticationList.Items {
-		for _, label := range item.Labels {
-			fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: Label: %s", label)
-		}
+	for _, item := range cephStorageClassList.Items {
+		fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: migrating %s", item.Name)
 
 		cephClusterConnection := &v1alpha1.CephClusterConnection{}
+		cephClusterAuthentication := &v1alpha1.CephClusterAuthentication{}
 
 		err = cl.Get(ctx, types.NamespacedName{Name: item.Name, Namespace: ""}, cephClusterConnection)
 		if err != nil {
 			fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: CephClusterConnection get error %s", err)
 			return err
 		}
+
+		err = cl.Get(ctx, types.NamespacedName{Name: item.Name, Namespace: ""}, cephClusterAuthentication)
+		if err != nil {
+			fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: CephClusterAuthentication get error %s", err)
+			return err
+		}
 	}
+
+	// cephClusterAuthenticationList := &v1alpha1.CephClusterAuthenticationList{}
+
+	// err = cl.List(ctx, cephClusterAuthenticationList)
+	// if err != nil {
+	// 	fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: CephClusterConnection get error %s", err)
+	// 	return err
+	// }
+
+	// for _, item := range cephClusterAuthenticationList.Items {
+	// 	for _, label := range item.Labels {
+	// 		fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: Label: %s", label)
+	// 	}
+
+	// 	cephClusterConnection := &v1alpha1.CephClusterConnection{}
+
+	// 	err = cl.Get(ctx, types.NamespacedName{Name: item.Name, Namespace: ""}, cephClusterConnection)
+	// 	if err != nil {
+	// 		fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: CephClusterConnection get error %s", err)
+	// 		return err
+	// 	}
+	// }
 
 	return nil
 }
