@@ -94,13 +94,13 @@ func handlerMigrateAuthToConnection(_ context.Context, input *pkg.HookInput) err
 		cephClusterConnection := &v1alpha1.CephClusterConnection{}
 		cephClusterAuthentication := &v1alpha1.CephClusterAuthentication{}
 
-		err = cl.Get(ctx, types.NamespacedName{Name: item.Name, Namespace: ""}, cephClusterConnection)
+		err = cl.Get(ctx, types.NamespacedName{Name: item.Spec.ClusterConnectionName, Namespace: ""}, cephClusterConnection)
 		if err != nil {
 			fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: CephClusterConnection get error %s", err)
 			return err
 		}
 
-		err = cl.Get(ctx, types.NamespacedName{Name: item.Name, Namespace: ""}, cephClusterAuthentication)
+		err = cl.Get(ctx, types.NamespacedName{Name: item.Spec.ClusterAuthenticationName, Namespace: ""}, cephClusterAuthentication)
 		if err != nil {
 			fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: CephClusterAuthentication get error %s", err)
 			return err
