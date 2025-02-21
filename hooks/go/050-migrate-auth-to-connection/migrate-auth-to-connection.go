@@ -84,7 +84,7 @@ func handlerMigrateAuthToConnection(_ context.Context, input *pkg.HookInput) err
 
 	err = cl.List(ctx, cephStorageClassList)
 	if err != nil {
-		fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: CephClusterConnection get error %s", err)
+		fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: CephStorageClassList get error %s", err)
 		return err
 	}
 
