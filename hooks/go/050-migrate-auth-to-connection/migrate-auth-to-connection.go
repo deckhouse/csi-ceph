@@ -96,16 +96,26 @@ func handlerMigrateAuthToConnection(_ context.Context, input *pkg.HookInput) err
 
 		err = cl.Get(ctx, types.NamespacedName{Name: item.Spec.ClusterConnectionName, Namespace: ""}, cephClusterConnection)
 		if err != nil {
-			fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: CephClusterConnection get error %s\n", err)
-			continue
+			if client.IgnoreNotFound(err) == nil {
+				fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: CephClusterConnection %s not found\n", item.Spec.ClusterConnectionName)
+				continue
+			} else {
+				fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: CephClusterConnection %s get error %s\n", err, item.Spec.ClusterConnectionName)
+				return err
+			}
 		}
 
 		fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: %s CephClusterConnection received\n", cephClusterConnection.Name)
 
 		err = cl.Get(ctx, types.NamespacedName{Name: item.Spec.ClusterAuthenticationName, Namespace: ""}, cephClusterAuthentication)
 		if err != nil {
-			fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: CephClusterAuthentication get error %s\n", err)
-			continue
+			if client.IgnoreNotFound(err) == nil {
+				fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: CephClusterAuthentication %s not found\n", item.Spec.ClusterAuthenticationName)
+				continue
+			} else {
+				fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: CephClusterAuthentication %s get error %s\n", err, item.Spec.ClusterAuthenticationName)
+				return err
+			}
 		}
 
 		fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: %s CephClusterAuthentication received\n", cephClusterAuthentication.Name)
