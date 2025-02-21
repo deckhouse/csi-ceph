@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"os"
 
-	consts "csi-ceph/consts"
-
 	"github.com/deckhouse/csi-ceph/api/v1alpha1"
 	"github.com/deckhouse/module-sdk/pkg"
 	"github.com/deckhouse/module-sdk/pkg/registry"
@@ -16,6 +14,7 @@ import (
 	sv1 "k8s.io/api/storage/v1"
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apiruntime "k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
@@ -73,7 +72,7 @@ func NewKubeClient(kubeconfigPath string) (client.Client, error) {
 }
 
 func handlerMigrateAuthToConnection(_ context.Context, input *pkg.HookInput) error {
-	fmt.Printf("Module %s Hook test", consts.MODULE_NAME)
+	fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: Start migration from CephClusterAuthetication")
 
 	ctx := context.Background()
 	cl, err := NewKubeClient("")
@@ -85,11 +84,22 @@ func handlerMigrateAuthToConnection(_ context.Context, input *pkg.HookInput) err
 
 	err = cl.List(ctx, cephClusterAuthenticationList)
 	if err != nil {
-		klog.Fatal(err)
+		fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: CephClusterConnection get error %s", err)
+		return err
 	}
 
 	for _, item := range cephClusterAuthenticationList.Items {
-		fmt.Print(item.Name)
+		for _, label := range item.Labels {
+			fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: Label: %s", label)
+		}
+
+		cephClusterConnection := &v1alpha1.CephClusterConnection{}
+
+		err = cl.Get(ctx, types.NamespacedName{Name: item.Name, Namespace: ""}, cephClusterConnection)
+		if err != nil {
+			fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: CephClusterConnection get error %s", err)
+			return err
+		}
 	}
 
 	return nil
