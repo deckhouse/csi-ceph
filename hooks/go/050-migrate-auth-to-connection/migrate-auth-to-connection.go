@@ -7,10 +7,9 @@ import (
 
 	consts "csi-ceph/consts"
 
+	"github.com/deckhouse/csi-ceph/api/v1alpha1"
 	"github.com/deckhouse/module-sdk/pkg"
 	"github.com/deckhouse/module-sdk/pkg/registry"
-
-	"github.com/deckhouse/csi-ceph/api/v1alpha1"
 
 	"github.com/go-logr/logr"
 	v1 "k8s.io/api/core/v1"
