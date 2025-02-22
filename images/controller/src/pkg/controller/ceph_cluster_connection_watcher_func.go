@@ -19,6 +19,7 @@ package controller
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"reflect"
 	"slices"
@@ -108,6 +109,14 @@ func reconcileConfigMap(ctx context.Context, cl client.Client, log logger.Logger
 		return createConfigMap(ctx, cl, log, cephClusterConnection, configMapNamespace, configMapName)
 	}
 
+	if configMap == nil {
+		if cephClusterConnection.DeletionTimestamp == nil {
+			return createConfigMap(ctx, cl, log, cephClusterConnection, configMapNamespace, configMapName)
+		}
+		log.Info("cephClusterConnection is being deleted and Config map not found.")
+		return false, "", nil
+	}
+
 	updateAction := internal.UpdateConfigMapActionUpdate
 	if cephClusterConnection.DeletionTimestamp != nil {
 		updateAction = internal.UpdateConfigMapActionDelete
@@ -115,6 +124,9 @@ func reconcileConfigMap(ctx context.Context, cl client.Client, log logger.Logger
 
 	err = updateConfigMapIfNeeded(ctx, cl, log, configMap, cephClusterConnection, updateAction)
 	if err != nil {
+		if errors.Is(err, errUpdateIncompleted) {
+			return true, "", nil
+		}
 		return true, err.Error(), err
 	}
 
@@ -199,11 +211,24 @@ func generateNewConfigMap(clusterConfig v1alpha1.ClusterConfig, controllerNamesp
 	return configMap, nil
 }
 
+var errUpdateIncompleted = errors.New("update was not completed yet, should requeue")
+
 func updateConfigMapIfNeeded(ctx context.Context, cl client.Client, log logger.Logger, configMap *corev1.ConfigMap, cephClusterConnection *v1alpha1.CephClusterConnection, updateAction string) error {
 	log.Debug(fmt.Sprintf("[updateConfigMapIfNeeded] starts for the ConfigMap %s/%s", configMap.Namespace, configMap.Name))
 	log.Trace(fmt.Sprintf("[updateConfigMapIfNeeded] ConfigMap: %+v", configMap))
 	log.Trace(fmt.Sprintf("[updateConfigMapIfNeeded] Update action: %s", updateAction))
 
+	if configMap.DeletionTimestamp != nil {
+		// delete finalizers
+		configMap.Finalizers = slices.DeleteFunc(
+			configMap.Finalizers,
+			func(f string) bool { return f == CephClusterConnectionControllerFinalizerName },
+		)
+		if err := cl.Update(ctx, configMap); err != nil {
+			return err
+		}
+		return errUpdateIncompleted
+	}
 
 	needUpdate := false
 
