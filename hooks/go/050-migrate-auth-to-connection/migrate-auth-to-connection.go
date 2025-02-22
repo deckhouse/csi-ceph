@@ -40,11 +40,11 @@ func cephStorageClassLabelUpdate(cephStorageClass *v1alpha1.CephStorageClass, cl
 	return err
 }
 
-func NewKubeClient(kubeconfigPath string) (client.Client, error) {
+func NewKubeClient() (client.Client, error) {
 	var config *rest.Config
 	var err error
 
-	config, err = clientcmd.BuildConfigFromFlags("", kubeconfigPath)
+	config, err = clientcmd.BuildConfigFromFlags("", "")
 
 	if err != nil {
 		return nil, err
@@ -78,9 +78,10 @@ func NewKubeClient(kubeconfigPath string) (client.Client, error) {
 func handlerMigrateAuthToConnection(ctx context.Context, input *pkg.HookInput) error {
 	fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: Started migration from CephClusterAuthentication\n")
 
-	cl, err := NewKubeClient("")
+	cl, err := NewKubeClient()
 	if err != nil {
 		fmt.Printf("%s", err.Error())
+		return err
 	}
 
 	cephStorageClassList := &v1alpha1.CephStorageClassList{}
