@@ -1,6 +1,6 @@
 module d8-controller
 
-go 1.23.4
+go 1.23.6
 
 require (
 	github.com/deckhouse/csi-ceph/api v0.0.0-20240820170126-01a5c651eb9d

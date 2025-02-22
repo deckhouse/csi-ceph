@@ -43,7 +43,7 @@ type CephStorageClassList struct {
 
 type CephStorageClassSpec struct {
 	ClusterConnectionName     string                  `json:"clusterConnectionName"`
-	ClusterAuthenticationName string                  `json:"clusterAuthenticationName"`
+	ClusterAuthenticationName string                  `json:"clusterAuthenticationName,omitempty"`
 	ReclaimPolicy             string                  `json:"reclaimPolicy"`
 	Type                      string                  `json:"type"`
 	RBD                       *CephStorageClassRBD    `json:"rbd,omitempty"`
@@ -57,6 +57,7 @@ type CephStorageClassRBD struct {
 
 type CephStorageClassCephFS struct {
 	FSName string `json:"fsName,omitempty"`
+	Pool   string `json:"pool,omitempty"`
 }
 
 type CephStorageClassStatus struct {
