@@ -126,6 +126,16 @@ func handlerMigrateAuthToConnection(ctx context.Context, input *pkg.HookInput) e
 
 		fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: %s CephClusterConnection received\n", cephClusterConnection.Name)
 
+		if cephStorageClass.Spec.ClusterAuthenticationName == "" {
+			fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: CephStorageClass %s doesn't have ClusterAuthenticationName. Marking CephStorageClass %s as migrated\n", cephStorageClass.Name)
+			err = cephStorageClassLabelUpdate(ctx, cl, &cephStorageClass, MigratedLabelValueTrue)
+			if err != nil {
+				fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: CephStorageClass update error %s\n", err)
+				return err
+			}
+			continue
+		}
+
 		err = cl.Get(ctx, types.NamespacedName{Name: cephStorageClass.Spec.ClusterAuthenticationName, Namespace: ""}, cephClusterAuthentication)
 		if err != nil {
 			if client.IgnoreNotFound(err) == nil {
