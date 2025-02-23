@@ -19,9 +19,10 @@ package controller
 import (
 	"context"
 	"fmt"
-	"reflect"
 	"slices"
 	"strings"
+
+	"github.com/google/go-cmp/cmp"
 
 	storagev1alpha1 "github.com/deckhouse/csi-ceph/api/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
@@ -255,9 +256,6 @@ func ConfigureStorageClass(cephSC *storagev1alpha1.CephStorageClass, controllerN
 			Name:       cephSC.Name,
 			Namespace:  cephSC.Namespace,
 			Finalizers: []string{CephStorageClassControllerFinalizerName},
-			Labels: map[string]string{
-				internal.StorageManagedLabelKey: CephStorageClassCtrlName,
-			},
 		},
 		Parameters:           params,
 		Provisioner:          provisioner,
@@ -268,6 +266,15 @@ func ConfigureStorageClass(cephSC *storagev1alpha1.CephStorageClass, controllerN
 
 	if cephSC.Spec.Type == storagev1alpha1.CephStorageClassTypeRBD {
 		sc.MountOptions = storagev1alpha1.DefaultMountOptionsRBD
+	}
+
+	if cephSC.Labels != nil {
+		sc.Labels = cephSC.Labels
+		sc.Labels[internal.StorageManagedLabelKey] = CephStorageClassCtrlName
+	} else {
+		sc.Labels = map[string]string{
+			internal.StorageManagedLabelKey: CephStorageClassCtrlName,
+		}
 	}
 
 	return sc, nil
@@ -364,13 +371,23 @@ func GetSCDiff(oldSC, newSC *v1.StorageClass) (string, error) {
 		return diff, nil
 	}
 
-	if !reflect.DeepEqual(oldSC.Parameters, newSC.Parameters) {
+	if !cmp.Equal(oldSC.Parameters, newSC.Parameters) {
 		diff := fmt.Sprintf("Parameters: %+v -> %+v", oldSC.Parameters, newSC.Parameters)
 		return diff, nil
 	}
 
-	if !reflect.DeepEqual(oldSC.MountOptions, newSC.MountOptions) {
+	if !cmp.Equal(oldSC.MountOptions, newSC.MountOptions) {
 		diff := fmt.Sprintf("MountOptions: %v -> %v", oldSC.MountOptions, newSC.MountOptions)
+		return diff, nil
+	}
+
+	if !cmp.Equal(oldSC.Labels, newSC.Labels) {
+		diff := fmt.Sprintf("Labels: %+v -> %+v", oldSC.Labels, newSC.Labels)
+		return diff, nil
+	}
+
+	if !cmp.Equal(oldSC.Finalizers, newSC.Finalizers) {
+		diff := fmt.Sprintf("Finalizers: %+v -> %+v", oldSC.Finalizers, newSC.Finalizers)
 		return diff, nil
 	}
 
