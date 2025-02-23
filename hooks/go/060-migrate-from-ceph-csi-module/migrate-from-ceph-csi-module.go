@@ -69,7 +69,7 @@ func handlerMigrateFromCephCsiModule(_ context.Context, input *pkg.HookInput) er
 					UserKey:   cephCSIDriver.Spec.UserKey}
 				err := cl.Create(ctx, cephClusterConnection)
 				if err != nil {
-					fmt.Printf("[csi-ceph-migration-from-ceph-csi-module]: CephStorageClass create error %s\n", err)
+					fmt.Printf("[csi-ceph-migration-from-ceph-csi-module]: cephClusterConnection create error %s\n", err)
 					return err
 				}
 			} else {

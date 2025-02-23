@@ -18,18 +18,17 @@ const (
 	namespace     = "d8-csi-ceph"
 )
 
-var _ = registry.RegisterFunc(configMigrateAuthToConnection, handlerMigrateFromCephCsiModule)
+var _ = registry.RegisterFunc(configMigrateAuthToConnection, handlerRemoveFinalizersOnModuleDelete)
 
 var configMigrateAuthToConnection = &pkg.HookConfig{
 	OnAfterDeleteHelm: &pkg.OrderedConfig{Order: 5},
 }
 
-func handlerMigrateFromCephCsiModule(_ context.Context, input *pkg.HookInput) error {
+func handlerRemoveFinalizersOnModuleDelete(ctx context.Context, input *pkg.HookInput) error {
 	fmt.Printf("[csi-ceph-remove-finalizers-on-module-delete]: removing finalizers\n")
 
 	cephConfigMap := &v1.ConfigMap{}
 
-	ctx := context.Background()
 	cl, err := funcs.NewKubeClient()
 	if err != nil {
 		fmt.Printf("%s", err.Error())
