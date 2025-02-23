@@ -8,20 +8,15 @@ import (
 	"github.com/deckhouse/module-sdk/pkg"
 	"github.com/deckhouse/module-sdk/pkg/registry"
 
-	v1 "k8s.io/api/core/v1"
-	sv1 "k8s.io/api/storage/v1"
-	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
-	apiruntime "k8s.io/apimachinery/pkg/runtime"
+	funcs "csi-ceph/funcs"
+
 	"k8s.io/apimachinery/pkg/types"
-	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
-	"k8s.io/client-go/rest"
-	"k8s.io/client-go/tools/clientcmd"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 const (
-	MigratedLabel      = "storage.deckhouse.io/migratedFromCephClusterAuthentication"
-	MigratedLabelValue = "true"
+	CephClusterAuthenticationMigratedLabel      = "storage.deckhouse.io/migratedFromCephClusterAuthentication"
+	CephClusterAuthenticationMigratedLabelValue = "true"
 )
 
 var _ = registry.RegisterFunc(configMigrateAuthToConnection, handlerMigrateAuthToConnection)
@@ -35,50 +30,15 @@ func cephStorageClassLabelUpdate(cephStorageClass *v1alpha1.CephStorageClass, cl
 		cephStorageClass.Labels = make(map[string]string)
 	}
 
-	cephStorageClass.Labels[MigratedLabel] = MigratedLabelValue
+	cephStorageClass.Labels[CephClusterAuthenticationMigratedLabel] = CephClusterAuthenticationMigratedLabelValue
 	err := cl.Update(ctx, cephStorageClass)
 	return err
-}
-
-func NewKubeClient() (client.Client, error) {
-	var config *rest.Config
-	var err error
-
-	config, err = clientcmd.BuildConfigFromFlags("", "")
-
-	if err != nil {
-		return nil, err
-	}
-
-	var (
-		resourcesSchemeFuncs = []func(*apiruntime.Scheme) error{
-			v1alpha1.AddToScheme,
-			clientgoscheme.AddToScheme,
-			extv1.AddToScheme,
-			v1.AddToScheme,
-			sv1.AddToScheme,
-		}
-	)
-
-	scheme := apiruntime.NewScheme()
-	for _, f := range resourcesSchemeFuncs {
-		err = f(scheme)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	clientOpts := client.Options{
-		Scheme: scheme,
-	}
-
-	return client.New(config, clientOpts)
 }
 
 func handlerMigrateAuthToConnection(ctx context.Context, input *pkg.HookInput) error {
 	fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: Started migration from CephClusterAuthentication\n")
 
-	cl, err := NewKubeClient()
+	cl, err := funcs.NewKubeClient()
 	if err != nil {
 		fmt.Printf("%s", err.Error())
 		return err
@@ -95,7 +55,7 @@ func handlerMigrateAuthToConnection(ctx context.Context, input *pkg.HookInput) e
 	for _, cephStorageClass := range cephStorageClassList.Items {
 		fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: Migrating %s\n", cephStorageClass.Name)
 
-		if cephStorageClass.Labels[MigratedLabel] == MigratedLabelValue {
+		if cephStorageClass.Labels[CephClusterAuthenticationMigratedLabel] == CephClusterAuthenticationMigratedLabelValue {
 			fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: %s already migrated\n", cephStorageClass.Name)
 			continue
 		}
