@@ -10,4 +10,4 @@ go run k8s.io/code-generator/cmd/deepcopy-gen -v 2 \
     --go-header-file ../../../hack/boilerplate.txt \
     ./v1alpha1
 
-cd ../..
+cd ../../..

@@ -28,10 +28,9 @@ var configMigrateAuthToConnection = &pkg.HookConfig{
 	OnBeforeHelm: &pkg.OrderedConfig{Order: 5},
 }
 
-func handlerMigrateFromCephCsiModule(_ context.Context, input *pkg.HookInput) error {
+func handlerMigrateFromCephCsiModule(ctx context.Context, input *pkg.HookInput) error {
 	fmt.Printf("[csi-ceph-migration-from-ceph-csi-module]: Started migration from Ceph CSI module\n")
 
-	ctx := context.Background()
 	cl, err := funcs.NewKubeClient()
 	if err != nil {
 		fmt.Printf("%s", err.Error())
