@@ -448,11 +448,6 @@ func validateCephStorageClassSpec(cephSC *storagev1alpha1.CephStorageClass) (boo
 		failedMsgBuilder.WriteString("the spec.clusterConnectionName field is empty; ")
 	}
 
-	if cephSC.Spec.ClusterAuthenticationName == "" {
-		validationPassed = false
-		failedMsgBuilder.WriteString("the spec.clusterAuthenticationName field is empty; ")
-	}
-
 	if cephSC.Spec.ReclaimPolicy == "" {
 		validationPassed = false
 		failedMsgBuilder.WriteString("the spec.reclaimPolicy field is empty; ")
