@@ -219,12 +219,20 @@ func handlerMigrateAuthToConnection(ctx context.Context, input *pkg.HookInput) e
 
 		fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: Deleting CephClusterAuthentication %s as it's not in use anymore\n", cephClusterAuthenticationMigrate.CephClusterAuthentication.Name)
 
-		// TODO: remove finalizers
+		// remove finalizers
+		cephClusterAuthenticationMigrate.CephClusterAuthentication.SetFinalizers([]string{})
+		err = cl.Update(ctx, cephClusterAuthenticationMigrate.CephClusterAuthentication)
+		if err != nil {
+			fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: CephClusterAuthentication update error %s\n", err)
+			return err
+		}
+
 		err = cl.Delete(ctx, cephClusterAuthenticationMigrate.CephClusterAuthentication)
 		if err != nil {
 			fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: CephClusterAuthentication delete error %s\n", err)
 			return err
 		}
+
 	}
 
 	err = processSecrets(ctx, cl)
