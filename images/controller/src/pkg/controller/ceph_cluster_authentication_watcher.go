@@ -115,6 +115,14 @@ func RunCephClusterAuthenticationWatcherController(
 }
 
 func labelAsDeprecatedIfNeeded(ctx context.Context, cl client.Client, cephClusterAuthentication *v1alpha1.CephClusterAuthentication) error {
+	if cephClusterAuthentication.DeletionTimestamp != nil {
+		if len(cephClusterAuthentication.GetFinalizers()) > 0 {
+			cephClusterAuthentication.SetFinalizers([]string{})
+			return cl.Update(ctx, cephClusterAuthentication)
+		}
+		return nil
+	}
+
 	if cephClusterAuthentication.Labels == nil {
 		cephClusterAuthentication.Labels = map[string]string{}
 	}
