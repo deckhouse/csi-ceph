@@ -261,7 +261,7 @@ func processCephClusterConnection(ctx context.Context, cl client.Client, cephSto
 	}
 
 	if needNewCephClusterConnection {
-		needNewCephClusterConnectionName := cephClusterConnection.Name + "-migrated-for-" + cephStorageClass.Name
+		needNewCephClusterConnectionName := cephClusterConnection.Name + "-migrated-" + cephClusterAuthentication.Name
 		fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: Creating new CephClusterConnection %s for CephStorageClass %s\n", needNewCephClusterConnectionName, cephStorageClass.Name)
 		newCephClusterConnection := &v1alpha1.CephClusterConnection{
 			ObjectMeta: metav1.ObjectMeta{
