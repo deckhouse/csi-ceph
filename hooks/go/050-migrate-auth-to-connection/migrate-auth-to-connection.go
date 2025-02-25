@@ -4,11 +4,10 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/google/go-cmp/cmp"
-
 	"github.com/deckhouse/csi-ceph/api/v1alpha1"
 	"github.com/deckhouse/module-sdk/pkg"
 	"github.com/deckhouse/module-sdk/pkg/registry"
+	"github.com/google/go-cmp/cmp"
 
 	v1 "k8s.io/api/core/v1"
 	sv1 "k8s.io/api/storage/v1"
@@ -195,16 +194,24 @@ func handlerMigrateAuthToConnection(ctx context.Context, input *pkg.HookInput) e
 		}
 		fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: CephClusterAuthentication %s exists\n", cephClusterAuthenticationMigrate.CephClusterAuthentication.Name)
 
-		err = processCephClusterConnection(ctx, cl, &cephStorageClass, cephClusterConnection, cephClusterAuthenticationMigrate.CephClusterAuthentication)
+		needNew, err := processCephClusterConnection(ctx, cl, &cephStorageClass, cephClusterConnection, cephClusterAuthenticationMigrate.CephClusterAuthentication)
 		if err != nil {
 			fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: CephClusterConnection process error %s\n", err)
 			return err
 		}
 
-		err = cephStorageClassSetMigrateStatus(ctx, cl, &cephStorageClass, MigratedLabelValueTrue)
-		if err != nil {
-			fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: CephStorageClass update error %s\n", err)
-			return err
+		if needNew {
+			err := processNewCephClusterConnection(ctx, cl, &cephStorageClass, cephClusterConnection, cephClusterAuthenticationMigrate.CephClusterAuthentication)
+			if err != nil {
+				fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: processNewCephClusterConnection: error %s\n", err)
+				return err
+			}
+		} else {
+			err = cephStorageClassSetMigrateStatus(ctx, cl, &cephStorageClass, MigratedLabelValueTrue)
+			if err != nil {
+				fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: CephStorageClass update error %s\n", err)
+				return err
+			}
 		}
 		cephClusterAuthenticationMigrate.RefCount--
 	}
@@ -248,7 +255,13 @@ func handlerMigrateAuthToConnection(ctx context.Context, input *pkg.HookInput) e
 	return nil
 }
 
-func processCephClusterConnection(ctx context.Context, cl client.Client, cephStorageClass *v1alpha1.CephStorageClass, cephClusterConnection *v1alpha1.CephClusterConnection, cephClusterAuthentication *v1alpha1.CephClusterAuthentication) error {
+func processCephClusterConnection(
+	ctx context.Context,
+	cl client.Client,
+	cephStorageClass *v1alpha1.CephStorageClass,
+	cephClusterConnection *v1alpha1.CephClusterConnection,
+	cephClusterAuthentication *v1alpha1.CephClusterAuthentication,
+) (bool, error) {
 	needUpdate := false
 	needNewCephClusterConnection := false
 	if cephClusterConnection.Spec.UserID != "" && cephClusterConnection.Spec.UserID != cephClusterAuthentication.Spec.UserID {
@@ -261,85 +274,7 @@ func processCephClusterConnection(ctx context.Context, cl client.Client, cephSto
 	}
 
 	if needNewCephClusterConnection {
-		needNewCephClusterConnectionName := cephClusterConnection.Name + "-migrated-" + cephClusterAuthentication.Name
-		fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: Creating new CephClusterConnection %s for CephStorageClass %s\n", needNewCephClusterConnectionName, cephStorageClass.Name)
-		newCephClusterConnection := &v1alpha1.CephClusterConnection{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: needNewCephClusterConnectionName,
-				Labels: map[string]string{
-					AutomaticallyCreatedLabel: AutomaticallyCreatedValue,
-				},
-			},
-			Spec: v1alpha1.CephClusterConnectionSpec{
-				ClusterID: cephClusterConnection.Spec.ClusterID,
-				Monitors:  cephClusterConnection.Spec.Monitors,
-				UserID:    cephClusterAuthentication.Spec.UserID,
-				UserKey:   cephClusterAuthentication.Spec.UserKey,
-			},
-		}
-		err := cl.Create(ctx, newCephClusterConnection)
-		if err != nil {
-			if client.IgnoreAlreadyExists(err) != nil {
-				fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: CephClusterConnection create error %s\n", err)
-				return err
-			}
-
-			fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: CephClusterConnection %s already exists. Checking if it's the same\n", newCephClusterConnection.Name)
-			existingCephClusterConnection := &v1alpha1.CephClusterConnection{}
-			err = cl.Get(ctx, types.NamespacedName{Name: newCephClusterConnection.Name, Namespace: ""}, existingCephClusterConnection)
-			if err != nil {
-				fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: CephClusterConnection %s get error %s\n", newCephClusterConnection.Name, err)
-				return err
-			}
-			if !cmp.Equal(existingCephClusterConnection.Spec, newCephClusterConnection.Spec) {
-				fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: CephClusterConnection %s already exists but different. Exiting with error\n", newCephClusterConnection.Name)
-				return fmt.Errorf("CephClusterConnection %s already exists but different", newCephClusterConnection.Name)
-			}
-			fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: CephClusterConnection %s already exists and the same.", newCephClusterConnection.Name)
-		}
-
-		fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: New CephClusterConnection %s created or already exists. Recreating CephStorageClass %s with new CephClusterConnection name\n", newCephClusterConnection.Name, cephStorageClass.Name)
-
-		newCephStorageClass := &v1alpha1.CephStorageClass{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: cephStorageClass.Name,
-				Labels: map[string]string{
-					MigratedWarningLabel: MigratedWarningLabelValue,
-				},
-			},
-			Spec: cephStorageClass.Spec,
-		}
-		newCephStorageClass.Spec.ClusterConnectionName = newCephClusterConnection.Name
-		newCephStorageClass.Spec.ClusterAuthenticationName = ""
-
-		cephStorageClass.SetFinalizers([]string{})
-		err = cl.Update(ctx, cephStorageClass)
-		if err != nil {
-			fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: CephStorageClass update error %s\n", err)
-			return err
-		}
-		err = cl.Delete(ctx, cephStorageClass)
-		if err != nil {
-			fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: CephStorageClass delete error %s\n", err)
-			return err
-		}
-
-		err = cl.Create(ctx, newCephStorageClass)
-		if err != nil {
-			fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: CephStorageClass create error %s\n", err)
-			fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: CephStorageClass %+v\n", newCephStorageClass)
-			return err
-		}
-		fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: New CephStorageClass %s created\n", newCephStorageClass.Name)
-
-		err = cl.Get(ctx, types.NamespacedName{Name: newCephStorageClass.Name, Namespace: ""}, newCephStorageClass)
-		if err != nil {
-			fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: CephStorageClass %s get error %s\n", newCephStorageClass.Name, err)
-			return err
-		}
-		cephStorageClass = newCephStorageClass
-
-		return nil
+		return true, nil
 	}
 
 	if cephClusterConnection.Spec.UserID == "" {
@@ -354,11 +289,11 @@ func processCephClusterConnection(ctx context.Context, cl client.Client, cephSto
 
 	if needUpdate {
 		fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: Updating CephClusterConnection %s\n", cephClusterConnection.Name)
-		return cl.Update(ctx, cephClusterConnection)
+		return false, cl.Update(ctx, cephClusterConnection)
 	}
 
 	fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: CephClusterConnection %s doesn't need update\n", cephClusterConnection.Name)
-	return nil
+	return false, nil
 }
 
 func processSecrets(ctx context.Context, cl client.Client) error {
@@ -385,6 +320,90 @@ func processSecrets(ctx context.Context, cl client.Client) error {
 			return err
 		}
 	}
+
+	return nil
+}
+
+func processNewCephClusterConnection(
+	ctx context.Context,
+	cl client.Client,
+	cephStorageClass *v1alpha1.CephStorageClass,
+	cephClusterConnection *v1alpha1.CephClusterConnection,
+	cephClusterAuthentication *v1alpha1.CephClusterAuthentication,
+) error {
+	newCephClusterConnectionName := cephClusterConnection.Name + "-migrated" + cephClusterAuthentication.Name
+	fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: Creating new CephClusterConnection %s for CephStorageClass %s\n", newCephClusterConnectionName, cephStorageClass.Name)
+
+	newCephClusterConnection := &v1alpha1.CephClusterConnection{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: newCephClusterConnectionName,
+			Labels: map[string]string{
+				AutomaticallyCreatedLabel: AutomaticallyCreatedValue,
+			},
+		},
+		Spec: v1alpha1.CephClusterConnectionSpec{
+			ClusterID: cephClusterConnection.Spec.ClusterID,
+			Monitors:  cephClusterConnection.Spec.Monitors,
+			UserID:    cephClusterAuthentication.Spec.UserID,
+			UserKey:   cephClusterAuthentication.Spec.UserKey,
+		},
+	}
+
+	err := cl.Create(ctx, newCephClusterConnection)
+	if err != nil {
+		if client.IgnoreAlreadyExists(err) != nil {
+			fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: new CephClusterConnection create error %s\n", err)
+			return err
+		}
+
+		fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: new CephClusterConnection %s already exists. Checking if it's the same\n", newCephClusterConnection.Name)
+		existingCephClusterConnection := &v1alpha1.CephClusterConnection{}
+		err = cl.Get(ctx, types.NamespacedName{Name: newCephClusterConnection.Name, Namespace: ""}, existingCephClusterConnection)
+		if err != nil {
+			fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: new CephClusterConnection %s get error %s\n", newCephClusterConnection.Name, err)
+			return err
+		}
+		if !cmp.Equal(existingCephClusterConnection.Spec, newCephClusterConnection.Spec) {
+			fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: CephClusterConnection %s already exists but different. Exiting with error\n", newCephClusterConnection.Name)
+			return fmt.Errorf("CephClusterConnection %s already exists but different", newCephClusterConnection.Name)
+		}
+		fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: CephClusterConnection %s already exists and the same.", newCephClusterConnection.Name)
+	}
+
+	fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: New CephClusterConnection %s created or already exists. Recreating CephStorageClass %s with new CephClusterConnection name\n", newCephClusterConnection.Name, cephStorageClass.Name)
+
+	newCephStorageClass := &v1alpha1.CephStorageClass{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: cephStorageClass.Name,
+			Labels: map[string]string{
+				MigratedWarningLabel: MigratedWarningLabelValue,
+				MigratedLabel:        MigratedLabelValueTrue,
+			},
+		},
+		Spec: cephStorageClass.Spec,
+	}
+	newCephStorageClass.Spec.ClusterConnectionName = newCephClusterConnection.Name
+	newCephStorageClass.Spec.ClusterAuthenticationName = ""
+
+	cephStorageClass.SetFinalizers([]string{})
+	err = cl.Update(ctx, cephStorageClass)
+	if err != nil {
+		fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: CephStorageClass update error %s\n", err)
+		return err
+	}
+	err = cl.Delete(ctx, cephStorageClass)
+	if err != nil {
+		fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: CephStorageClass delete error %s\n", err)
+		return err
+	}
+
+	err = cl.Create(ctx, newCephStorageClass)
+	if err != nil {
+		fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: CephStorageClass create error %s\n", err)
+		fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: CephStorageClass %+v\n", newCephStorageClass)
+		return err
+	}
+	fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: New CephStorageClass %s created\n", newCephStorageClass.Name)
 
 	return nil
 }
