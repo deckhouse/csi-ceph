@@ -324,6 +324,7 @@ func processCephClusterConnection(ctx context.Context, cl client.Client, cephSto
 		err = cl.Create(ctx, newCephStorageClass)
 		if err != nil {
 			fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: CephStorageClass create error %s\n", err)
+			fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: CephStorageClass %+v\n", newCephStorageClass)
 			return err
 		}
 		fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: New CephStorageClass %s created\n", newCephStorageClass.Name)
