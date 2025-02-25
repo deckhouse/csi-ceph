@@ -299,7 +299,6 @@ func processCephClusterConnection(ctx context.Context, cl client.Client, cephSto
 		}
 
 		fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: New CephClusterConnection %s created or already exists. Recreating CephStorageClass %s with new CephClusterConnection name\n", newCephClusterConnection.Name, cephStorageClass.Name)
-		cephStorageClass.SetFinalizers([]string{})
 
 		newCephStorageClass := &v1alpha1.CephStorageClass{
 			ObjectMeta: metav1.ObjectMeta{
@@ -313,12 +312,12 @@ func processCephClusterConnection(ctx context.Context, cl client.Client, cephSto
 		newCephStorageClass.Spec.ClusterConnectionName = newCephClusterConnection.Name
 		newCephStorageClass.Spec.ClusterAuthenticationName = ""
 
+		cephStorageClass.SetFinalizers([]string{})
 		err = cl.Update(ctx, cephStorageClass)
 		if err != nil {
 			fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: CephStorageClass update error %s\n", err)
 			return err
 		}
-
 		err = cl.Delete(ctx, cephStorageClass)
 		if err != nil {
 			fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: CephStorageClass delete error %s\n", err)
