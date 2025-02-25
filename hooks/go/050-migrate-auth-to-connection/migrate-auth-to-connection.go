@@ -301,13 +301,17 @@ func processCephClusterConnection(ctx context.Context, cl client.Client, cephSto
 		fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: New CephClusterConnection %s created or already exists. Recreating CephStorageClass %s with new CephClusterConnection name\n", newCephClusterConnection.Name, cephStorageClass.Name)
 		cephStorageClass.SetFinalizers([]string{})
 
-		newCephStorageClass := cephStorageClass.DeepCopy()
-		newCephStorageClass.Spec.ClusterConnectionName = newCephClusterConnection.Name
-		if newCephStorageClass.Labels == nil {
-			newCephStorageClass.Labels = make(map[string]string)
+		newCephStorageClass := &v1alpha1.CephStorageClass{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: cephStorageClass.Name,
+				Labels: map[string]string{
+					MigratedWarningLabel: MigratedWarningLabelValue,
+				},
+			},
+			Spec: cephStorageClass.Spec,
 		}
-		newCephStorageClass.Labels[MigratedWarningLabel] = MigratedWarningLabelValue
-		newCephStorageClass.SetFinalizers([]string{})
+		newCephStorageClass.Spec.ClusterConnectionName = newCephClusterConnection.Name
+		newCephStorageClass.Spec.ClusterAuthenticationName = ""
 
 		err = cl.Update(ctx, cephStorageClass)
 		if err != nil {
