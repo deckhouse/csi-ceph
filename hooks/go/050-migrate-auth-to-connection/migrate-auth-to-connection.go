@@ -300,6 +300,15 @@ func processCephClusterConnection(ctx context.Context, cl client.Client, cephSto
 
 		fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: New CephClusterConnection %s created or already exists. Recreating CephStorageClass %s with new CephClusterConnection name\n", newCephClusterConnection.Name, cephStorageClass.Name)
 		cephStorageClass.SetFinalizers([]string{})
+
+		newCephStorageClass := cephStorageClass.DeepCopy()
+		newCephStorageClass.Spec.ClusterConnectionName = newCephClusterConnection.Name
+		if newCephStorageClass.Labels == nil {
+			newCephStorageClass.Labels = make(map[string]string)
+		}
+		newCephStorageClass.Labels[MigratedWarningLabel] = MigratedWarningLabelValue
+		newCephStorageClass.SetFinalizers([]string{})
+
 		err = cl.Update(ctx, cephStorageClass)
 		if err != nil {
 			fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: CephStorageClass update error %s\n", err)
@@ -312,10 +321,6 @@ func processCephClusterConnection(ctx context.Context, cl client.Client, cephSto
 			return err
 		}
 
-		newCephStorageClass := cephStorageClass.DeepCopy()
-		newCephStorageClass.Spec.ClusterConnectionName = newCephClusterConnection.Name
-		newCephStorageClass.Labels[MigratedWarningLabel] = MigratedWarningLabelValue
-		newCephStorageClass.SetFinalizers([]string{})
 		err = cl.Create(ctx, newCephStorageClass)
 		if err != nil {
 			fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: CephStorageClass create error %s\n", err)
