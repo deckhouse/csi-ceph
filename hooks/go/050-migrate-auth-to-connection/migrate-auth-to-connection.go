@@ -550,11 +550,9 @@ func migratePVsToNewSecret(ctx context.Context, cl client.Client, pvList *v1.Per
 				return err
 			}
 
-			pv.SetFinalizers([]string{})
-			err = cl.Update(ctx, &pv)
-			if err != nil {
-				fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: PV update error %s\n", err)
-				return err
+			patch := client.RawPatch(types.MergePatchType, []byte(`{"metadata":{"finalizers":[]}}`))
+			if err := cl.Patch(ctx, &pv, patch); err != nil {
+				return fmt.Errorf("failed to remove finalizers: %w", err)
 			}
 
 			err = cl.Delete(ctx, &pv)
@@ -624,6 +622,8 @@ func backupResource(ctx context.Context, cl client.Client, obj runtime.Object, b
 	if err != nil {
 		return fmt.Errorf("failed to create backup: %w", err)
 	}
+
+	fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: Resource successfully backed up with name %s\n", backupName)
 
 	return nil
 }
