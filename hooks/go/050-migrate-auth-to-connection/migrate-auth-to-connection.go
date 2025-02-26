@@ -204,20 +204,24 @@ func handlerMigrateAuthToConnection(ctx context.Context, input *pkg.HookInput) e
 			continue
 		}
 
+		skipMigration := false
 		_, exists := cephClusterConnectionMap[cephStorageClass.Spec.ClusterConnectionName]
 		if !exists {
 			fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: CephClusterConnection %s for CephStorageClass %s not found. Marking CephStorageClass as not migrated\n", cephStorageClass.Spec.ClusterConnectionName, cephStorageClass.Name)
-			err = cephStorageClassSetMigrateStatus(ctx, cl, &cephStorageClass, MigratedLabelValueFalse)
-			if err != nil {
-				fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: CephStorageClass update error %s\n", err)
-				return err
-			}
-			continue
+			skipMigration = true
 		}
 
 		_, exists = CephClusterAuthenticationMigrateMap[cephStorageClass.Spec.ClusterAuthenticationName]
 		if !exists {
 			fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: CephClusterAuthentication %s for CephStorageClass %s not found. Marking CephStorageClass as not migrated\n", cephStorageClass.Spec.ClusterAuthenticationName, cephStorageClass.Name)
+			skipMigration = true
+		} else {
+			cephClusterAuthenticationMigrate := CephClusterAuthenticationMigrateMap[cephStorageClass.Spec.ClusterAuthenticationName]
+			cephClusterAuthenticationMigrate.RefCount++
+			cephClusterAuthenticationMigrate.Used = true
+		}
+
+		if skipMigration {
 			err = cephStorageClassSetMigrateStatus(ctx, cl, &cephStorageClass, MigratedLabelValueFalse)
 			if err != nil {
 				fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: CephStorageClass update error %s\n", err)
