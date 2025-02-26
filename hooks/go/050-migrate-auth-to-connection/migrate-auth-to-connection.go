@@ -253,8 +253,6 @@ func handlerMigrateAuthToConnection(ctx context.Context, input *pkg.HookInput) e
 	for _, cephStorageClass := range cephSCToMigrate {
 
 		cephClusterAuthenticationMigrate, _ := CephClusterAuthenticationMigrateMap[cephStorageClass.Spec.ClusterAuthenticationName]
-		cephClusterAuthenticationMigrate.RefCount++
-		cephClusterAuthenticationMigrate.Used = true
 		cephClusterAuth := cephClusterAuthenticationMigrate.CephClusterAuthentication
 
 		cephClusterConnection, _ := cephClusterConnectionMap[cephStorageClass.Spec.ClusterConnectionName]
