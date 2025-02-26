@@ -573,7 +573,7 @@ func migratePVsToNewSecret(ctx context.Context, cl client.Client, pvList *v1.Per
 			newPV.Annotations[PVAnnotationProvisionerDeletionSecretNamespace] = newSecretNamespace
 			newPV.Annotations[PVAnnotationProvisionerDeletionSecretName] = newSecretName
 
-			patch := client.RawPatch(types.MergePatchType, []byte(`{"metadata":{"finalizers":[]}}`))
+			patch := client.RawPatch(types.MergePatchType, []byte(`{"metadata":{"finalizers":[]},"spec":{"persistentVolumeReclaimPolicy":"Retain"}}`))
 			if err := cl.Patch(ctx, pv, patch); err != nil {
 				return fmt.Errorf("failed to remove finalizers: %w", err)
 			}
