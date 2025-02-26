@@ -12,22 +12,22 @@ spec:
     singular: cephmetadatabackup
     shortNames:
       - cephmdb
-    versions:
-    - name: v1alpha1
-      served: true
-      storage: true
-      schema:
-        openAPIV3Schema:
-          type: object
-          description: |
-            CephMetadataBackup is a Kubernetes custom resource that stores backup of Kubernetes resources.
-          required:
-            - spec
-          properties:
-            spec:
-              type: object
-              properties:
-                data:
-                  type: string
-                  description: |
-                    Data is a base64 encoded Kubernetes resource.
+  versions:
+  - name: v1alpha1
+    served: true
+    storage: true
+    schema:
+      openAPIV3Schema:
+        type: object
+        description: |
+          CephMetadataBackup is a Kubernetes custom resource that stores backup of Kubernetes resources.
+        required:
+          - spec
+        properties:
+          spec:
+            type: object
+            properties:
+              data:
+                type: string
+                description: |
+                  Data is a base64 encoded Kubernetes resource.
