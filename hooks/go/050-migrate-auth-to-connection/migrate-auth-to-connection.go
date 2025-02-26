@@ -509,7 +509,8 @@ func processNewCephClusterConnection(
 func migratePVsToNewSecret(ctx context.Context, cl client.Client, pvList *v1.PersistentVolumeList, scName, newSecretNamespace, newSecretName string) error {
 	fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: Started migration PersistentVolumes to new secret %s in namespace %s\n", newSecretName, newSecretNamespace)
 
-	for _, pv := range pvList.Items {
+	for i := range pvList.Items {
+		pv := &pvList.Items[i]
 		if pv.Spec.CSI == nil {
 			fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: PV %s doesn't have CSI field. Skipping\n", pv.Name)
 			continue
@@ -529,8 +530,6 @@ func migratePVsToNewSecret(ctx context.Context, cl client.Client, pvList *v1.Per
 		if pv.Spec.CSI.ControllerExpandSecretRef != nil {
 			if pv.Spec.CSI.ControllerExpandSecretRef.Namespace != newSecretNamespace || pv.Spec.CSI.ControllerExpandSecretRef.Name != newSecretName {
 				fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: PV %s has different ControllerExpandSecretRef %s/%s (expected: %s/%s)\n", pv.Name, pv.Spec.CSI.ControllerExpandSecretRef.Namespace, pv.Spec.CSI.ControllerExpandSecretRef.Name, newSecretNamespace, newSecretName)
-				pv.Spec.CSI.ControllerExpandSecretRef.Namespace = newSecretNamespace
-				pv.Spec.CSI.ControllerExpandSecretRef.Name = newSecretName
 				needRecreate = true
 			}
 		}
@@ -538,8 +537,6 @@ func migratePVsToNewSecret(ctx context.Context, cl client.Client, pvList *v1.Per
 		if pv.Spec.CSI.NodeStageSecretRef != nil {
 			if pv.Spec.CSI.NodeStageSecretRef.Namespace != newSecretNamespace || pv.Spec.CSI.NodeStageSecretRef.Name != newSecretName {
 				fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: PV %s has different NodeStageSecretRef %s/%s (expected: %s/%s)\n", pv.Name, pv.Spec.CSI.NodeStageSecretRef.Namespace, pv.Spec.CSI.NodeStageSecretRef.Name, newSecretNamespace, newSecretName)
-				pv.Spec.CSI.NodeStageSecretRef.Namespace = newSecretNamespace
-				pv.Spec.CSI.NodeStageSecretRef.Name = newSecretName
 				needRecreate = true
 			}
 		}
@@ -548,31 +545,38 @@ func migratePVsToNewSecret(ctx context.Context, cl client.Client, pvList *v1.Per
 		if pv.Annotations != nil {
 			if pv.Annotations[PVAnnotationProvisionerDeletionSecretNamespace] != newSecretNamespace || pv.Annotations[PVAnnotationProvisionerDeletionSecretName] != newSecretName {
 				fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: PV %s has different provision deletion secret %s/%s (expected: %s/%s)\n", pv.Name, pv.Annotations[PVAnnotationProvisionerDeletionSecretNamespace], pv.Annotations[PVAnnotationProvisionerDeletionSecretName], newSecretNamespace, newSecretName)
-				pv.Annotations[PVAnnotationProvisionerDeletionSecretNamespace] = newSecretNamespace
-				pv.Annotations[PVAnnotationProvisionerDeletionSecretName] = newSecretName
 				needUpdate = true
 			}
+		} else {
+			pv.Annotations = make(map[string]string)
+			fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: PV %s doesn't have annotations\n", pv.Name)
+			needUpdate = true
 		}
 
 		if needRecreate {
 			fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: Recreating PV %s\n", pv.Name)
-
-			newPV := pv.DeepCopy()
-			newPV.ResourceVersion = ""
-			newPV.UID = ""
-
-			err := backupResource(ctx, cl, &pv, BackupTime)
+			err := backupResource(ctx, cl, pv, BackupTime)
 			if err != nil {
 				fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: Backup PV %s error %s\n", pv.Name, err)
 				return err
 			}
 
+			newPV := pv.DeepCopy()
+			newPV.ResourceVersion = ""
+			newPV.UID = ""
+			newPV.Spec.CSI.NodeStageSecretRef.Namespace = newSecretNamespace
+			newPV.Spec.CSI.NodeStageSecretRef.Name = newSecretName
+			newPV.Spec.CSI.ControllerExpandSecretRef.Namespace = newSecretNamespace
+			newPV.Spec.CSI.ControllerExpandSecretRef.Name = newSecretName
+			newPV.Annotations[PVAnnotationProvisionerDeletionSecretNamespace] = newSecretNamespace
+			newPV.Annotations[PVAnnotationProvisionerDeletionSecretName] = newSecretName
+
 			patch := client.RawPatch(types.MergePatchType, []byte(`{"metadata":{"finalizers":[]}}`))
-			if err := cl.Patch(ctx, &pv, patch); err != nil {
+			if err := cl.Patch(ctx, pv, patch); err != nil {
 				return fmt.Errorf("failed to remove finalizers: %w", err)
 			}
 
-			err = cl.Delete(ctx, &pv)
+			err = cl.Delete(ctx, pv)
 			if err != nil {
 				fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: PV delete error %s\n", err)
 				return err
@@ -583,16 +587,18 @@ func migratePVsToNewSecret(ctx context.Context, cl client.Client, pvList *v1.Per
 				fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: PV create error %s\n", err)
 				return err
 			}
+			fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: PV %s successfully migrated\n", pv.Name)
 		} else if needUpdate {
 			fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: Updating PV %s\n", pv.Name)
-			err := cl.Update(ctx, &pv)
+			err := cl.Update(ctx, pv)
 			if err != nil {
 				fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: PV update error %s\n", err)
 				return err
 			}
+			fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: PV %s successfully migrated\n", pv.Name)
+		} else {
+			fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: PV %s doesn't need migration\n", pv.Name)
 		}
-
-		fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: PV %s successfully migrated\n", pv.Name)
 	}
 
 	return nil
