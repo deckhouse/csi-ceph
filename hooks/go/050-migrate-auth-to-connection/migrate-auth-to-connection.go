@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/deckhouse/csi-ceph/api/v1alpha1"
@@ -597,7 +598,7 @@ func backupResource(ctx context.Context, cl client.Client, obj runtime.Object, b
 		return fmt.Errorf("failed to get object metadata: %w", err)
 	}
 
-	backupName := fmt.Sprintf("%s-%s-%s", datetime, obj.GetObjectKind().GroupVersionKind().Kind, metaObj.GetName())
+	backupName := fmt.Sprintf("%s-%s-%s", datetime, strings.ToLower(obj.GetObjectKind().GroupVersionKind().Kind), metaObj.GetName())
 	fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: Backup name %s\n", backupName)
 
 	jsonBytes, err := json.Marshal(obj)
