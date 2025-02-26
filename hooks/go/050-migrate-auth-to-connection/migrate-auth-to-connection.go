@@ -334,6 +334,14 @@ func processCephClusterConnection(
 ) (bool, error) {
 	needUpdate := false
 	needNewCephClusterConnection := false
+
+	fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: Getting CephClusterConnection %s\n", cephClusterConnection.Name)
+	err := cl.Get(ctx, types.NamespacedName{Name: cephClusterConnection.Name, Namespace: ""}, cephClusterConnection)
+	if err != nil {
+		fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: CephClusterConnection %s get error %s\n", cephClusterConnection.Name, err)
+		return false, err
+	}
+
 	if cephClusterConnection.Spec.UserID != "" && cephClusterConnection.Spec.UserID != cephClusterAuthentication.Spec.UserID {
 		fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: CephClusterConnection %s UserID %s doesn't match CephClusterAuthentication %s UserID %s and both in use by CephStorageClass %s\n", cephClusterConnection.Name, cephClusterConnection.Spec.UserID, cephClusterAuthentication.Name, cephClusterAuthentication.Spec.UserID, cephStorageClass.Name)
 		needNewCephClusterConnection = true
