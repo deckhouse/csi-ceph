@@ -80,10 +80,6 @@ func cephStorageClassSetMigrateStatus(ctx context.Context, cl client.Client, cep
 
 	if labelValue == MigratedLabelValueTrue {
 		cephStorageClass.Spec.ClusterAuthenticationName = ""
-		// err := migratePVsToNewSecret(ctx, cl, pvList, cephStorageClass.Name, newSecretNamespace, newSecretName)
-		// if err != nil {
-		// 	return err
-		// }
 	}
 
 	err := cl.Update(ctx, cephStorageClass)
@@ -169,7 +165,7 @@ func handlerMigrateAuthToConnection(ctx context.Context, input *pkg.HookInput) e
 		cephClusterConnectionMap[cephClusterConnection.Name] = cephClusterConnection
 	}
 
-	// succefullyMigrated := 0
+	succefullyMigrated := 0
 	cephSCToMigrate := []v1alpha1.CephStorageClass{}
 
 	for _, cephStorageClass := range cephStorageClassList.Items {
@@ -177,6 +173,7 @@ func handlerMigrateAuthToConnection(ctx context.Context, input *pkg.HookInput) e
 
 		if cephStorageClass.Labels[MigratedLabel] == MigratedLabelValueTrue {
 			fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: %s already migrated. Skipping\n", cephStorageClass.Name)
+			succefullyMigrated++
 			continue
 		}
 
@@ -187,6 +184,7 @@ func handlerMigrateAuthToConnection(ctx context.Context, input *pkg.HookInput) e
 				fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: CephStorageClass update error %s\n", err)
 				return err
 			}
+			succefullyMigrated++
 			continue
 		}
 
@@ -215,16 +213,14 @@ func handlerMigrateAuthToConnection(ctx context.Context, input *pkg.HookInput) e
 		cephSCToMigrate = append(cephSCToMigrate, cephStorageClass)
 	}
 
-	if len(cephSCToMigrate) == 0 {
-		fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: No CephStorageClasses to migrate\n")
-		return nil
-	}
-
 	pvList := &v1.PersistentVolumeList{}
-	err = cl.List(ctx, pvList)
-	if err != nil {
-		fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: PVList get error %s\n", err)
-		return err
+	if len(cephSCToMigrate) != 0 {
+		fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: Getting PVList\n")
+		err = cl.List(ctx, pvList)
+		if err != nil {
+			fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: PVList get error %s\n", err)
+			return err
+		}
 	}
 
 	for _, cephStorageClass := range cephSCToMigrate {
@@ -273,6 +269,7 @@ func handlerMigrateAuthToConnection(ctx context.Context, input *pkg.HookInput) e
 		}
 
 		cephClusterAuthenticationMigrate.RefCount--
+		succefullyMigrated++
 	}
 
 	for _, cephClusterAuthenticationMigrate := range CephClusterAuthenticationMigrateMap {
@@ -299,10 +296,9 @@ func handlerMigrateAuthToConnection(ctx context.Context, input *pkg.HookInput) e
 			fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: CephClusterAuthentication delete error %s\n", err)
 			return err
 		}
-
 	}
 
-	notMigratedCount := len(cephStorageClassList.Items) - len(cephSCToMigrate)
+	notMigratedCount := len(cephStorageClassList.Items) - succefullyMigrated
 	fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: %d CephStorageClasses successfully migrated. %d not migrated\n", len(cephSCToMigrate), notMigratedCount)
 	if notMigratedCount > 0 {
 		fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: There are CephStorageClasses that were not migrated. Please check logs for more information\n")
