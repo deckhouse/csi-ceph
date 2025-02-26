@@ -13,6 +13,7 @@ import (
 	"github.com/deckhouse/module-sdk/pkg/registry"
 	"github.com/google/go-cmp/cmp"
 
+	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
 	sv1 "k8s.io/api/storage/v1"
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -21,6 +22,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	apiruntime "k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/wait"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
@@ -215,6 +217,13 @@ func handlerMigrateAuthToConnection(ctx context.Context, input *pkg.HookInput) e
 
 	pvList := &v1.PersistentVolumeList{}
 	if len(cephSCToMigrate) != 0 {
+		fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: Disable CSI components\n")
+		err = disableCSIComponents(ctx, cl)
+		if err != nil {
+			fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: Disable CSI components error %s\n", err)
+			return err
+		}
+
 		fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: Getting PVList\n")
 		err = cl.List(ctx, pvList)
 		if err != nil {
@@ -600,7 +609,9 @@ func backupResource(ctx context.Context, cl client.Client, obj runtime.Object, b
 				BackupSourceLabelKey: BackupSourceLabelValue,
 			},
 		},
-		Spec: encoded,
+		Spec: v1alpha1.CephMetadataBackupSpec{
+			Data: encoded,
+		},
 	}
 
 	err = retry.OnError(retry.DefaultBackoff, func(err error) bool {
@@ -613,6 +624,103 @@ func backupResource(ctx context.Context, cl client.Client, obj runtime.Object, b
 	if err != nil {
 		return fmt.Errorf("failed to create backup: %w", err)
 	}
+
+	return nil
+}
+
+func disableCSIComponents(ctx context.Context, cl client.Client) error {
+
+	deploymentList := &appsv1.DeploymentList{}
+	err := cl.List(ctx, deploymentList, client.InNamespace(ModuleNamespace), client.MatchingLabels{"app": "csi-controller"})
+	if err != nil {
+		fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: DeploymentList get error %s\n", err)
+		return err
+	}
+
+	for _, deployment := range deploymentList.Items {
+		fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: Deleting deployment csi-controller %s in namespace %s\n", deployment.Name, deployment.Namespace)
+
+		deployment.SetFinalizers([]string{})
+		err = cl.Update(ctx, &deployment)
+		if err != nil {
+			fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: Deployment update error %s\n", err)
+			return err
+		}
+
+		err = cl.Delete(ctx, &deployment)
+		if err != nil {
+			fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: Deployment delete error %s\n", err)
+			return err
+		}
+	}
+
+	daemonSetList := &appsv1.DaemonSetList{}
+	err = cl.List(ctx, daemonSetList, client.InNamespace(ModuleNamespace), client.MatchingLabels{"app": "csi-node"})
+	if err != nil {
+		fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: DaemonSetList get error %s\n", err)
+		return err
+	}
+
+	for _, daemonSet := range daemonSetList.Items {
+		fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: Deleting daemonset csi-node %s in namespace %s\n", daemonSet.Name, daemonSet.Namespace)
+
+		daemonSet.SetFinalizers([]string{})
+		err = cl.Update(ctx, &daemonSet)
+		if err != nil {
+			fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: DaemonSet update error %s\n", err)
+			return err
+		}
+
+		err = cl.Delete(ctx, &daemonSet)
+		if err != nil {
+			fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: DaemonSet delete error %s\n", err)
+			return err
+		}
+	}
+
+	podLabelSelector := &metav1.LabelSelector{
+		MatchExpressions: []metav1.LabelSelectorRequirement{
+			{
+				Key:      "app",
+				Operator: metav1.LabelSelectorOpIn,
+				Values: []string{
+					"csi-controller-cephfs",
+					"csi-controller-rbd",
+					"csi-node-cephfs",
+					"csi-node-rbd",
+				},
+			},
+		},
+	}
+
+	podSelector, err := metav1.LabelSelectorAsSelector(podLabelSelector)
+	if err != nil {
+		return err
+	}
+
+	err = wait.PollUntilContextTimeout(ctx, 5*time.Second, 5*time.Minute, true, func(ctx context.Context) (bool, error) {
+		podList := &v1.PodList{}
+
+		err = cl.List(ctx, podList, client.InNamespace(ModuleNamespace), client.MatchingLabelsSelector{Selector: podSelector})
+		if err != nil {
+			fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: PodList get error %s\n", err)
+			return false, err
+		}
+
+		if len(podList.Items) == 0 {
+			return true, nil
+		}
+
+		fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: Waiting for all pods to be deleted\n")
+		return false, nil
+	})
+
+	if err != nil {
+		fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: Waiting for all pods to be deleted error: %s\n", err)
+		return err
+	}
+
+	fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: All pods are deleted\n")
 
 	return nil
 }

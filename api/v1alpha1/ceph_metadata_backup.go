@@ -23,7 +23,7 @@ import metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 type CephMetadataBackup struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
-	Spec              string `json:"spec"`
+	Spec              CephMetadataBackupSpec `json:"spec"`
 }
 
 // +k8s:deepcopy-gen=true
@@ -32,4 +32,9 @@ type CephMetadataBackupList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata"`
 	Items           []CephMetadataBackup `json:"items"`
+}
+
+// +k8s:deepcopy-gen=true
+type CephMetadataBackupSpec struct {
+	Data string `json:"data"`
 }
