@@ -104,7 +104,7 @@ func cephStorageClassSetMigrateStatus(ctx context.Context, cl client.Client, cep
 	if err != nil {
 		fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: CephStorageClass update error %s\n", err)
 	}
-	fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: CephStorageClass %s updated with label %s\n", cephStorageClass.Name, labelValue)
+	fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: CephStorageClass %s updated with label %s=%s\n", cephStorageClass.Name, MigratedFromClusterAuthLabelKey, labelValue)
 	return err
 }
 
