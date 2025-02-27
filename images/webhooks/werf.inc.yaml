@@ -14,7 +14,7 @@ git:
 
 ---
 image: {{ $.ImageName }}-golang-artifact
-from: {{ $.Root.BASE_GOLANG }}
+from: {{ $.Root.BASE_GOLANG_1_23 }}
 final: false
 
 import:
@@ -40,7 +40,7 @@ final: false
 shell:
   beforeInstall:
     - apt-get update
-    - apt-get install -y openssl libtirpc
+    - apt-get install -y {{ $.Root.ALT_BASE_PACKAGES }}
     - rm -rf /var/lib/apt/lists/* /var/cache/apt/* && mkdir -p /var/lib/apt/lists/partial /var/cache/apt/archives/partial
   install:
     - mkdir -p /relocate/bin /relocate/sbin /relocate/etc /relocate/var/lib/ssl /relocate/usr/bin /relocate/usr/sbin /relocate/usr/share
