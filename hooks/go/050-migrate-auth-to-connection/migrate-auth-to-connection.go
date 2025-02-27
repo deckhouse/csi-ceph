@@ -29,29 +29,35 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/util/retry"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
 )
 
 const (
-	MigratedLabel           = "storage.deckhouse.io/migratedFromCephClusterAuthentication"
-	MigratedLabelValueTrue  = "true"
-	MigratedLabelValueFalse = "false"
+	MigratedFromClusterAuthLabelKey = "storage.deckhouse.io/migratedFromCephClusterAuthentication"
+	LabelValueTrue                  = "true"
+	LabelValueFalse                 = "false"
 
 	MigratedWarningLabel      = "storage.deckhouse.io/migratedFromCephClusterAuthenticationWarning"
 	MigratedWarningLabelValue = "true"
 
-	AutomaticallyCreatedLabel         = "storage.deckhouse.io/automaticallyCreatedBy"
-	AutomaticallyCreatedValue         = "migrate-auth-to-connection"
-	ModuleNamespace                   = "d8-csi-ceph"
-	StorageManagedLabelKey            = "storage.deckhouse.io/managed-by"
-	CephClusterAuthenticationCtrlName = "d8-ceph-cluster-authentication-controller"
-	CephClusterConnectionSecretPrefix = "csi-ceph-secret-for-"
+	AutomaticallyCreatedLabel            = "storage.deckhouse.io/automaticallyCreatedBy"
+	AutomaticallyCreatedClusterAuthValue = "migrate-auth-to-connection"
+	ModuleNamespace                      = "d8-csi-ceph"
+	StorageManagedLabelKey               = "storage.deckhouse.io/managed-by"
+	CephClusterAuthenticationCtrlName    = "d8-ceph-cluster-authentication-controller"
+	CephClusterConnectionSecretPrefix    = "csi-ceph-secret-for-"
 
 	PVAnnotationProvisionerDeletionSecretNamespace = "volume.kubernetes.io/provisioner-deletion-secret-namespace"
 	PVAnnotationProvisionerDeletionSecretName      = "volume.kubernetes.io/provisioner-deletion-secret-name"
 
-	BackupDateLabelKey     = "storage.deckhouse.io/backup-date"
-	BackupSourceLabelKey   = "storage.deckhouse.io/backup-source"
-	BackupSourceLabelValue = "migrate-auth-to-connection"
+	BackupDateLabelKey                = "storage.deckhouse.io/backup-date"
+	BackupSourceLabelKey              = "storage.deckhouse.io/backup-source"
+	BackupSourceClusterAuthLabelValue = "migrate-auth-to-connection"
+
+	ResourceKindLabelKey         = "storage.deckhouse.io/resource-kind"
+	ResourceKindPersistentVolume = "PersistentVolume"
+
+	PVRecreatedSuccesfullyLabelKey = "storage.deckhouse.io/pv-recreated-successfully"
 )
 
 var (
@@ -86,9 +92,9 @@ func cephStorageClassSetMigrateStatus(ctx context.Context, cl client.Client, cep
 			cephStorageClass.Labels = make(map[string]string)
 		}
 
-		cephStorageClass.Labels[MigratedLabel] = labelValue
+		cephStorageClass.Labels[MigratedFromClusterAuthLabelKey] = labelValue
 
-		if labelValue == MigratedLabelValueTrue {
+		if labelValue == LabelValueTrue {
 			cephStorageClass.Spec.ClusterAuthenticationName = ""
 		}
 
@@ -146,6 +152,12 @@ func handlerMigrateAuthToConnection(ctx context.Context, input *pkg.HookInput) e
 		return err
 	}
 
+	err = processRemovedPVs(ctx, cl)
+	if err != nil {
+		fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: processRemovedPVs error %s\n", err)
+		return err
+	}
+
 	cephClusterAuthenticationList := &v1alpha1.CephClusterAuthenticationList{}
 	err = cl.List(ctx, cephClusterAuthenticationList)
 	if err != nil {
@@ -187,7 +199,7 @@ func handlerMigrateAuthToConnection(ctx context.Context, input *pkg.HookInput) e
 	for _, cephStorageClass := range cephStorageClassList.Items {
 		fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: Check CephStorageClass %s\n", cephStorageClass.Name)
 
-		if cephStorageClass.Labels[MigratedLabel] == MigratedLabelValueTrue {
+		if cephStorageClass.Labels[MigratedFromClusterAuthLabelKey] == LabelValueTrue {
 			fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: %s already migrated. Skipping\n", cephStorageClass.Name)
 			succefullyMigrated++
 			continue
@@ -195,7 +207,7 @@ func handlerMigrateAuthToConnection(ctx context.Context, input *pkg.HookInput) e
 
 		if cephStorageClass.Spec.ClusterAuthenticationName == "" {
 			fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: CephStorageClass %s doesn't have ClusterAuthenticationName field. Marking CephStorageClass as migrated\n", cephStorageClass.Name)
-			err = cephStorageClassSetMigrateStatus(ctx, cl, &cephStorageClass, MigratedLabelValueTrue)
+			err = cephStorageClassSetMigrateStatus(ctx, cl, &cephStorageClass, LabelValueTrue)
 			if err != nil {
 				fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: CephStorageClass update error %s\n", err)
 				return err
@@ -222,7 +234,7 @@ func handlerMigrateAuthToConnection(ctx context.Context, input *pkg.HookInput) e
 		}
 
 		if skipMigration {
-			err = cephStorageClassSetMigrateStatus(ctx, cl, &cephStorageClass, MigratedLabelValueFalse)
+			err = cephStorageClassSetMigrateStatus(ctx, cl, &cephStorageClass, LabelValueFalse)
 			if err != nil {
 				fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: CephStorageClass update error %s\n", err)
 				return err
@@ -282,7 +294,7 @@ func handlerMigrateAuthToConnection(ctx context.Context, input *pkg.HookInput) e
 			return err
 		}
 
-		err = cephStorageClassSetMigrateStatus(ctx, cl, &cephStorageClass, MigratedLabelValueTrue)
+		err = cephStorageClassSetMigrateStatus(ctx, cl, &cephStorageClass, LabelValueTrue)
 		if err != nil {
 			fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: CephStorageClass update error %s\n", err)
 			return err
@@ -428,7 +440,7 @@ func processNewCephClusterConnection(
 		ObjectMeta: metav1.ObjectMeta{
 			Name: newCephClusterConnectionName,
 			Labels: map[string]string{
-				AutomaticallyCreatedLabel: AutomaticallyCreatedValue,
+				AutomaticallyCreatedLabel: AutomaticallyCreatedClusterAuthValue,
 			},
 		},
 		Spec: v1alpha1.CephClusterConnectionSpec{
@@ -473,7 +485,7 @@ func processNewCephClusterConnection(
 	}
 	newCephStorageClass.Spec.ClusterConnectionName = newCephClusterConnection.Name
 
-	err = backupResource(ctx, cl, cephStorageClass, BackupTime)
+	_, err = backupResource(ctx, cl, cephStorageClass, BackupTime)
 	if err != nil {
 		fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: Backup CephStorageClass error %s\n", err)
 		return err
@@ -557,15 +569,22 @@ func migratePVsToNewSecret(ctx context.Context, cl client.Client, pvList *v1.Per
 
 		if needRecreate {
 			fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: Recreating PV %s\n", pv.Name)
-			err := backupResource(ctx, cl, pv, BackupTime)
+			backupName, err := backupResource(ctx, cl, pv, BackupTime)
 			if err != nil {
 				fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: Backup PV %s error %s\n", pv.Name, err)
+				return err
+			}
+
+			err = setRecreateLabelToBackupResource(ctx, cl, backupName, LabelValueFalse)
+			if err != nil {
+				fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: setRecreateLabelToBackupResource error %s\n", err)
 				return err
 			}
 
 			newPV := pv.DeepCopy()
 			newPV.ResourceVersion = ""
 			newPV.UID = ""
+			newPV.CreationTimestamp = metav1.Time{}
 			newPV.Spec.CSI.NodeStageSecretRef.Namespace = newSecretNamespace
 			newPV.Spec.CSI.NodeStageSecretRef.Name = newSecretName
 			newPV.Spec.CSI.ControllerExpandSecretRef.Namespace = newSecretNamespace
@@ -590,6 +609,12 @@ func migratePVsToNewSecret(ctx context.Context, cl client.Client, pvList *v1.Per
 				return err
 			}
 			fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: PV %s successfully migrated\n", pv.Name)
+
+			err = setRecreateLabelToBackupResource(ctx, cl, backupName, LabelValueTrue)
+			if err != nil {
+				fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: setRecreateLabelToBackupResource error %s\n", err)
+				return err
+			}
 		} else if needUpdate {
 			fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: Updating PV %s\n", pv.Name)
 			err := cl.Update(ctx, pv)
@@ -606,20 +631,34 @@ func migratePVsToNewSecret(ctx context.Context, cl client.Client, pvList *v1.Per
 	return nil
 }
 
-func backupResource(ctx context.Context, cl client.Client, obj runtime.Object, backupTime time.Time) error {
-	fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: Backup resource %s\n", obj.GetObjectKind().GroupVersionKind().Kind)
-	datetime := backupTime.Format("20060102-150405")
-	metaObj, err := meta.Accessor(obj)
+func backupResource(ctx context.Context, cl client.Client, backupObj runtime.Object, backupTime time.Time) (string, error) {
+	cleanObj := backupObj.DeepCopyObject()
+	err := sanitizeObject(cleanObj)
 	if err != nil {
-		return fmt.Errorf("failed to get object metadata: %w", err)
+		return "", fmt.Errorf("failed to sanitize object: %w", err)
 	}
 
-	backupName := fmt.Sprintf("%s-%s-%s", datetime, strings.ToLower(obj.GetObjectKind().GroupVersionKind().Kind), metaObj.GetName())
+	datetime := backupTime.Format("20060102-150405")
+	metaObj, err := meta.Accessor(cleanObj)
+	if err != nil {
+		return "", fmt.Errorf("failed to get object metadata: %w", err)
+	}
+
+	gvk, err := apiutil.GVKForObject(cleanObj, cl.Scheme())
+	if err != nil {
+		return "", fmt.Errorf("failed to get GVK for object: %w", err)
+	}
+	resourceKind := gvk.Kind
+
+	fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: Backup resource %s %s\n", resourceKind, metaObj.GetName())
+
+	backupName := fmt.Sprintf("%s-%s-%s", datetime, strings.ToLower(resourceKind), metaObj.GetName())
 	fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: Backup name %s\n", backupName)
 
-	jsonBytes, err := json.Marshal(obj)
+	cleanObj.GetObjectKind().SetGroupVersionKind(gvk)
+	jsonBytes, err := json.Marshal(cleanObj)
 	if err != nil {
-		return fmt.Errorf("failed to marshal object: %w", err)
+		return "", fmt.Errorf("failed to marshal object: %w", err)
 	}
 
 	encoded := base64.StdEncoding.EncodeToString(jsonBytes)
@@ -629,7 +668,8 @@ func backupResource(ctx context.Context, cl client.Client, obj runtime.Object, b
 			Name: backupName,
 			Labels: map[string]string{
 				BackupDateLabelKey:   datetime,
-				BackupSourceLabelKey: BackupSourceLabelValue,
+				BackupSourceLabelKey: BackupSourceClusterAuthLabelValue,
+				ResourceKindLabelKey: resourceKind,
 			},
 		},
 		Spec: v1alpha1.CephMetadataBackupSpec{
@@ -645,12 +685,12 @@ func backupResource(ctx context.Context, cl client.Client, obj runtime.Object, b
 	})
 
 	if err != nil {
-		return fmt.Errorf("failed to create backup: %w", err)
+		return "", fmt.Errorf("failed to create backup: %w", err)
 	}
 
 	fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: Resource successfully backed up with name %s\n", backupName)
 
-	return nil
+	return backupName, nil
 }
 
 func disableCSIComponents(ctx context.Context, cl client.Client) error {
@@ -746,6 +786,98 @@ func disableCSIComponents(ctx context.Context, cl client.Client) error {
 	}
 
 	fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: All pods are deleted\n")
+
+	return nil
+}
+
+func processRemovedPVs(ctx context.Context, cl client.Client) error {
+	cephMetadataBackupList := &v1alpha1.CephMetadataBackupList{}
+	labels := map[string]string{
+		BackupSourceLabelKey:           BackupSourceClusterAuthLabelValue,
+		ResourceKindLabelKey:           ResourceKindPersistentVolume,
+		PVRecreatedSuccesfullyLabelKey: LabelValueFalse,
+	}
+	err := cl.List(ctx, cephMetadataBackupList, client.MatchingLabels(labels))
+	if err != nil {
+		fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: CephMetadataBackupList get error %s\n", err)
+		return err
+	}
+
+	if len(cephMetadataBackupList.Items) == 0 {
+		fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: Not found deleted and not migrated PVs\n")
+		return nil
+	}
+
+	fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: Found %d backups of PVs that probably were removed and not migrated. Check them\n", len(cephMetadataBackupList.Items))
+	for _, backup := range cephMetadataBackupList.Items {
+		fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: Processing backup %s\n", backup.Name)
+
+		obj := &v1.PersistentVolume{}
+		data, err := base64.StdEncoding.DecodeString(backup.Spec.Data)
+		if err != nil {
+			fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: Decode backup data error %s\n", err)
+			return err
+		}
+
+		err = json.Unmarshal(data, obj)
+		if err != nil {
+			fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: Unmarshal backup data error %s\n", err)
+			return err
+		}
+
+		err = cl.Create(ctx, obj)
+		if err != nil {
+			if client.IgnoreAlreadyExists(err) != nil {
+				fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: PV create error %s\n", err)
+				return err
+			}
+			fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: PV %s already exists\n", obj.Name)
+		} else {
+			fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: PV %s created\n", obj.Name)
+		}
+
+		fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: Updating backup %s with %s=%s\n", backup.Name, PVRecreatedSuccesfullyLabelKey, LabelValueTrue)
+		backup.Labels[PVRecreatedSuccesfullyLabelKey] = LabelValueTrue
+		err = cl.Update(ctx, &backup)
+		if err != nil {
+			fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: Update backup %s error %s\n", backup.Name, err)
+			return err
+		}
+	}
+	return nil
+}
+
+func sanitizeObject(obj runtime.Object) error {
+	metaObj, err := meta.Accessor(obj)
+	if err != nil {
+		return fmt.Errorf("failed to get metadata: %w", err)
+	}
+
+	metaObj.SetResourceVersion("")
+	metaObj.SetUID("")
+	metaObj.SetCreationTimestamp(metav1.Time{})
+	metaObj.SetManagedFields(nil)
+	metaObj.SetFinalizers(nil)
+
+	return nil
+}
+
+func setRecreateLabelToBackupResource(ctx context.Context, cl client.Client, backupName, labelValue string) error {
+	cephMetadataBackup := &v1alpha1.CephMetadataBackup{}
+	err := cl.Get(ctx, types.NamespacedName{Name: backupName}, cephMetadataBackup)
+	if err != nil {
+		return err
+	}
+
+	if cephMetadataBackup.Labels == nil {
+		cephMetadataBackup.Labels = make(map[string]string)
+	}
+
+	cephMetadataBackup.Labels[PVRecreatedSuccesfullyLabelKey] = labelValue
+	err = cl.Update(ctx, cephMetadataBackup)
+	if err != nil {
+		return err
+	}
 
 	return nil
 }
