@@ -36,6 +36,8 @@ type CephClusterConnectionList struct {
 type CephClusterConnectionSpec struct {
 	ClusterID string   `json:"clusterID"`
 	Monitors  []string `json:"monitors"`
+	UserID    string   `json:"userID"`
+	UserKey   string   `json:"userKey"`
 }
 
 type CephClusterConnectionStatus struct {

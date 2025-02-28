@@ -27,6 +27,8 @@ var (
 	DefaultMountOptionsRBD = []string{"discard"}
 )
 
+// +k8s:deepcopy-gen=true
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type CephStorageClass struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -34,31 +36,36 @@ type CephStorageClass struct {
 	Status            *CephStorageClassStatus `json:"status,omitempty"`
 }
 
-// CephStorageClassList contains a list of empty block device
+// +k8s:deepcopy-gen=true
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type CephStorageClassList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata"`
 	Items           []CephStorageClass `json:"items"`
 }
 
+// +k8s:deepcopy-gen=true
 type CephStorageClassSpec struct {
 	ClusterConnectionName     string                  `json:"clusterConnectionName"`
-	ClusterAuthenticationName string                  `json:"clusterAuthenticationName"`
+	ClusterAuthenticationName string                  `json:"clusterAuthenticationName,omitempty"`
 	ReclaimPolicy             string                  `json:"reclaimPolicy"`
 	Type                      string                  `json:"type"`
 	RBD                       *CephStorageClassRBD    `json:"rbd,omitempty"`
 	CephFS                    *CephStorageClassCephFS `json:"cephFS,omitempty"`
 }
 
+// +k8s:deepcopy-gen=true
 type CephStorageClassRBD struct {
 	DefaultFSType string `json:"defaultFSType"`
 	Pool          string `json:"pool"`
 }
 
+// +k8s:deepcopy-gen=true
 type CephStorageClassCephFS struct {
 	FSName string `json:"fsName,omitempty"`
 }
 
+// +k8s:deepcopy-gen=true
 type CephStorageClassStatus struct {
 	Phase  string `json:"phase,omitempty"`
 	Reason string `json:"reason,omitempty"`

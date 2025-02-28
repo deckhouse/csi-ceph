@@ -19,11 +19,8 @@ package controller
 import (
 	"context"
 	"fmt"
-	"reflect"
-	"time"
 
 	v1alpha1 "github.com/deckhouse/csi-ceph/api/v1alpha1"
-	corev1 "k8s.io/api/core/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/util/workqueue"
@@ -36,7 +33,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	"d8-controller/pkg/config"
-	"d8-controller/pkg/internal"
 	"d8-controller/pkg/logger"
 )
 
@@ -44,6 +40,8 @@ const (
 	// This value used as a name for the controller AND the value for managed-by label.
 	CephClusterAuthenticationCtrlName                = "d8-ceph-cluster-authentication-controller"
 	CephClusterAuthenticationControllerFinalizerName = "storage.deckhouse.io/ceph-cluster-authentication-controller"
+	DeprecatedLabel                                  = "storage.deckhouse.io/deprecated"
+	DeprecatedLabelValue                             = "true"
 )
 
 func RunCephClusterAuthenticationWatcherController(
@@ -68,35 +66,10 @@ func RunCephClusterAuthenticationWatcherController(
 				return reconcile.Result{}, nil
 			}
 
-			secretList := &corev1.SecretList{}
-			err = cl.List(ctx, secretList, client.InNamespace(cfg.ControllerNamespace))
+			err = labelAsDeprecatedIfNeeded(ctx, cl, cephClusterAuthentication)
 			if err != nil {
-				log.Error(err, "[CephClusterAuthenticationReconciler] unable to list Secrets")
+				log.Error(err, fmt.Sprintf("[CephClusterAuthenticationReconciler] unable to label as deprecated CephClusterAuthentication %q", cephClusterAuthentication.Name))
 				return reconcile.Result{}, err
-			}
-
-			shouldRequeue, msg, err := RunCephClusterAuthenticationEventReconcile(ctx, cl, log, secretList, cephClusterAuthentication, cfg.ControllerNamespace)
-			log.Info(fmt.Sprintf("[CephClusterAuthenticationReconciler] CephClusterAuthentication %s has been reconciled with message: %s", cephClusterAuthentication.Name, msg))
-			phase := internal.PhaseCreated
-			if err != nil {
-				log.Error(err, fmt.Sprintf("[CephClusterAuthenticationReconciler] an error occurred while reconciles the CephClusterAuthentication, name: %s", cephClusterAuthentication.Name))
-				phase = internal.PhaseFailed
-			}
-
-			if msg != "" {
-				log.Debug(fmt.Sprintf("[CephClusterAuthenticationReconciler] update the CephClusterAuthentication %s with the phase %s and message: %s", cephClusterAuthentication.Name, phase, msg))
-				upErr := updateCephClusterAuthenticationPhase(ctx, cl, cephClusterAuthentication, phase, msg)
-				if upErr != nil {
-					log.Error(upErr, fmt.Sprintf("[CephClusterAuthenticationReconciler] unable to update the CephClusterAuthentication %s: %s", cephClusterAuthentication.Name, upErr.Error()))
-					shouldRequeue = true
-				}
-			}
-
-			if shouldRequeue {
-				log.Warning(fmt.Sprintf("[CephClusterAuthenticationReconciler] Reconciler will requeue the request, name: %s", request.Name))
-				return reconcile.Result{
-					RequeueAfter: cfg.RequeueStorageClassInterval * time.Second,
-				}, nil
 			}
 
 			log.Info(fmt.Sprintf("[CephClusterAuthenticationReconciler] ends Reconcile for the CephClusterAuthentication %q", request.Name))
@@ -110,24 +83,24 @@ func RunCephClusterAuthenticationWatcherController(
 
 	err = c.Watch(source.Kind(mgr.GetCache(), &v1alpha1.CephClusterAuthentication{}, handler.TypedFuncs[*v1alpha1.CephClusterAuthentication, reconcile.Request]{
 		CreateFunc: func(_ context.Context, e event.TypedCreateEvent[*v1alpha1.CephClusterAuthentication], q workqueue.TypedRateLimitingInterface[reconcile.Request]) {
-			log.Info(fmt.Sprintf("[CreateFunc] get event for CephClusterAuthentication %q. Add to the queue", e.Object.GetName()))
-			request := reconcile.Request{NamespacedName: types.NamespacedName{Namespace: e.Object.GetNamespace(), Name: e.Object.GetName()}}
-			q.Add(request)
-		},
-		UpdateFunc: func(_ context.Context, e event.TypedUpdateEvent[*v1alpha1.CephClusterAuthentication], q workqueue.TypedRateLimitingInterface[reconcile.Request]) {
-			log.Info(fmt.Sprintf("[UpdateFunc] get event for CephClusterAuthentication %q. Check if it should be reconciled", e.ObjectNew.GetName()))
-
-			oldCephClusterAuthentication := e.ObjectOld
-			newCephClusterAuthentication := e.ObjectNew
-
-			if reflect.DeepEqual(oldCephClusterAuthentication.Spec, newCephClusterAuthentication.Spec) && newCephClusterAuthentication.DeletionTimestamp == nil {
-				log.Info(fmt.Sprintf("[UpdateFunc] an update event for the CephClusterAuthentication %s has no Spec field updates. It will not be reconciled", newCephClusterAuthentication.Name))
-				return
+			log.Warning(fmt.Sprintf("[CreateFunc] get event for CephClusterAuthentication %q. Label as deprecated", e.Object.GetName()))
+			err := labelAsDeprecatedIfNeeded(context.Background(), cl, e.Object)
+			if err != nil {
+				log.Error(err, fmt.Sprintf("[CreateFunc] unable to label as deprecated CephClusterAuthentication %q", e.Object.GetName()))
+				q.Add(reconcile.Request{NamespacedName: types.NamespacedName{Namespace: e.Object.GetNamespace(), Name: e.Object.GetName()}})
 			}
 
-			log.Info(fmt.Sprintf("[UpdateFunc] the CephClusterAuthentication %q will be reconciled. Add to the queue", newCephClusterAuthentication.Name))
-			request := reconcile.Request{NamespacedName: types.NamespacedName{Namespace: newCephClusterAuthentication.Namespace, Name: newCephClusterAuthentication.Name}}
-			q.Add(request)
+			log.Warning(fmt.Sprintf("[CreateFunc] Successfully labeled as deprecated CephClusterAuthentication %q", e.Object.GetName()))
+		},
+		UpdateFunc: func(_ context.Context, e event.TypedUpdateEvent[*v1alpha1.CephClusterAuthentication], q workqueue.TypedRateLimitingInterface[reconcile.Request]) {
+			log.Warning(fmt.Sprintf("[UpdateFunc] get event for CephClusterAuthentication %q. Label as deprecated", e.ObjectNew.GetName()))
+			err := labelAsDeprecatedIfNeeded(context.Background(), cl, e.ObjectNew)
+			if err != nil {
+				log.Error(err, fmt.Sprintf("[UpdateFunc] unable to label as deprecated CephClusterAuthentication %q", e.ObjectNew.GetName()))
+				q.Add(reconcile.Request{NamespacedName: types.NamespacedName{Namespace: e.ObjectNew.GetNamespace(), Name: e.ObjectNew.GetName()}})
+			}
+
+			log.Warning(fmt.Sprintf("[UpdateFunc] Successfully labeled as deprecated CephClusterAuthentication %q", e.ObjectNew.GetName()))
 		},
 	},
 	),
@@ -141,47 +114,23 @@ func RunCephClusterAuthenticationWatcherController(
 	return c, nil
 }
 
-func RunCephClusterAuthenticationEventReconcile(ctx context.Context, cl client.Client, log logger.Logger, secretList *corev1.SecretList, cephClusterAuthentication *v1alpha1.CephClusterAuthentication, controllerNamespace string) (shouldRequeue bool, msg string, err error) {
-	valid, msg := validateCephClusterAuthenticationSpec(cephClusterAuthentication)
-	if !valid {
-		err = fmt.Errorf("[RunCephClusterAuthenticationEventReconcile] CephClusterAuthentication %s has invalid spec: %s", cephClusterAuthentication.Name, msg)
-		return false, msg, err
-	}
-	log.Debug(fmt.Sprintf("[RunCephClusterAuthenticationEventReconcile] CephClusterAuthentication %s has valid spec", cephClusterAuthentication.Name))
-
-	added, err := addFinalizerIfNotExists(ctx, cl, cephClusterAuthentication, CephClusterAuthenticationControllerFinalizerName)
-	if err != nil {
-		err = fmt.Errorf("[RunCephClusterAuthenticationEventReconcile] unable to add a finalizer %s to the CephClusterAuthentication %s: %w", CephClusterAuthenticationControllerFinalizerName, cephClusterAuthentication.Name, err)
-		return true, err.Error(), err
-	}
-	log.Debug(fmt.Sprintf("[RunCephClusterAuthenticationEventReconcile] finalizer %s was added to the CephClusterAuthentication %s: %t", CephClusterAuthenticationControllerFinalizerName, cephClusterAuthentication.Name, added))
-
-	secretName := internal.CephClusterAuthenticationSecretPrefix + cephClusterAuthentication.Name
-	reconcileTypeForSecret, err := IdentifyReconcileFuncForSecret(log, secretList, cephClusterAuthentication, controllerNamespace, secretName)
-	if err != nil {
-		err = fmt.Errorf("[RunCephClusterAuthenticationEventReconcile] error occurred while identifying the reconcile function for CephClusterAuthentication %s on Secret %s: %w", cephClusterAuthentication.Name, secretName, err)
-		return true, err.Error(), err
+func labelAsDeprecatedIfNeeded(ctx context.Context, cl client.Client, cephClusterAuthentication *v1alpha1.CephClusterAuthentication) error {
+	if cephClusterAuthentication.DeletionTimestamp != nil {
+		if len(cephClusterAuthentication.GetFinalizers()) > 0 {
+			cephClusterAuthentication.SetFinalizers([]string{})
+			return cl.Update(ctx, cephClusterAuthentication)
+		}
+		return nil
 	}
 
-	shouldRequeue = false
-	log.Debug(fmt.Sprintf("[RunCephClusterAuthenticationEventReconcile] successfully identified the reconcile type for CephClusterAuthentication %s to be performed on Secret %s: %s", cephClusterAuthentication.Name, secretName, reconcileTypeForSecret))
-	switch reconcileTypeForSecret {
-	case internal.CreateReconcile:
-		shouldRequeue, msg, err = reconcileSecretCreateFunc(ctx, cl, log, cephClusterAuthentication, controllerNamespace, secretName)
-	case internal.UpdateReconcile:
-		shouldRequeue, msg, err = reconcileSecretUpdateFunc(ctx, cl, log, secretList, cephClusterAuthentication, controllerNamespace, secretName)
-	case internal.DeleteReconcile:
-		shouldRequeue, msg, err = reconcileSecretDeleteFunc(ctx, cl, log, secretList, cephClusterAuthentication, secretName)
-	default:
-		log.Debug(fmt.Sprintf("[RunCephClusterAuthenticationEventReconcile] no reconcile action required for CephClusterAuthentication %s on Secret %s. No changes will be made.", cephClusterAuthentication.Name, secretName))
-		msg = "Successfully reconciled"
-	}
-	log.Debug(fmt.Sprintf("[RunCephClusterAuthenticationEventReconcile] completed reconcile operation for CephClusterAuthentication %s on Secret %s.", cephClusterAuthentication.Name, secretName))
-
-	if err != nil || shouldRequeue {
-		return shouldRequeue, msg, err
+	if cephClusterAuthentication.Labels == nil {
+		cephClusterAuthentication.Labels = map[string]string{}
 	}
 
-	log.Debug(fmt.Sprintf("[RunCephClusterAuthenticationEventReconcile] finish all reconciliations for CephClusterAuthentication %q.", cephClusterAuthentication.Name))
-	return false, msg, nil
+	if cephClusterAuthentication.Labels[DeprecatedLabel] == DeprecatedLabelValue {
+		return nil
+	}
+
+	cephClusterAuthentication.Labels[DeprecatedLabel] = DeprecatedLabelValue
+	return cl.Update(ctx, cephClusterAuthentication)
 }

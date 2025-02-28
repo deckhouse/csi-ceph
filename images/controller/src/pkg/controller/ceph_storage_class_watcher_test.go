@@ -748,11 +748,11 @@ func performStandardChecksForCephSc(sc *v1.StorageClass, nameForTestResource str
 	Expect(*sc.ReclaimPolicy).To(Equal(corev1.PersistentVolumeReclaimPolicy(cfg.ReclaimPolicy)))
 	Expect(*sc.VolumeBindingMode).To(Equal(v1.VolumeBindingImmediate))
 	Expect(*sc.AllowVolumeExpansion).To(BeTrue())
-	Expect(sc.Parameters).To(HaveKeyWithValue("csi.storage.k8s.io/controller-expand-secret-name", internal.CephClusterAuthenticationSecretPrefix+cfg.ClusterAuthenticationName))
+	Expect(sc.Parameters).To(HaveKeyWithValue("csi.storage.k8s.io/controller-expand-secret-name", internal.CephClusterConnectionSecretPrefix+cfg.ClusterConnectionName))
 	Expect(sc.Parameters).To(HaveKeyWithValue("csi.storage.k8s.io/controller-expand-secret-namespace", controllerNamespace))
-	Expect(sc.Parameters).To(HaveKeyWithValue("csi.storage.k8s.io/node-stage-secret-name", internal.CephClusterAuthenticationSecretPrefix+cfg.ClusterAuthenticationName))
+	Expect(sc.Parameters).To(HaveKeyWithValue("csi.storage.k8s.io/node-stage-secret-name", internal.CephClusterConnectionSecretPrefix+cfg.ClusterConnectionName))
 	Expect(sc.Parameters).To(HaveKeyWithValue("csi.storage.k8s.io/node-stage-secret-namespace", controllerNamespace))
-	Expect(sc.Parameters).To(HaveKeyWithValue("csi.storage.k8s.io/provisioner-secret-name", internal.CephClusterAuthenticationSecretPrefix+cfg.ClusterAuthenticationName))
+	Expect(sc.Parameters).To(HaveKeyWithValue("csi.storage.k8s.io/provisioner-secret-name", internal.CephClusterConnectionSecretPrefix+cfg.ClusterConnectionName))
 	Expect(sc.Parameters).To(HaveKeyWithValue("csi.storage.k8s.io/provisioner-secret-namespace", controllerNamespace))
 
 	if cfg.Type == "cephfs" {

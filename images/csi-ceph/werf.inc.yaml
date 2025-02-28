@@ -1,12 +1,9 @@
 {{- $version := "3.12.1" }}
 
 {{- $binaries := "/cephcsi /sbin/mount.ceph /usr/bin/ceph-fuse /bin/mount /bin/umount /sbin/fsck /sbin/modprobe /bin/kmod /usr/bin/rbd /usr/bin/rbd-nbd /sbin/blkid /sbin/mkfs /sbin/mkfs.ext4 /sbin/mkfs.xfs /sbin/blockdev /sbin/dumpe2fs /usr/sbin/xfs_io /usr/sbin/xfs_growfs /sbin/resize2fs" }}
-{{- $_ := set . "BASE_SCRATCH" "registry.deckhouse.io/base_images/scratch@sha256:653ae76965c98c8cd1c8c9ff7725316d2983986f896655b30e0f44d2f8b2dd7e" }}
-{{- $_ := set . "BASE_GOLANG" "registry.deckhouse.io/base_images/golang:1.23.4-bullseye@sha256:9b3176d53704a9b1be19d307b660733cc691af02906d7e918dbe4d11427a422c" }}
-{{- $_ := set . "BASE_ALT"    "registry.deckhouse.io/base_images/alt:p11@sha256:e47d84424485d3674240cb2f67d3a1801b37d327e6d1eb8cc8d01be8ed3b34f3" }}
 ---
 image: {{ $.ImageName }}-src-artifact
-from: {{ $.BASE_ALT }}
+from: {{ $.Root.BASE_ALT }}
 final: false
 
 git:
@@ -22,14 +19,14 @@ shell:
   install:
     - apt-get update
     - apt-get -y install git
-    - git clone --branch v{{ $version }} --depth 1 {{ env "SOURCE_REPO" }}/ceph/ceph-csi.git /src/ceph-csi
+    - git clone --branch {{ $.Versions.CEPH_CSI }} --depth 1 {{ env "SOURCE_REPO" }}/ceph/ceph-csi.git /src/ceph-csi
     - cd /src/ceph-csi
     - for patchfile in /src/images/csi-ceph/patches/*.patch ; do echo -n "Apply ${patchfile} ... "; git apply ${patchfile}; done
     - rm -rf /src/images/csi-ceph/patches/
 
 ---
 image: {{ $.ImageName }}-base-binaries-artifact
-from: {{ $.BASE_ALT }}
+from: {{ $.Root.BASE_ALT }}
 final: false
 
 import:
@@ -55,7 +52,7 @@ shell:
 
 ---
 image: {{ $.ImageName }}-binary-replace-artifact
-from: {{ $.BASE_ALT }}
+from: {{ $.Root.BASE_ALT }}
 final: false
 
 git:
@@ -88,13 +85,13 @@ shell:
 
 ---
 image: {{ $.ImageName }}-distroless-artifact
-from: {{ $.BASE_ALT }}
+from: {{ $.Root.BASE_ALT }}
 final: false
 
 shell:
   beforeInstall:
     - apt-get update
-    - apt-get install -y openssl libtirpc
+    - apt-get install -y {{ $.Root.ALT_BASE_PACKAGES }}
     - rm -rf /var/lib/apt/lists/* /var/cache/apt/* && mkdir -p /var/lib/apt/lists/partial /var/cache/apt/archives/partial
   install:
     - mkdir -p /relocate/bin /relocate/sbin /relocate/etc /relocate/var/lib/ssl /relocate/usr/bin /relocate/usr/sbin /relocate/usr/share
@@ -110,7 +107,7 @@ shell:
 
 ---
 image: {{ $.ImageName }}-distroless
-from: {{ $.BASE_SCRATCH }}
+from: {{ $.Root.BASE_SCRATCH }}
 final: false
 
 import:

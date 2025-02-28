@@ -14,19 +14,16 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package internal
+package v1alpha1
 
-const (
-	CephClusterConnectionSecretPrefix = "csi-ceph-secret-for-"
-	StorageManagedLabelKey            = "storage.deckhouse.io/managed-by"
-	CSICephConfigMapName              = "ceph-csi-config"
-	CreateReconcile                   = "Create"
-	UpdateReconcile                   = "Update"
-	DeleteReconcile                   = "Delete"
+import "fmt"
 
-	PhaseFailed  = "Failed"
-	PhaseCreated = "Created"
-
-	UpdateConfigMapActionUpdate = "update"
-	UpdateConfigMapActionDelete = "delete"
-)
+func (spec CephClusterConnectionSpec) String() string {
+	return fmt.Sprintf(
+		"{ ClusterID: %s, Monitors: %v, UserID: %s, UserKey: %s }",
+		spec.ClusterID,
+		spec.Monitors,
+		spec.UserID,
+		"*****",
+	)
+}
