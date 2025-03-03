@@ -31,8 +31,8 @@ spec:
               required:
                 - clusterID
                 - monitors
-                # - userID
-                # - userKey
+                - userID
+                - userKey
               properties:
                 clusterID:
                   description: |

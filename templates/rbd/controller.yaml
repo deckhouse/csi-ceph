@@ -127,6 +127,8 @@
     #   mountPath: /etc/ceph/
     - name: keys-tmp-dir
       mountPath: /tmp/csi/keys
+    - name: tmp
+      mountPath: /tmp
 {{- end }}
 
 
@@ -237,7 +239,7 @@
 {{- $_ := set $csiControllerConfig "additionalControllerVolumes" (include "rbd_csi_controller_volumes" . | fromYamlArray) }}
 {{- $_ := set $csiControllerConfig "additionalControllerVolumeMounts" (include "rbd_csi_controller_volume_mounts" . | fromYamlArray) }}
 {{- $_ := set $csiControllerConfig "additionalContainers" (include "rbd_csi_additional_containers" (list $csiDriverName $csiControllerImage) | fromYamlArray) }}
-
+{{- $_ := set $csiControllerConfig "runAsRootUser" false }}
 {{- $_ := set $csiControllerConfig "livenessProbePort" 4247 }}
 
 {{- include "helm_lib_csi_controller_manifests" (list . $csiControllerConfig) }}
