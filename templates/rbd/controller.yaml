@@ -127,6 +127,8 @@
     #   mountPath: /etc/ceph/
     - name: keys-tmp-dir
       mountPath: /tmp/csi/keys
+    - name: tmp
+      mountPath: /tmp
 {{- end }}
 
 
