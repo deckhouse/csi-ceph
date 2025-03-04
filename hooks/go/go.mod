@@ -6,6 +6,7 @@ require (
 	github.com/deckhouse/csi-ceph/api v0.0.0-20250207141553-9b2c9a45ba22
 	github.com/deckhouse/module-sdk v0.1.1-0.20250131075458-c7b4be9749d7
 	github.com/google/go-cmp v0.7.0
+	github.com/kubernetes-csi/external-snapshotter/client/v8 v8.2.0
 	k8s.io/api v0.32.2
 	k8s.io/apiextensions-apiserver v0.32.2
 	k8s.io/apimachinery v0.32.2
