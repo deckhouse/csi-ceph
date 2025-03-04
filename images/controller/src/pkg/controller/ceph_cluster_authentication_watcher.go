@@ -59,7 +59,7 @@ func RunCephClusterAuthenticationWatcherController(
 			cephClusterAuthentication := &v1alpha1.CephClusterAuthentication{}
 			err := cl.Get(ctx, request.NamespacedName, cephClusterAuthentication)
 			if err != nil && !k8serr.IsNotFound(err) {
-				log.Error(err, fmt.Sprintf("[CephClusterAuthenticationReconciler] unable to get CephClusterAuthentication, name: %s", request.Name))
+				log.Error(err, fmt.Sprintf("[CephClusterAuthenticationReconciler] unable to get CephClusterAuthentication %s", request.Name))
 				return reconcile.Result{}, err
 			}
 
