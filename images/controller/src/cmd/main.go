@@ -68,7 +68,7 @@ func main() {
 
 	kConfig, err := kubutils.KubernetesDefaultConfigCreate()
 	if err != nil {
-		log.Error(err, "[main] unable to KubernetesDefaultConfigCreate")
+		log.Error(err, "[main] unable to KubernetesDefaultConfigCreate.")
 	}
 	log.Info("[main] kubernetes config has been successfully created.")
 
