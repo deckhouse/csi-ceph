@@ -45,7 +45,7 @@ jobs:
 
       - name: Prepare sub repo
         run: |
-          version=v`grep "version :=" images/csi-ceph/werf.inc.yaml | awk -F'"' '{ print $2}'`
+          version=`cat ./.werf/consts.yaml | grep -o '"CEPH_CSI" "[^"]*"' | cut -d'"' -f4`
           git clone --depth 1 --branch $version ${{ secrets.SOURCE_REPO }}/ceph/ceph-csi.git ./ceph-csi
           cp -R ./images/csi-ceph/patches ./ceph-csi
           cd ./ceph-csi
