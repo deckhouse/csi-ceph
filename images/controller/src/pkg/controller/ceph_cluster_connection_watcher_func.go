@@ -420,8 +420,8 @@ func removeFinalizerAndDeleteSecret(ctx context.Context, cl client.Client, log l
 	}
 
 	log.Debug(fmt.Sprintf("[deleteSecret] successfully deleted Secret %s", secret.Name))
-	return false, fmt.Sprintf("[deleteSecret] Successfully deleted Secret %s", secret.Name), nil
 
+	return false, fmt.Sprintf("[deleteSecret] Successfully deleted Secret %s", secret.Name), nil
 }
 
 func updateSecretIfNeeded(ctx context.Context, cl client.Client, log logger.Logger, oldSecret *corev1.Secret, cephClusterConnection *v1alpha1.CephClusterConnection) error {
