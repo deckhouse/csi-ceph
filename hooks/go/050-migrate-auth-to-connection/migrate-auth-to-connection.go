@@ -21,6 +21,7 @@ import (
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	apiruntime "k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -136,6 +137,7 @@ func NewKubeClient() (client.Client, error) {
 			extv1.AddToScheme,
 			v1.AddToScheme,
 			sv1.AddToScheme,
+			snapv1.AddToScheme,
 		}
 	)
 
@@ -919,6 +921,13 @@ func migrateVSClassesAndVSContentsToNewSecret(ctx context.Context, cl client.Cli
 		return err
 	}
 
+	cephClusterConnectionList := &v1alpha1.CephClusterConnectionList{}
+	err = cl.List(ctx, cephClusterConnectionList)
+	if err != nil {
+		fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: CephClusterConnectionList get error %s\n", err)
+		return err
+	}
+
 	for _, vsClass := range vsClassList.Items {
 		if !slices.Contains(AllowedProvisioners, vsClass.Driver) {
 			fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: VolumeSnapshotClass %s has not allowed driver %s. Skipping\n", vsClass.Name, vsClass.Driver)
@@ -932,7 +941,7 @@ func migrateVSClassesAndVSContentsToNewSecret(ctx context.Context, cl client.Cli
 
 		fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: Processing VolumeSnapshotClass %s\n", vsClass.Name)
 
-		newSecretName, err := getNewSecretNameFromClusterAuthName(ctx, cl, vsClass)
+		newSecretName, err := getNewSecretNameFromClusterAuthName(ctx, cl, vsClass, cephClusterConnectionList)
 		if err != nil {
 			fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: getNewSecretName error %s\n", err)
 			return err
@@ -941,6 +950,9 @@ func migrateVSClassesAndVSContentsToNewSecret(ctx context.Context, cl client.Cli
 		newVolumeSnapshotClass := vsClass.DeepCopy()
 		if newVolumeSnapshotClass.Labels == nil {
 			newVolumeSnapshotClass.Labels = make(map[string]string)
+		}
+		if newVolumeSnapshotClass.Parameters == nil {
+			newVolumeSnapshotClass.Parameters = make(map[string]string)
 		}
 
 		if newSecretName == "" {
@@ -969,7 +981,7 @@ func migrateVSClassesAndVSContentsToNewSecret(ctx context.Context, cl client.Cli
 	return nil
 }
 
-func getNewSecretNameFromClusterAuthName(ctx context.Context, cl client.Client, volumeSnapshotClass snapv1.VolumeSnapshotClass) (string, error) {
+func getNewSecretNameFromClusterAuthName(ctx context.Context, cl client.Client, volumeSnapshotClass snapv1.VolumeSnapshotClass, cephClusterConnectionList *v1alpha1.CephClusterConnectionList) (string, error) {
 	oldSecretName := volumeSnapshotClass.Parameters[CSISnapshotterSecretNameKey]
 	if oldSecretName == "" {
 		return "", fmt.Errorf("oldSecretName is empty for VolumeSnapshotClass %+v", volumeSnapshotClass)
@@ -981,43 +993,32 @@ func getNewSecretNameFromClusterAuthName(ctx context.Context, cl client.Client, 
 		return "", nil
 	}
 
-	fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: Found clusterAuthName %s for oldSecretName %s. Trying to get CephClusterConnection with label %s=%s", clusterAuthName, oldSecretName, CephClusterAuthenticationNameLabelKey, clusterAuthName)
+	fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: Found clusterAuthName %s for oldSecretName %s. Trying to get CephClusterConnection with label %s=%s\n", clusterAuthName, oldSecretName, CephClusterAuthenticationNameLabelKey, clusterAuthName)
 
-	cephClusterConnection := &v1alpha1.CephClusterConnection{}
-	cephClusterConnectionList := &v1alpha1.CephClusterConnectionList{}
-	err := cl.List(ctx, cephClusterConnectionList, client.MatchingLabels{CephClusterAuthenticationNameLabelKey: clusterAuthName})
-	if err != nil {
-		fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: CephClusterConnection list error %s\n", err)
-		return "", err
+	labelMap := map[string]string{
+		CephClusterAuthenticationNameLabelKey: clusterAuthName,
 	}
 
-	if len(cephClusterConnectionList.Items) == 0 {
-		fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: No CephClusterConnection found with label %s=%s\n", CephClusterAuthenticationNameLabelKey, clusterAuthName)
+	cephClusterConnection := getClusterConnectionByLabel(cephClusterConnectionList, labelMap)
+	if cephClusterConnection == nil {
+		fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: No CephClusterConnection found with label %s=%s. Trying to get CephClusterConnection by ClusterID\n", CephClusterAuthenticationNameLabelKey, clusterAuthName)
 		clusterID, ok := volumeSnapshotClass.Parameters[VSClassParametersClusterIDKey]
-		if !ok {
+		if !ok || clusterID == "" {
 			fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: No clusterID found in VolumeSnapshotClass %s. Can't get CephClusterConnection\n", volumeSnapshotClass.Name)
 			return "", nil
 		}
 
 		fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: Trying to get CephClusterConnection with clusterID %s\n", clusterID)
-		cephClusterConnection, err := getClusterConnectionByClusterID(ctx, cl, clusterID)
-		if err != nil {
-			fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: getClusterConnectionByClusterID error %s\n", err)
-			return "", err
-		}
-
+		cephClusterConnection = getClusterConnectionByClusterID(ctx, cl, cephClusterConnectionList, clusterID)
 		if cephClusterConnection == nil {
 			fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: No CephClusterConnection found with clusterID %s\n", clusterID)
 			return "", nil
 		}
 		fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: Found CephClusterConnection %s with clusterID %s\n", cephClusterConnection.Name, clusterID)
-	} else {
-		cephClusterConnection := &cephClusterConnectionList.Items[0]
-		fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: Found %d CephClusterConnection with label %s=%s. Getting first one %s\n", len(cephClusterConnectionList.Items), CephClusterAuthenticationNameLabelKey, clusterAuthName, cephClusterConnection.Name)
 	}
 
 	newSecretName := CSICephSecretPrefix + cephClusterConnection.Name
-	fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: Found CephClusterConnection %s for CephClusterAuthentication %s with label %s=%s. newSecretName %s\n", cephClusterConnection.Name, clusterAuthName, CephClusterAuthenticationNameLabelKey, clusterAuthName, newSecretName)
+	fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: Found CephClusterConnection %s for CephClusterAuthentication %s. newSecretName %s\n", cephClusterConnection.Name, clusterAuthName, newSecretName)
 
 	return newSecretName, nil
 }
@@ -1102,19 +1103,27 @@ func updateVolumeSnapshotContentIfNeeded(ctx context.Context, cl client.Client, 
 	return nil
 }
 
-func getClusterConnectionByClusterID(ctx context.Context, cl client.Client, clusterID string) (*v1alpha1.CephClusterConnection, error) {
-	cephClusterConnectionList := &v1alpha1.CephClusterConnectionList{}
-	err := cl.List(ctx, cephClusterConnectionList)
-	if err != nil {
-		fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: CephClusterConnection list error %s\n", err)
-		return nil, err
-	}
-
+func getClusterConnectionByClusterID(ctx context.Context, cl client.Client, cephClusterConnectionList *v1alpha1.CephClusterConnectionList, clusterID string) *v1alpha1.CephClusterConnection {
 	for _, cephClusterConnection := range cephClusterConnectionList.Items {
 		if cephClusterConnection.Spec.ClusterID == clusterID {
-			return &cephClusterConnection, nil
+			return &cephClusterConnection
 		}
 	}
 
-	return nil, nil
+	return nil
+}
+
+func getClusterConnectionByLabel(cephClusterConnectionList *v1alpha1.CephClusterConnectionList, labelMap map[string]string) *v1alpha1.CephClusterConnection {
+	if cephClusterConnectionList == nil {
+		return nil
+	}
+
+	selector := labels.SelectorFromSet(labelMap)
+	for _, cephClusterConnection := range cephClusterConnectionList.Items {
+		if selector.Matches(labels.Set(cephClusterConnection.Labels)) {
+			return &cephClusterConnection
+		}
+	}
+
+	return nil
 }
