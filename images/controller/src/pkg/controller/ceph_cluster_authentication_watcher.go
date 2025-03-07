@@ -46,7 +46,7 @@ const (
 
 func RunCephClusterAuthenticationWatcherController(
 	mgr manager.Manager,
-	cfg config.Options,
+	_ config.Options,
 	log logger.Logger,
 ) (controller.Controller, error) {
 	cl := mgr.GetClient()
