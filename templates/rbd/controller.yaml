@@ -1,3 +1,12 @@
+###
+### common
+###
+
+{{- define "additional_pull_secrets" }} 
+- name: {{ .Chart.Name }}-module-registry
+{{- end }}
+
+
 ### rbd_csi_controller_args
 
 {{- define "rbd_csi_controller_args" }}
@@ -240,6 +249,8 @@
 {{- $_ := set $csiControllerConfig "additionalControllerVolumeMounts" (include "rbd_csi_controller_volume_mounts" . | fromYamlArray) }}
 {{- $_ := set $csiControllerConfig "additionalContainers" (include "rbd_csi_additional_containers" (list $csiDriverName $csiControllerImage) | fromYamlArray) }}
 {{- $_ := set $csiControllerConfig "runAsRootUser" false }}
+{{- $_ := set $csiControllerConfig "additionalPullSecrets" (include "additional_pull_secrets" . | fromYamlArray) }}
+
 {{- $_ := set $csiControllerConfig "livenessProbePort" 4247 }}
 
 {{- include "helm_lib_csi_controller_manifests" (list . $csiControllerConfig) }}
@@ -262,6 +273,7 @@
 {{- $_ := set $csiNodeConfig "additionalNodeEnvs" (include "rbd_csi_node_envs" (list $csiDriverName) | fromYamlArray) }}
 {{- $_ := set $csiNodeConfig "additionalNodeVolumes" (include "rbd_csi_node_volumes" . | fromYamlArray) }}
 {{- $_ := set $csiNodeConfig "additionalNodeVolumeMounts" (include "rbd_csi_node_volume_mounts" . | fromYamlArray) }}
+{{- $_ := set $csiNodeConfig "additionalPullSecrets" (include "additional_pull_secrets" . | fromYamlArray) }}
 
 {{- include "helm_lib_csi_node_manifests" (list . $csiNodeConfig) }}
 
