@@ -14,12 +14,14 @@ import (
 	"github.com/deckhouse/module-sdk/pkg/registry"
 	"github.com/google/go-cmp/cmp"
 
+	snapv1 "github.com/kubernetes-csi/external-snapshotter/client/v8/apis/volumesnapshot/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
 	sv1 "k8s.io/api/storage/v1"
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	apiruntime "k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -37,6 +39,8 @@ const (
 	LabelValueTrue                  = "true"
 	LabelValueFalse                 = "false"
 
+	CephClusterAuthenticationNameLabelKey = "storage.deckhouse.io/ceph-cluster-authentication-name"
+
 	MigratedWarningLabel      = "storage.deckhouse.io/migratedFromCephClusterAuthenticationWarning"
 	MigratedWarningLabelValue = "true"
 
@@ -45,10 +49,18 @@ const (
 	ModuleNamespace                      = "d8-csi-ceph"
 	StorageManagedLabelKey               = "storage.deckhouse.io/managed-by"
 	CephClusterAuthenticationCtrlName    = "d8-ceph-cluster-authentication-controller"
-	CephClusterConnectionSecretPrefix    = "csi-ceph-secret-for-"
+	CSICephSecretPrefix                  = "csi-ceph-secret-for-"
 
 	PVAnnotationProvisionerDeletionSecretNamespace = "volume.kubernetes.io/provisioner-deletion-secret-namespace"
 	PVAnnotationProvisionerDeletionSecretName      = "volume.kubernetes.io/provisioner-deletion-secret-name"
+
+	VSCAnnotationDeletionSecretName      = "snapshot.storage.kubernetes.io/deletion-secret-name"
+	VSCAnnotationDeletionSecretNamespace = "snapshot.storage.kubernetes.io/deletion-secret-namespace"
+
+	CSISnapshotterSecretNameKey      = "csi.storage.k8s.io/snapshotter-secret-name"
+	CSISnapshotterSecretNamespaceKey = "csi.storage.k8s.io/snapshotter-secret-namespace"
+
+	VSClassParametersClusterIDKey = "clusterID"
 
 	BackupDateLabelKey                = "storage.deckhouse.io/backup-date"
 	BackupSourceLabelKey              = "storage.deckhouse.io/backup-source"
@@ -125,6 +137,7 @@ func NewKubeClient() (client.Client, error) {
 			extv1.AddToScheme,
 			v1.AddToScheme,
 			sv1.AddToScheme,
+			snapv1.AddToScheme,
 		}
 	)
 
@@ -277,10 +290,10 @@ func handlerMigrateAuthToConnection(ctx context.Context, input *pkg.HookInput) e
 			return err
 		}
 
-		newSecretName := CephClusterConnectionSecretPrefix + cephClusterConnection.Name
+		newSecretName := CSICephSecretPrefix + cephClusterConnection.Name
 		if needNew {
 			newCephClusterConnectionName := cephClusterConnection.Name + "-migrated-" + cephClusterAuth.Name
-			newSecretName = CephClusterConnectionSecretPrefix + newCephClusterConnectionName
+			newSecretName = CSICephSecretPrefix + newCephClusterConnectionName
 			err := processNewCephClusterConnection(ctx, cl, &cephStorageClass, newCephClusterConnectionName, &cephClusterConnection, cephClusterAuth)
 			if err != nil {
 				fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: processNewCephClusterConnection: error %s\n", err)
@@ -328,6 +341,12 @@ func handlerMigrateAuthToConnection(ctx context.Context, input *pkg.HookInput) e
 			fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: CephClusterAuthentication delete error %s\n", err)
 			return err
 		}
+	}
+
+	err = migrateVSClassesAndVSContentsToNewSecret(ctx, cl)
+	if err != nil {
+		fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: migrateVolumeSnapshotClassesToNewSecret error %s\n", err)
+		return err
 	}
 
 	notMigratedCount := len(cephStorageClassList.Items) - succefullyMigrated
@@ -389,7 +408,11 @@ func processCephClusterConnection(
 	}
 
 	if needUpdate {
-		fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: Updating CephClusterConnection %s\n", cephClusterConnection.Name)
+		fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: Updating CephClusterConnection %s and set label %s=%s\n", cephClusterConnection.Name, CephClusterAuthenticationNameLabelKey, cephClusterAuthentication.Name)
+		if cephClusterConnection.Labels == nil {
+			cephClusterConnection.Labels = make(map[string]string)
+		}
+		cephClusterConnection.Labels[CephClusterAuthenticationNameLabelKey] = cephClusterAuthentication.Name
 		return false, cl.Update(ctx, cephClusterConnection)
 	}
 
@@ -440,7 +463,8 @@ func processNewCephClusterConnection(
 		ObjectMeta: metav1.ObjectMeta{
 			Name: newCephClusterConnectionName,
 			Labels: map[string]string{
-				AutomaticallyCreatedLabel: AutomaticallyCreatedClusterAuthValue,
+				AutomaticallyCreatedLabel:             AutomaticallyCreatedClusterAuthValue,
+				CephClusterAuthenticationNameLabelKey: cephClusterAuthentication.Name,
 			},
 		},
 		Spec: v1alpha1.CephClusterConnectionSpec{
@@ -877,6 +901,228 @@ func setRecreateLabelToBackupResource(ctx context.Context, cl client.Client, bac
 	err = cl.Update(ctx, cephMetadataBackup)
 	if err != nil {
 		return err
+	}
+
+	return nil
+}
+
+func migrateVSClassesAndVSContentsToNewSecret(ctx context.Context, cl client.Client) error {
+	vsClassList := &snapv1.VolumeSnapshotClassList{}
+	err := cl.List(ctx, vsClassList)
+	if err != nil {
+		fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: VolumeSnapshotClassList get error %s\n", err)
+		return err
+	}
+
+	vsContentList := &snapv1.VolumeSnapshotContentList{}
+	err = cl.List(ctx, vsContentList)
+	if err != nil {
+		fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: VolumeSnapshotContentList get error %s\n", err)
+		return err
+	}
+
+	cephClusterConnectionList := &v1alpha1.CephClusterConnectionList{}
+	err = cl.List(ctx, cephClusterConnectionList)
+	if err != nil {
+		fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: CephClusterConnectionList get error %s\n", err)
+		return err
+	}
+
+	for _, vsClass := range vsClassList.Items {
+		if !slices.Contains(AllowedProvisioners, vsClass.Driver) {
+			fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: VolumeSnapshotClass %s has not allowed driver %s. Skipping\n", vsClass.Name, vsClass.Driver)
+			continue
+		}
+
+		if vsClass.Labels[MigratedFromClusterAuthLabelKey] == LabelValueTrue {
+			fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: VolumeSnapshotClass %s already migrated. Skipping\n", vsClass.Name)
+			continue
+		}
+
+		fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: Processing VolumeSnapshotClass %s\n", vsClass.Name)
+
+		newSecretName, err := getNewSecretNameFromClusterAuthName(ctx, cl, vsClass, cephClusterConnectionList)
+		if err != nil {
+			fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: getNewSecretName error %s\n", err)
+			return err
+		}
+
+		newVolumeSnapshotClass := vsClass.DeepCopy()
+		if newVolumeSnapshotClass.Labels == nil {
+			newVolumeSnapshotClass.Labels = make(map[string]string)
+		}
+		if newVolumeSnapshotClass.Parameters == nil {
+			newVolumeSnapshotClass.Parameters = make(map[string]string)
+		}
+
+		if newSecretName == "" {
+			fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: newSecretName is empty for VolumeSnapshotClass %s. Set as migrated with warning\n", vsClass.Name)
+			newVolumeSnapshotClass.Labels[MigratedWarningLabel] = MigratedWarningLabelValue
+		} else {
+			newVolumeSnapshotClass.Labels[MigratedFromClusterAuthLabelKey] = LabelValueTrue
+			newVolumeSnapshotClass.Parameters[CSISnapshotterSecretNameKey] = newSecretName
+			newVolumeSnapshotClass.Parameters[CSISnapshotterSecretNamespaceKey] = ModuleNamespace
+			err := migrateVSContentsToNewSecret(ctx, cl, vsContentList, vsClass.Name, newSecretName)
+			if err != nil {
+				fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: migrateVSContentsToNewSecret error %s\n", err)
+				return err
+			}
+		}
+		newVolumeSnapshotClass.Labels[MigratedFromClusterAuthLabelKey] = LabelValueTrue
+
+		err = updateVolumeSnapshotClassIfNeeded(ctx, cl, &vsClass, newVolumeSnapshotClass)
+		if err != nil {
+			fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: updateVolumeSnapshotClassIfNeeded error %s\n", err)
+			return err
+		}
+		fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: VolumeSnapshotClass %s migrated\n", vsClass.Name)
+	}
+
+	return nil
+}
+
+func getNewSecretNameFromClusterAuthName(ctx context.Context, cl client.Client, volumeSnapshotClass snapv1.VolumeSnapshotClass, cephClusterConnectionList *v1alpha1.CephClusterConnectionList) (string, error) {
+	oldSecretName := volumeSnapshotClass.Parameters[CSISnapshotterSecretNameKey]
+	if oldSecretName == "" {
+		return "", fmt.Errorf("oldSecretName is empty for VolumeSnapshotClass %+v", volumeSnapshotClass)
+	}
+
+	clusterAuthName := strings.TrimPrefix(oldSecretName, CSICephSecretPrefix)
+	if clusterAuthName == oldSecretName {
+		fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: oldSecretName %s doesn't have prefix %s. Can't get clusterAuthName\n", oldSecretName, CSICephSecretPrefix)
+		return "", nil
+	}
+
+	fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: Found clusterAuthName %s for oldSecretName %s. Trying to get CephClusterConnection with label %s=%s\n", clusterAuthName, oldSecretName, CephClusterAuthenticationNameLabelKey, clusterAuthName)
+
+	labelMap := map[string]string{
+		CephClusterAuthenticationNameLabelKey: clusterAuthName,
+	}
+
+	cephClusterConnection := getClusterConnectionByLabel(cephClusterConnectionList, labelMap)
+	if cephClusterConnection == nil {
+		fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: No CephClusterConnection found with label %s=%s. Trying to get CephClusterConnection by ClusterID\n", CephClusterAuthenticationNameLabelKey, clusterAuthName)
+		clusterID, ok := volumeSnapshotClass.Parameters[VSClassParametersClusterIDKey]
+		if !ok || clusterID == "" {
+			fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: No clusterID found in VolumeSnapshotClass %s. Can't get CephClusterConnection\n", volumeSnapshotClass.Name)
+			return "", nil
+		}
+
+		fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: Trying to get CephClusterConnection with clusterID %s\n", clusterID)
+		cephClusterConnection = getClusterConnectionByClusterID(ctx, cl, cephClusterConnectionList, clusterID)
+		if cephClusterConnection == nil {
+			fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: No CephClusterConnection found with clusterID %s\n", clusterID)
+			return "", nil
+		}
+		fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: Found CephClusterConnection %s with clusterID %s\n", cephClusterConnection.Name, clusterID)
+	}
+
+	newSecretName := CSICephSecretPrefix + cephClusterConnection.Name
+	fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: Found CephClusterConnection %s for CephClusterAuthentication %s. newSecretName %s\n", cephClusterConnection.Name, clusterAuthName, newSecretName)
+
+	return newSecretName, nil
+}
+
+func updateVolumeSnapshotClassIfNeeded(ctx context.Context, cl client.Client, oldVSClass, newVSClass *snapv1.VolumeSnapshotClass) error {
+	if cmp.Equal(oldVSClass, newVSClass) {
+		fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: VolumeSnapshotClass %s doesn't need update\n", oldVSClass.Name)
+		return nil
+	}
+
+	fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: Updating VolumeSnapshotClass %s\n", oldVSClass.Name)
+	err := cl.Update(ctx, newVSClass)
+	if err != nil {
+		fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: VolumeSnapshotClass update error %s\n", err)
+		return err
+	}
+
+	fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: VolumeSnapshotClass %s updated\n", oldVSClass.Name)
+	return nil
+}
+
+func migrateVSContentsToNewSecret(ctx context.Context, cl client.Client, vsContentList *snapv1.VolumeSnapshotContentList, vsClassName, newSecretName string) error {
+	for _, vsContent := range vsContentList.Items {
+		fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: Processing VolumeSnapshotContent %s\n", vsContent.Name)
+		if !slices.Contains(AllowedProvisioners, vsContent.Spec.Driver) {
+			fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: VolumeSnapshotContent %s has not allowed driver %s (allowed: %v). Skipping\n", vsContent.Name, vsContent.Spec.Driver, AllowedProvisioners)
+			continue
+		}
+
+		if vsContent.Spec.VolumeSnapshotClassName == nil {
+			fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: VolumeSnapshotContent %s doesn't have VolumeSnapshotClassName. Skipping\n", vsContent.Name)
+			continue
+		}
+
+		if *vsContent.Spec.VolumeSnapshotClassName != vsClassName {
+			fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: VolumeSnapshotContent %s has different VolumeSnapshotClassName %s (expected: %s). Skipping\n", vsContent.Name, *vsContent.Spec.VolumeSnapshotClassName, vsClassName)
+			continue
+		}
+
+		if vsContent.Labels[MigratedFromClusterAuthLabelKey] == LabelValueTrue {
+			fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: VolumeSnapshotContent %s already migrated. Skipping\n", vsContent.Name)
+			continue
+		}
+
+		newVolumeSnapshotContent := vsContent.DeepCopy()
+		if newVolumeSnapshotContent.Labels == nil {
+			newVolumeSnapshotContent.Labels = make(map[string]string)
+		}
+		newVolumeSnapshotContent.Labels[MigratedFromClusterAuthLabelKey] = LabelValueTrue
+
+		if newVolumeSnapshotContent.Annotations == nil {
+			newVolumeSnapshotContent.Annotations = make(map[string]string)
+		}
+		newVolumeSnapshotContent.Annotations[VSCAnnotationDeletionSecretName] = newSecretName
+		newVolumeSnapshotContent.Annotations[VSCAnnotationDeletionSecretNamespace] = ModuleNamespace
+
+		err := updateVolumeSnapshotContentIfNeeded(ctx, cl, &vsContent, newVolumeSnapshotContent)
+		if err != nil {
+			fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: updateVolumeSnapshotContentIfNeeded error %s\n", err)
+			return err
+		}
+		fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: VolumeSnapshotContent %s migrated\n", vsContent.Name)
+	}
+
+	return nil
+}
+
+func updateVolumeSnapshotContentIfNeeded(ctx context.Context, cl client.Client, oldVSContent, newVSContent *snapv1.VolumeSnapshotContent) error {
+	if cmp.Equal(oldVSContent, newVSContent) {
+		fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: VolumeSnapshotContent %s doesn't need update\n", oldVSContent.Name)
+		return nil
+	}
+
+	fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: Updating VolumeSnapshotContent %s\n", oldVSContent.Name)
+	err := cl.Update(ctx, newVSContent)
+	if err != nil {
+		fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: VolumeSnapshotContent update error %s\n", err)
+		return err
+	}
+
+	fmt.Printf("[csi-ceph-migration-from-ceph-cluster-authentication]: VolumeSnapshotContent %s updated\n", oldVSContent.Name)
+	return nil
+}
+
+func getClusterConnectionByClusterID(ctx context.Context, cl client.Client, cephClusterConnectionList *v1alpha1.CephClusterConnectionList, clusterID string) *v1alpha1.CephClusterConnection {
+	for _, cephClusterConnection := range cephClusterConnectionList.Items {
+		if cephClusterConnection.Spec.ClusterID == clusterID {
+			return &cephClusterConnection
+		}
+	}
+
+	return nil
+}
+
+func getClusterConnectionByLabel(cephClusterConnectionList *v1alpha1.CephClusterConnectionList, labelMap map[string]string) *v1alpha1.CephClusterConnection {
+	if cephClusterConnectionList == nil {
+		return nil
+	}
+
+	selector := labels.SelectorFromSet(labelMap)
+	for _, cephClusterConnection := range cephClusterConnectionList.Items {
+		if selector.Matches(labels.Set(cephClusterConnection.Labels)) {
+			return &cephClusterConnection
+		}
 	}
 
 	return nil

@@ -1,5 +1,3 @@
-{{- $version := "3.12.1" }}
-
 {{- $binaries := "/cephcsi /sbin/mount.ceph /usr/bin/ceph-fuse /bin/mount /bin/umount /sbin/fsck /sbin/modprobe /bin/kmod /usr/bin/rbd /usr/bin/rbd-nbd /sbin/blkid /sbin/mkfs /sbin/mkfs.ext4 /sbin/mkfs.xfs /sbin/blockdev /sbin/dumpe2fs /usr/sbin/xfs_io /usr/sbin/xfs_growfs /sbin/resize2fs" }}
 ---
 image: {{ $.ImageName }}-src-artifact

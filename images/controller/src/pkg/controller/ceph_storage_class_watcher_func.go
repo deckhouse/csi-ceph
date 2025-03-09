@@ -22,9 +22,8 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/google/go-cmp/cmp"
-
 	storagev1alpha1 "github.com/deckhouse/csi-ceph/api/v1alpha1"
+	"github.com/google/go-cmp/cmp"
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/storage/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
