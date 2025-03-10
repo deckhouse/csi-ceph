@@ -1,7 +1,7 @@
-From f92078df22798cce63530c8de373c287cd0984a8 Mon Sep 17 00:00:00 2001
+From 5dcec45007f53897fe6047275f954b437a986400 Mon Sep 17 00:00:00 2001
 From: "v.oleynikov" <vasily.oleynikov@flant.com>
 Date: Thu, 6 Mar 2025 18:39:06 +0300
-Subject: [PATCH] fix
+Subject: [PATCH] Fix
 
 ---
  actions/retest/go.mod                         |    2 +-
@@ -27,8 +27,8 @@ Subject: [PATCH] fix
  .../x/net/http2/writesched_priority.go        |    4 +-
  api/vendor/golang.org/x/text/LICENSE          |    4 +-
  api/vendor/modules.txt                        |    4 +-
- go.mod                                        |   18 +-
- go.sum                                        |   35 +-
+ go.mod                                        |   30 +-
+ go.sum                                        |   42 +-
  .../go-jose/go-jose/v4/CHANGELOG.md           |   24 +
  .../go-jose/go-jose/v4/CONTRIBUTING.md        |    6 -
  .../github.com/go-jose/go-jose/v4/README.md   |   10 +-
@@ -154,6 +154,8 @@ Subject: [PATCH] fix
  vendor/golang.org/x/term/README.md            |   11 +-
  vendor/golang.org/x/term/term_windows.go      |    1 +
  .../x/text/internal/catmsg/codec.go           |    2 +-
+ .../apiserver/pkg/features/kube_features.go   |    2 +-
+ .../apiserver/pkg/storage/cacher/cacher.go    |    9 +-
  .../kubernetes/pkg/features/kube_features.go  |    5 +-
  .../pkg/volume/util/atomic_writer.go          |    3 +-
  .../pkg/volume/util/atomic_writer_linux.go    |   27 +
@@ -170,8 +172,8 @@ Subject: [PATCH] fix
  .../kubernetes/test/utils/deployment.go       |    3 +-
  .../kubernetes/test/utils/image/manifest.go   |    4 +-
  .../k8s.io/kubernetes/test/utils/runners.go   |    6 +-
- vendor/modules.txt                            |   19 +-
- 167 files changed, 14407 insertions(+), 3798 deletions(-)
+ vendor/modules.txt                            |   31 +-
+ 169 files changed, 14432 insertions(+), 3815 deletions(-)
  create mode 100644 api/vendor/golang.org/x/net/http2/config.go
  create mode 100644 api/vendor/golang.org/x/net/http2/config_go124.go
  create mode 100644 api/vendor/golang.org/x/net/http2/config_pre_go124.go
@@ -3535,10 +3537,10 @@ index 915f80194..45f392b3b 100644
  golang.org/x/text/secure/bidirule
  golang.org/x/text/transform
 diff --git a/go.mod b/go.mod
-index 8dc814fdd..3378a57f5 100644
+index 8dc814fdd..f354e1867 100644
 --- a/go.mod
 +++ b/go.mod
-@@ -24,10 +24,10 @@ require (
+@@ -24,21 +24,21 @@ require (
  	github.com/onsi/gomega v1.34.1
  	github.com/pkg/xattr v0.4.10
  	github.com/prometheus/client_golang v1.19.1
@@ -3553,7 +3555,12 @@ index 8dc814fdd..3378a57f5 100644
  	google.golang.org/grpc v1.65.0
  	google.golang.org/protobuf v1.34.2
  	//
-@@ -38,7 +38,7 @@ require (
+ 	// when updating k8s.io/kubernetes, make sure to update the replace section too
+ 	//
+-	k8s.io/api v0.30.3
+-	k8s.io/apimachinery v0.30.3
++	k8s.io/api v0.30.4
++	k8s.io/apimachinery v0.30.4
  	k8s.io/client-go v12.0.0+incompatible
  	k8s.io/cloud-provider v0.30.3
  	k8s.io/klog/v2 v2.130.1
@@ -3584,8 +3591,32 @@ index 8dc814fdd..3378a57f5 100644
  	golang.org/x/time v0.3.0 // indirect
  	golang.org/x/tools v0.23.0 // indirect
  	gomodules.xyz/jsonpatch/v2 v2.4.0 // indirect
+@@ -172,11 +172,11 @@ require (
+ 	gopkg.in/yaml.v2 v2.4.0 // indirect
+ 	gopkg.in/yaml.v3 v3.0.1 // indirect
+ 	k8s.io/apiextensions-apiserver v0.30.1 // indirect
+-	k8s.io/apiserver v0.30.3 // indirect
+-	k8s.io/component-base v0.30.3 // indirect
++	k8s.io/apiserver v0.30.4 // indirect
++	k8s.io/component-base v0.30.4 // indirect
+ 	k8s.io/component-helpers v0.30.3 // indirect
+ 	k8s.io/controller-manager v0.30.3 // indirect
+-	k8s.io/kms v0.30.3 // indirect
++	k8s.io/kms v0.30.4 // indirect
+ 	k8s.io/kube-openapi v0.0.0-20240228011516-70dd3763d340 // indirect
+ 	k8s.io/kubectl v0.0.0 // indirect
+ 	k8s.io/kubelet v0.0.0 // indirect
+@@ -207,7 +207,7 @@ replace (
+ 	k8s.io/api => k8s.io/api v0.30.3
+ 	k8s.io/apiextensions-apiserver => k8s.io/apiextensions-apiserver v0.30.3
+ 	k8s.io/apimachinery => k8s.io/apimachinery v0.30.3
+-	k8s.io/apiserver => k8s.io/apiserver v0.30.3
++	k8s.io/apiserver => k8s.io/apiserver v0.30.4
+ 	k8s.io/cli-runtime => k8s.io/cli-runtime v0.30.3
+ 	k8s.io/client-go => k8s.io/client-go v0.30.3
+ 	k8s.io/cloud-provider => k8s.io/cloud-provider v0.30.3
 diff --git a/go.sum b/go.sum
-index 34d0b90ed..dcece3953 100644
+index 34d0b90ed..aa74c48b2 100644
 --- a/go.sum
 +++ b/go.sum
 @@ -993,8 +993,8 @@ github.com/go-gl/glfw v0.0.0-20190409004039-e6da0acd62b1/go.mod h1:vR7hzQXu2zJy9
@@ -3676,7 +3707,29 @@ index 34d0b90ed..dcece3953 100644
  golang.org/x/time v0.0.0-20180412165947-fbb02b2291d2/go.mod h1:tRJNPiyCQ0inRvYxbN9jk5I+vvW/OXSQhTDSoE431IQ=
  golang.org/x/time v0.0.0-20181108054448-85acf8d2951c/go.mod h1:tRJNPiyCQ0inRvYxbN9jk5I+vvW/OXSQhTDSoE431IQ=
  golang.org/x/time v0.0.0-20190308202827-9d24e82272b4/go.mod h1:tRJNPiyCQ0inRvYxbN9jk5I+vvW/OXSQhTDSoE431IQ=
-@@ -2602,8 +2603,8 @@ k8s.io/kubectl v0.30.3 h1:YIBBvMdTW0xcDpmrOBzcpUVsn+zOgjMYIu7kAq+yqiI=
+@@ -2567,8 +2568,8 @@ k8s.io/apiextensions-apiserver v0.30.3 h1:oChu5li2vsZHx2IvnGP3ah8Nj3KyqG3kRSaKmi
+ k8s.io/apiextensions-apiserver v0.30.3/go.mod h1:uhXxYDkMAvl6CJw4lrDN4CPbONkF3+XL9cacCT44kV4=
+ k8s.io/apimachinery v0.30.3 h1:q1laaWCmrszyQuSQCfNB8cFgCuDAoPszKY4ucAjDwHc=
+ k8s.io/apimachinery v0.30.3/go.mod h1:iexa2somDaxdnj7bha06bhb43Zpa6eWH8N8dbqVjTUc=
+-k8s.io/apiserver v0.30.3 h1:QZJndA9k2MjFqpnyYv/PH+9PE0SHhx3hBho4X0vE65g=
+-k8s.io/apiserver v0.30.3/go.mod h1:6Oa88y1CZqnzetd2JdepO0UXzQX4ZnOekx2/PtEjrOg=
++k8s.io/apiserver v0.30.4 h1:rHkGJhxd+m4jILrgkenwSmG4X0QXk6ecGuybzS/PQak=
++k8s.io/apiserver v0.30.4/go.mod h1:oyGAj9B9/0+I9huJyf4/8SMBF2mNh2bTMlu7703dkH8=
+ k8s.io/client-go v0.30.3 h1:bHrJu3xQZNXIi8/MoxYtZBBWQQXwy16zqJwloXXfD3k=
+ k8s.io/client-go v0.30.3/go.mod h1:8d4pf8vYu665/kUbsxWAQ/JDBNWqfFeZnvFiVdmx89U=
+ k8s.io/cloud-provider v0.30.3 h1:SNWZmllTymOTzIPJuhtZH6il/qVi75dQARRQAm9k6VY=
+@@ -2592,8 +2593,9 @@ k8s.io/klog/v2 v2.80.1/go.mod h1:y1WjHnz7Dj687irZUWR/WLkLc5N1YHtjLdmgWjndZn0=
+ k8s.io/klog/v2 v2.120.1/go.mod h1:3Jpz1GvMt720eyJH1ckRHK1EDfpxISzJ7I9OYgaDtPE=
+ k8s.io/klog/v2 v2.130.1 h1:n9Xl7H1Xvksem4KFG4PYbdQCQxqc/tTUyrgXaOhHSzk=
+ k8s.io/klog/v2 v2.130.1/go.mod h1:3Jpz1GvMt720eyJH1ckRHK1EDfpxISzJ7I9OYgaDtPE=
+-k8s.io/kms v0.30.3 h1:NLg+oN45S2Y3U0WiLRzbS61AY/XrS5JBMZp531Z+Pho=
+ k8s.io/kms v0.30.3/go.mod h1:GrMurD0qk3G4yNgGcsCEmepqf9KyyIrTXYR2lyUOJC4=
++k8s.io/kms v0.30.4 h1:Je7wR5/m+w/E7Ef9R9RY1yeMU/C2GXIvhzRFfg8H5kQ=
++k8s.io/kms v0.30.4/go.mod h1:GrMurD0qk3G4yNgGcsCEmepqf9KyyIrTXYR2lyUOJC4=
+ k8s.io/kube-openapi v0.0.0-20180731170545-e3762e86a74c/go.mod h1:BXM9ceUBTj2QnfH2MK1odQs778ajze1RxcmP6S8RVVc=
+ k8s.io/kube-openapi v0.0.0-20221012153701-172d655c2280/go.mod h1:+Axhij7bCpeqhklhUTe3xmOn6bWxolyZEeyaFpjGtl4=
+ k8s.io/kube-openapi v0.0.0-20240228011516-70dd3763d340 h1:BZqlfIlq5YbRMFko6/PM7FjZpUb45WallggurYhKGag=
+@@ -2602,8 +2604,8 @@ k8s.io/kubectl v0.30.3 h1:YIBBvMdTW0xcDpmrOBzcpUVsn+zOgjMYIu7kAq+yqiI=
  k8s.io/kubectl v0.30.3/go.mod h1:IcR0I9RN2+zzTRUa1BzZCm4oM0NLOawE6RzlDvd1Fpo=
  k8s.io/kubelet v0.30.3 h1:KvGWDdhzD0vEyDyGTCjsDc8D+0+lwRMw3fJbfQgF7ys=
  k8s.io/kubelet v0.30.3/go.mod h1:D9or45Vkzcqg55CEiqZ8dVbwP3Ksj7DruEVRS9oq3Ys=
@@ -24300,6 +24353,46 @@ index 49c9fc978..547802b0f 100644
  // encoding language of "pt".
  func (d *Decoder) Language() language.Tag { return d.tag }
  
+diff --git a/vendor/k8s.io/apiserver/pkg/features/kube_features.go b/vendor/k8s.io/apiserver/pkg/features/kube_features.go
+index bae04d954..31c4d9021 100644
+--- a/vendor/k8s.io/apiserver/pkg/features/kube_features.go
++++ b/vendor/k8s.io/apiserver/pkg/features/kube_features.go
+@@ -335,7 +335,7 @@ var defaultKubernetesFeatureGates = map[featuregate.Feature]featuregate.FeatureS
+ 
+ 	APIServerTracing: {Default: true, PreRelease: featuregate.Beta},
+ 
+-	APIServingWithRoutine: {Default: true, PreRelease: featuregate.Beta},
++	APIServingWithRoutine: {Default: false, PreRelease: featuregate.Alpha},
+ 
+ 	ValidatingAdmissionPolicy: {Default: true, PreRelease: featuregate.GA, LockToDefault: true}, // remove in 1.32
+ 
+diff --git a/vendor/k8s.io/apiserver/pkg/storage/cacher/cacher.go b/vendor/k8s.io/apiserver/pkg/storage/cacher/cacher.go
+index 1e6cc4d02..7579ac37e 100644
+--- a/vendor/k8s.io/apiserver/pkg/storage/cacher/cacher.go
++++ b/vendor/k8s.io/apiserver/pkg/storage/cacher/cacher.go
+@@ -51,7 +51,8 @@ import (
+ )
+ 
+ var (
+-	emptyFunc = func(bool) {}
++	emptyFunc             = func(bool) {}
++	coreNamespaceResource = schema.GroupResource{Group: "", Resource: "namespaces"}
+ )
+ 
+ const (
+@@ -549,6 +550,12 @@ func (c *Cacher) Watch(ctx context.Context, key string, opts storage.ListOptions
+ 		scope.name = selectorName
+ 	}
+ 
++	// for request like '/api/v1/watch/namespaces/*', set scope.namespace to empty.
++	// namespaces don't populate metadata.namespace in ObjFields.
++	if c.groupResource == coreNamespaceResource && len(scope.namespace) > 0 && scope.namespace == scope.name {
++		scope.namespace = ""
++	}
++
+ 	triggerValue, triggerSupported := "", false
+ 	if c.indexedTrigger != nil {
+ 		for _, field := range pred.IndexFields {
 diff --git a/vendor/k8s.io/kubernetes/pkg/features/kube_features.go b/vendor/k8s.io/kubernetes/pkg/features/kube_features.go
 index bfd01e1e0..86d136919 100644
 --- a/vendor/k8s.io/kubernetes/pkg/features/kube_features.go
@@ -24691,7 +24784,7 @@ index 3fb9b58dc..f5fa5c2a0 100644
  		}
  
 diff --git a/vendor/modules.txt b/vendor/modules.txt
-index 7ef495b0d..e3646f8de 100644
+index 7ef495b0d..cfed46c3c 100644
 --- a/vendor/modules.txt
 +++ b/vendor/modules.txt
 @@ -279,7 +279,7 @@ github.com/gemalto/kmip-go/ttlv
@@ -24758,6 +24851,51 @@ index 7ef495b0d..e3646f8de 100644
  ## explicit; go 1.18
  golang.org/x/text/cases
  golang.org/x/text/encoding
+@@ -932,7 +933,7 @@ gopkg.in/yaml.v2
+ # gopkg.in/yaml.v3 v3.0.1
+ ## explicit
+ gopkg.in/yaml.v3
+-# k8s.io/api v0.30.3 => k8s.io/api v0.30.3
++# k8s.io/api v0.30.4 => k8s.io/api v0.30.3
+ ## explicit; go 1.22.0
+ k8s.io/api/admission/v1
+ k8s.io/api/admission/v1beta1
+@@ -995,7 +996,7 @@ k8s.io/api/storagemigration/v1alpha1
+ k8s.io/apiextensions-apiserver/pkg/apis/apiextensions
+ k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1
+ k8s.io/apiextensions-apiserver/pkg/features
+-# k8s.io/apimachinery v0.30.3 => k8s.io/apimachinery v0.30.3
++# k8s.io/apimachinery v0.30.4 => k8s.io/apimachinery v0.30.3
+ ## explicit; go 1.22.0
+ k8s.io/apimachinery/pkg/api/equality
+ k8s.io/apimachinery/pkg/api/errors
+@@ -1059,7 +1060,7 @@ k8s.io/apimachinery/pkg/watch
+ k8s.io/apimachinery/third_party/forked/golang/json
+ k8s.io/apimachinery/third_party/forked/golang/netutil
+ k8s.io/apimachinery/third_party/forked/golang/reflect
+-# k8s.io/apiserver v0.30.3 => k8s.io/apiserver v0.30.3
++# k8s.io/apiserver v0.30.4 => k8s.io/apiserver v0.30.4
+ ## explicit; go 1.22.0
+ k8s.io/apiserver/pkg/admission
+ k8s.io/apiserver/pkg/admission/configuration
+@@ -1556,7 +1557,7 @@ k8s.io/cloud-provider/names
+ k8s.io/cloud-provider/options
+ k8s.io/cloud-provider/volume
+ k8s.io/cloud-provider/volume/helpers
+-# k8s.io/component-base v0.30.3 => k8s.io/component-base v0.30.3
++# k8s.io/component-base v0.30.4 => k8s.io/component-base v0.30.3
+ ## explicit; go 1.22.0
+ k8s.io/component-base/cli/flag
+ k8s.io/component-base/config
+@@ -1608,7 +1609,7 @@ k8s.io/klog/v2/internal/severity
+ k8s.io/klog/v2/internal/sloghandler
+ k8s.io/klog/v2/internal/verbosity
+ k8s.io/klog/v2/textlogger
+-# k8s.io/kms v0.30.3
++# k8s.io/kms v0.30.4
+ ## explicit; go 1.22.0
+ k8s.io/kms/apis/v1beta1
+ k8s.io/kms/apis/v2
 @@ -1643,7 +1644,7 @@ k8s.io/kubectl/pkg/util/podutils
  ## explicit; go 1.22.0
  k8s.io/kubelet/pkg/apis
@@ -24767,6 +24905,15 @@ index 7ef495b0d..e3646f8de 100644
  ## explicit; go 1.22.0
  k8s.io/kubernetes/pkg/api/legacyscheme
  k8s.io/kubernetes/pkg/api/service
+@@ -1802,7 +1803,7 @@ sigs.k8s.io/yaml/goyaml.v2
+ # k8s.io/api => k8s.io/api v0.30.3
+ # k8s.io/apiextensions-apiserver => k8s.io/apiextensions-apiserver v0.30.3
+ # k8s.io/apimachinery => k8s.io/apimachinery v0.30.3
+-# k8s.io/apiserver => k8s.io/apiserver v0.30.3
++# k8s.io/apiserver => k8s.io/apiserver v0.30.4
+ # k8s.io/cli-runtime => k8s.io/cli-runtime v0.30.3
+ # k8s.io/client-go => k8s.io/client-go v0.30.3
+ # k8s.io/cloud-provider => k8s.io/cloud-provider v0.30.3
 -- 
 2.43.0
 

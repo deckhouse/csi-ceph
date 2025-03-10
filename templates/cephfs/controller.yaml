@@ -1,4 +1,13 @@
 ###
+### common
+###
+
+{{- define "additional_pull_secrets" }} 
+- name: {{ .Chart.Name }}-module-registry
+{{- end }}
+
+
+###
 ### controller
 ###
 
@@ -204,6 +213,7 @@
 {{- $_ := set $csiControllerConfig "additionalControllerEnvs" (include "cephfs_csi_controller_envs" (list $csiDriverName) | fromYamlArray) }}
 {{- $_ := set $csiControllerConfig "additionalControllerVolumes" (include "cephfs_csi_controller_volumes" . | fromYamlArray) }}
 {{- $_ := set $csiControllerConfig "additionalControllerVolumeMounts" (include "cephfs_csi_controller_volume_mounts" . | fromYamlArray) }}
+{{- $_ := set $csiControllerConfig "additionalPullSecrets" (include "additional_pull_secrets" . | fromYamlArray) }}
 
 {{- $_ := set $csiControllerConfig "livenessProbePort" 4246 }}
 
@@ -220,6 +230,7 @@
 {{- $_ := set $csiNodeConfig "additionalNodeEnvs" (include "cephfs_csi_node_envs" (list $csiDriverName) | fromYamlArray) }}
 {{- $_ := set $csiNodeConfig "additionalNodeVolumes" (include "cephfs_csi_node_volumes" . | fromYamlArray) }}
 {{- $_ := set $csiNodeConfig "additionalNodeVolumeMounts" (include "cephfs_csi_node_volume_mounts" . | fromYamlArray) }}
+{{- $_ := set $csiNodeConfig "additionalPullSecrets" (include "additional_pull_secrets" . | fromYamlArray) }}
 
 {{- include "helm_lib_csi_node_manifests" (list . $csiNodeConfig) }}
 
