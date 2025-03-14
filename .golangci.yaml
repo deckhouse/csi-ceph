@@ -13,9 +13,7 @@ linters-settings:
     sections:
       - standard
       - default
-      - prefix(d8-controller)
-      - prefix(webhooks)
-
+      - prefix(github.com/deckhouse)
 
   errcheck:
     ignore: fmt:.*,[rR]ead|[wW]rite|[cC]lose,io:Copy
@@ -23,21 +21,21 @@ linters-settings:
 linters:
   disable-all: true
   enable:
-  - dogsled
-  - errcheck
-  - gci
-  - gocritic
-  - gofmt
-# - goimports
-  - gosimple
-  - govet
-  - ineffassign
-  - misspell
-  - revive
-  - staticcheck
-#  - structcheck
-  - typecheck
-  - unconvert
-  - unparam
-  - whitespace
-  - copyloopvar
+    - dogsled
+    - errcheck
+    - gci
+    - gocritic
+    - gofmt
+    # - goimports
+    - gosimple
+    - govet
+    - ineffassign
+    - misspell
+    - revive
+    - staticcheck
+    #  - structcheck
+    - typecheck
+    - unconvert
+    - unparam
+    - whitespace
+    - copyloopvar

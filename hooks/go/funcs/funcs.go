@@ -9,9 +9,6 @@ import (
 	"strings"
 	"time"
 
-	oldApi "csi-ceph/api/v1alpha1"
-
-	"github.com/deckhouse/csi-ceph/api/v1alpha1"
 	"github.com/google/go-cmp/cmp"
 	snapv1 "github.com/kubernetes-csi/external-snapshotter/client/v8/apis/volumesnapshot/v1"
 	appsv1 "k8s.io/api/apps/v1"
@@ -30,6 +27,9 @@ import (
 	"k8s.io/client-go/util/retry"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
+
+	"github.com/deckhouse/csi-ceph/api/v1alpha1"
+	oldApi "github.com/deckhouse/csi-ceph/hooks/go/api/v1alpha1"
 )
 
 const (
