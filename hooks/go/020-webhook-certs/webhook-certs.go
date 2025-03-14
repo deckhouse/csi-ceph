@@ -1,10 +1,9 @@
-package hooks_webhook_certs
+package hooks_common
 
 import (
 	"fmt"
 
 	consts "github.com/deckhouse/csi-ceph/hooks/go/consts"
-
 	tlscertificate "github.com/deckhouse/module-sdk/common-hooks/tls-certificate"
 )
 
