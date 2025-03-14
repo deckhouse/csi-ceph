@@ -1,16 +1,23 @@
 ---
 image: {{ $.ImageName }}-src-artifact
-from: {{ $.Root.BASE_ALT }}
+from: {{ $.Root.BASE_ALT_P11 }}
 final: false
+
 git:
   - add: /
     to: /src
     includePaths:
       - api
-      - images/webhooks/src
+      - images/{{ $.ImageName }}
     stageDependencies:
       install:
         - '**/*'
+    excludePaths:
+      - images/{{ $.ImageName }}/werf.yaml
+
+shell:
+  install:
+    - echo "src artifact"
 
 ---
 image: {{ $.ImageName }}-golang-artifact
