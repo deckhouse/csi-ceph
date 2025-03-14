@@ -60,7 +60,7 @@ func NewKubeClient() (client.Client, error) {
 }
 
 var (
-	AllowedProvisioners = []string{
+	allowedProvisioners = []string{
 		"rbd.csi.ceph.com",
 		"cephfs.csi.ceph.com",
 	}
@@ -101,6 +101,25 @@ func handlerRemoveScAndSecretsOnModuleDelete(ctx context.Context, _ *pkg.HookInp
 		}
 	}
 
+	configMapList := &corev1.ConfigMapList{}
+	err = cl.List(ctx, configMapList, client.InNamespace(consts.MODULE_NAMESPACE))
+	if err != nil {
+		fmt.Printf("[remove-sc-and-secrets-on-module-delete]: Failed to list configmaps: %v", err)
+		return err
+	}
+	for _, configMap := range configMapList.Items {
+		fmt.Printf("[remove-sc-and-secrets-on-module-delete]: Removing finalizers from %s configmap\n", configMap.Name)
+
+		patch := client.MergeFrom(configMap.DeepCopy())
+		configMap.ObjectMeta.Finalizers = nil
+
+		err = cl.Patch(ctx, &configMap, patch)
+		if err != nil {
+			fmt.Printf("[remove-sc-and-secrets-on-module-delete]: Failed to patch configmap %s: %v", configMap.Name, err)
+			continue
+		}
+	}
+
 	scList := &storagev1.StorageClassList{}
 	err = cl.List(ctx, scList)
 	if err != nil {
@@ -109,7 +128,7 @@ func handlerRemoveScAndSecretsOnModuleDelete(ctx context.Context, _ *pkg.HookInp
 	}
 
 	for _, sc := range scList.Items {
-		for _, provisioner := range AllowedProvisioners {
+		for _, provisioner := range allowedProvisioners {
 			if sc.Provisioner == provisioner {
 				fmt.Printf("[remove-sc-and-secrets-on-module-delete]: Removing finalizers from %s storage class\n", sc.Name)
 
