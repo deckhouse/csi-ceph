@@ -28,7 +28,7 @@ import:
   - image: {{ $.ImageName }}-src-artifact
     add: /src
     to: /src
-    before: setup
+    before: install
 
 mount:
   - fromPath: ~/go-pkg-cache
@@ -36,9 +36,9 @@ mount:
 
 shell:
   setup:
-    - cd /src/images/controller/src/cmd
-    - GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="-s -w" -o /controller
-    - chmod +x /controller
+    - cd /src/images/{{ $.ImageName }}/cmd
+    - GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="-s -w" -o /{{ $.ImageName }}
+    - chmod +x /{{ $.ImageName }}
 
 ---
 image: {{ $.ImageName }}-distroless-artifact
@@ -77,10 +77,10 @@ fromImage: {{ $.ImageName }}-distroless
 
 import:
   - image: {{ $.ImageName }}-golang-artifact
-    add: /controller
-    to: /controller
+    add: /{{ $.ImageName }}
+    to: /{{ $.ImageName }}
     before: setup
 
 docker:
-  ENTRYPOINT: ["/controller"]
+  ENTRYPOINT: ["/{{ $.ImageName }}"]
   USER: deckhouse:deckhouse
