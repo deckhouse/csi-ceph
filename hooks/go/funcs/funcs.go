@@ -9,6 +9,8 @@ import (
 	"strings"
 	"time"
 
+	oldApi "csi-ceph/api/v1alpha1"
+
 	"github.com/deckhouse/csi-ceph/api/v1alpha1"
 	"github.com/google/go-cmp/cmp"
 	snapv1 "github.com/kubernetes-csi/external-snapshotter/client/v8/apis/volumesnapshot/v1"
@@ -84,6 +86,7 @@ func NewKubeClient() (client.Client, error) {
 			v1.AddToScheme,
 			sv1.AddToScheme,
 			snapv1.AddToScheme,
+			oldApi.AddToScheme,
 		}
 	)
 
