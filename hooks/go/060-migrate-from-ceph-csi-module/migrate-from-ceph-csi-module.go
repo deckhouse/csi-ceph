@@ -27,7 +27,10 @@ const (
 	MountOptionsLabelKey         = "storage.deckhouse.io/mount-options"
 	AllowVolumeExpansionLabelKey = "storage.deckhouse.io/allow-volume-expansion"
 
-	LogPrefix = "migrate-from-ceph-csi-module"
+	LogPrefix          = "migrate-from-ceph-csi-module"
+	DiscardMountOption = "discard"
+
+	CephFSDefaultPool = "cephfs_data"
 )
 
 var (
@@ -138,9 +141,9 @@ func handlerMigrateFromCephCsiModule(ctx context.Context, input *pkg.HookInput) 
 				if cephStorageClass == nil {
 					fmt.Printf("[%s]: Creating new CephStorageClass\n", LogPrefix)
 
-					if cephFSStorageClass.Pool != "" {
-						fmt.Printf("[%s]: Pool is not empty, finishing migration with error\n", LogPrefix)
-						return fmt.Errorf("Pool for CephFS StorageClass %s is not empty", cephFSStorageClass.NamePostfix)
+					if cephFSStorageClass.Pool != "" && cephFSStorageClass.Pool != CephFSDefaultPool {
+						fmt.Printf("[%s]: Pool is not empty and not equal to default pool %s\n", LogPrefix, CephFSDefaultPool)
+						return fmt.Errorf("Pool for CephFS StorageClass %s is not empty and not equal to default pool %s", cephFSStorageClass.NamePostfix, CephFSDefaultPool)
 					}
 
 					cephStorageClass = &v1alpha1.CephStorageClass{}
@@ -199,7 +202,7 @@ func handlerMigrateFromCephCsiModule(ctx context.Context, input *pkg.HookInput) 
 						ReclaimPolicy: cephRbdStorageClass.ReclaimPolicy,
 					}
 
-					if len(cephRbdStorageClass.MountOptions) > 0 {
+					if len(cephRbdStorageClass.MountOptions) > 0 && !(len(cephRbdStorageClass.MountOptions) == 1 && cephRbdStorageClass.MountOptions[0] == DiscardMountOption) {
 						cephStorageClass.Labels[MountOptionsLabelKey] = strings.Join(cephRbdStorageClass.MountOptions, ",")
 					}
 
