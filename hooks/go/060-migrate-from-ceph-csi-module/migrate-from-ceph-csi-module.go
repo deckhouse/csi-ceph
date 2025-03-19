@@ -6,13 +6,13 @@ import (
 	"strings"
 	"time"
 
-	oldApi "csi-ceph/api/v1alpha1"
-
 	"github.com/deckhouse/csi-ceph/api/v1alpha1"
 	"github.com/deckhouse/module-sdk/pkg"
 	"github.com/deckhouse/module-sdk/pkg/registry"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/meta"
 
+	oldApi "csi-ceph/api/v1alpha1"
 	funcs "csi-ceph/funcs"
 )
 
@@ -27,7 +27,7 @@ const (
 	MountOptionsLabelKey         = "storage.deckhouse.io/mount-options"
 	AllowVolumeExpansionLabelKey = "storage.deckhouse.io/allow-volume-expansion"
 
-	LogPrefix = "%s"
+	LogPrefix = "migrate-from-ceph-csi-module"
 )
 
 var (
@@ -59,8 +59,12 @@ func handlerMigrateFromCephCsiModule(ctx context.Context, input *pkg.HookInput) 
 
 	err = cl.List(ctx, cephCSIDriverList)
 	if err != nil {
-		fmt.Printf("[%s]: CephCSIDriverList get error %s\n", LogPrefix, err.Error())
-		return err
+		if meta.IsNoMatchError(err) {
+			fmt.Printf("[%s]: CephCSIDriverList not found\n", LogPrefix)
+		} else {
+			fmt.Printf("[%s]: CephCSIDriverList get error %s\n", LogPrefix, err.Error())
+			return err
+		}
 	}
 
 	pvList := &v1.PersistentVolumeList{}
