@@ -135,9 +135,9 @@ func handlerMigrateFromCephCsiModule(ctx context.Context, input *pkg.HookInput) 
 
 		if cephCSIDriver.Spec.CephFS != nil {
 			for _, cephFSStorageClass := range cephCSIDriver.Spec.CephFS.StorageClasses {
-				fmt.Printf("[%s]: Processing CephFS StorageClass %s\n", LogPrefix, cephFSStorageClass.NamePostfix)
-
 				cephStorageClassName := fmt.Sprintf("%s-%s", cephClusterConnectionName, cephFSStorageClass.NamePostfix)
+				fmt.Printf("[%s]: Processing CephFS StorageClass %s\n", LogPrefix, cephStorageClassName)
+
 				cephStorageClass := funcs.GetCephStorageClassByName(cephStorageClassList, cephStorageClassName, LogPrefix)
 				if cephStorageClass == nil {
 					fmt.Printf("[%s]: Creating new CephStorageClass\n", LogPrefix)
@@ -187,9 +187,9 @@ func handlerMigrateFromCephCsiModule(ctx context.Context, input *pkg.HookInput) 
 
 		if cephCSIDriver.Spec.RBD != nil {
 			for _, cephRbdStorageClass := range cephCSIDriver.Spec.RBD.StorageClasses {
-				fmt.Printf("[%s]: Processing CephRBD StorageClass %s\n", LogPrefix, cephRbdStorageClass.NamePostfix)
-
 				cephStorageClassName := fmt.Sprintf("%s-%s", cephClusterConnectionName, cephRbdStorageClass.NamePostfix)
+				fmt.Printf("[%s]: Processing CephRBD StorageClass %s\n", LogPrefix, cephStorageClassName)
+
 				cephStorageClass := funcs.GetCephStorageClassByName(cephStorageClassList, cephStorageClassName, LogPrefix)
 				if cephStorageClass == nil {
 					fmt.Printf("[%s]: Creating new CephStorageClass\n", LogPrefix)

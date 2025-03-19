@@ -164,7 +164,7 @@ func MigrateVSClassesAndVSContentsToNewSecret(ctx context.Context, cl client.Cli
 		}
 
 		newSecretName := CSICephSecretPrefix + clusterConnectionName
-		fmt.Printf("[%s]: New secret name for VolumeSnapshotClass %s is %s\n", logPrefix, vsClass.Name, clusterConnectionName)
+		fmt.Printf("[%s]: New secret name for VolumeSnapshotClass %s is %s\n", logPrefix, vsClass.Name, newSecretName)
 
 		newVSClass := vsClass.DeepCopy()
 		newVSClass.Parameters[CSISnapshotterSecretNameKey] = newSecretName
@@ -512,7 +512,7 @@ func MigratePVsToNewSecret(ctx context.Context, cl client.Client, pvList *v1.Per
 
 		if needRecreate {
 			fmt.Printf("[%s]: Recreating PV %s\n", logPrefix, pv.Name)
-			backupName, err := BackupResource(ctx, cl, pv, backupTime, backupSourceName, "%s")
+			backupName, err := BackupResource(ctx, cl, pv, backupTime, backupSourceName, logPrefix)
 			if err != nil {
 				fmt.Printf("[%s]: Backup PV %s error %s\n", logPrefix, pv.Name, err)
 				return err
