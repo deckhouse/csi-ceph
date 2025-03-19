@@ -26,6 +26,7 @@ const (
 
 	MountOptionsLabelKey         = "storage.deckhouse.io/mount-options"
 	AllowVolumeExpansionLabelKey = "storage.deckhouse.io/allow-volume-expansion"
+	CephFSPoolLabelKey           = "storage.deckhouse.io/cephfs-pool"
 
 	LogPrefix          = "migrate-from-ceph-csi-module"
 	DiscardMountOption = "discard"
@@ -141,11 +142,6 @@ func handlerMigrateFromCephCsiModule(ctx context.Context, input *pkg.HookInput) 
 				if cephStorageClass == nil {
 					fmt.Printf("[%s]: Creating new CephStorageClass\n", LogPrefix)
 
-					if cephFSStorageClass.Pool != "" && cephFSStorageClass.Pool != CephFSDefaultPool {
-						fmt.Printf("[%s]: Pool is not empty and not equal to default pool %s\n", LogPrefix, CephFSDefaultPool)
-						return fmt.Errorf("Pool for CephFS StorageClass %s is not empty and not equal to default pool %s", cephFSStorageClass.NamePostfix, CephFSDefaultPool)
-					}
-
 					cephStorageClass = &v1alpha1.CephStorageClass{}
 					cephStorageClass.Name = cephStorageClassName
 					cephStorageClass.Labels = map[string]string{CephCSIMigratedLabel: CephCSIMigratedLabelValue}
@@ -156,6 +152,14 @@ func handlerMigrateFromCephCsiModule(ctx context.Context, input *pkg.HookInput) 
 							FSName: cephFSStorageClass.FsName,
 						},
 						ReclaimPolicy: cephFSStorageClass.ReclaimPolicy,
+					}
+
+					if cephFSStorageClass.Pool != "" {
+						if cephFSStorageClass.Pool != CephFSDefaultPool {
+							fmt.Printf("[%s]: Pool is not empty and not equal to default pool %s\n", LogPrefix, CephFSDefaultPool)
+							return fmt.Errorf("Pool for CephFS StorageClass %s is not empty and not equal to default pool %s", cephFSStorageClass.NamePostfix, CephFSDefaultPool)
+						}
+						cephStorageClass.Labels[CephFSPoolLabelKey] = cephFSStorageClass.Pool
 					}
 
 					if len(cephFSStorageClass.MountOptions) > 0 {
