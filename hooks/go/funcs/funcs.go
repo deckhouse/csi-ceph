@@ -223,6 +223,30 @@ func getClusterConnectionNameByOldSecretName(secretName, secretPrefix string, ce
 	return ""
 }
 
+func GetClusterConnectionByName(clusterConnectionList *v1alpha1.CephClusterConnectionList, clusterConnectionName, logPrefix string) *v1alpha1.CephClusterConnection {
+	for _, clusterConnection := range clusterConnectionList.Items {
+		if clusterConnection.Name == clusterConnectionName {
+			fmt.Printf("[%s]: Found CephClusterConnection %s\n", logPrefix, clusterConnectionName)
+			return &clusterConnection
+		}
+	}
+
+	fmt.Printf("[%s]: CephClusterConnection %s not found\n", logPrefix, clusterConnectionName)
+	return nil
+}
+
+func GetCephStorageClassByName(scList *v1alpha1.CephStorageClassList, cephStorageClassName, logPrefix string) *v1alpha1.CephStorageClass {
+	for _, sc := range scList.Items {
+		if sc.Name == cephStorageClassName {
+			fmt.Printf("[%s]: Found CephStorageClass %s\n", logPrefix, cephStorageClassName)
+			return &sc
+		}
+	}
+
+	fmt.Printf("[%s]: CephStorageClass %s not found\n", logPrefix, cephStorageClassName)
+	return nil
+}
+
 func UpdateVolumeSnapshotClassIfNeeded(ctx context.Context, cl client.Client, oldVSClass, newVSClass *snapv1.VolumeSnapshotClass, logPrefix string) error {
 	if cmp.Equal(oldVSClass, newVSClass) {
 		fmt.Printf("[%s]: VolumeSnapshotClass %s is up-to-date. Skipping update\n", logPrefix, oldVSClass.Name)

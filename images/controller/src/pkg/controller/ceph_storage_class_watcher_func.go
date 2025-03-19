@@ -312,9 +312,6 @@ func GetStoragecClassParams(cephSC *storagev1alpha1.CephStorageClass, controller
 
 	if cephSC.Spec.Type == storagev1alpha1.CephStorageClassTypeCephFS {
 		params["fsName"] = cephSC.Spec.CephFS.FSName
-		if cephSC.Spec.CephFS.Pool != "" {
-			params["pool"] = cephSC.Spec.CephFS.Pool
-		}
 	}
 
 	return params, nil

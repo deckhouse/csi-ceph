@@ -62,8 +62,7 @@ type CephStorageClassRBD struct {
 
 // +k8s:deepcopy-gen=true
 type CephStorageClassCephFS struct {
-	FSName string `json:"fsName,omitempty"`
-	Pool   string `json:"pool,omitempty"`
+	FSName string `json:"fsName"`
 }
 
 // +k8s:deepcopy-gen=true
