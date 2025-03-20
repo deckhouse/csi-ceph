@@ -77,11 +77,7 @@ func shouldReconcileStorageClassByUpdateFunc(log logger.Logger, scList *v1.Stora
 	for _, oldSC := range scList.Items {
 		if oldSC.Name == cephSC.Name {
 			if slices.Contains(allowedProvisioners, oldSC.Provisioner) {
-				newSC, err := updateStorageClass(cephSC, &oldSC, controllerNamespace, clusterID)
-				if err != nil {
-					return false, err
-				}
-
+				newSC := updateStorageClass(cephSC, &oldSC, controllerNamespace, clusterID)
 				diff, err := GetSCDiff(&oldSC, newSC)
 				if err != nil {
 					return false, err
@@ -166,11 +162,7 @@ func reconcileStorageClassUpdateFunc(
 	log.Debug(fmt.Sprintf("[reconcileStorageClassUpdateFunc] successfully found a storage class for the CephStorageClass, name: %s", cephSC.Name))
 	log.Trace(fmt.Sprintf("[reconcileStorageClassUpdateFunc] storage class: %+v", oldSC))
 
-	newSC, err := updateStorageClass(cephSC, oldSC, controllerNamespace, clusterID)
-	if err != nil {
-		err = fmt.Errorf("[reconcileStorageClassUpdateFunc] unable to configure a Storage Class for the CephStorageClass %s: %w", cephSC.Name, err)
-		return false, err.Error(), err
-	}
+	newSC := updateStorageClass(cephSC, oldSC, controllerNamespace, clusterID)
 	log.Debug(fmt.Sprintf("[reconcileStorageClassUpdateFunc] successfully configurated storage class for the CephStorageClass, name: %s", cephSC.Name))
 	log.Trace(fmt.Sprintf("[reconcileStorageClassUpdateFunc] new storage class: %+v", newSC))
 	log.Trace(fmt.Sprintf("[reconcileStorageClassUpdateFunc] old storage class: %+v", oldSC))
@@ -497,14 +489,14 @@ func getClusterID(ctx context.Context, cl client.Client, cephSC *storagev1alpha1
 	return clusterID, nil
 }
 
-func updateStorageClass(cephSC *storagev1alpha1.CephStorageClass, oldSC *v1.StorageClass, controllerNamespace, clusterID string) (*v1.StorageClass, error) {
+func updateStorageClass(cephSC *storagev1alpha1.CephStorageClass, oldSC *v1.StorageClass, controllerNamespace, clusterID string) *v1.StorageClass {
 	newSC := ConfigureStorageClass(cephSC, controllerNamespace, clusterID)
 
 	if oldSC.Annotations != nil {
 		newSC.Annotations = oldSC.Annotations
 	}
 
-	return newSC, nil
+	return newSC
 }
 
 // VolumeSnaphotClass
