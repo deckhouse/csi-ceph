@@ -39,7 +39,7 @@
           Check the Deckhouse logs and address the existing issues.
           
     - alert: StorageClassPossibleProblemWithAllowVolumeExpansion
-      expr: sum(kube_storageclass_info{provisioner=~"cephfs.csi.ceph.com|rbd.csi.ceph.com"} * on(storageclass) group_left() kube_storageclass_labels{storage.deckhouse.io/allow-volume-expansion="true"}) > 0
+      expr: sum(kube_storageclass_info{provisioner=~"cephfs.csi.ceph.com|rbd.csi.ceph.com"} * on(storageclass) group_left() kube_storageclass_labels{storage.deckhouse.io/allow-volume-expansion="false"}) > 0
       for: 5m
       labels:
         severity_level: "5"
@@ -66,7 +66,7 @@
           `kubectl label storageclass --all storage.deckhouse.io/allow-volume-expansion-`
           
     - alert: StorageClassPossibleProblemWithMountOptions
-      expr: sum(kube_storageclass_info{provisioner=~"cephfs.csi.ceph.com|rbd.csi.ceph.com"} * on(storageclass) group_left() kube_storageclass_labels{storage.deckhouse.io/mount-options="true"}) > 0
+      expr: sum(kube_storageclass_info{provisioner=~"cephfs.csi.ceph.com|rbd.csi.ceph.com"} * on(storageclass) group_left() kube_storageclass_labels{storage.deckhouse.io/mount-options!=""}) > 0
       for: 5m
       labels:
         severity_level: "5"
@@ -88,14 +88,14 @@
           
           You can inspect StorageClasses with this parameter using the following command:
 
-          `kubectl get storageclasses.storage.k8s.io -l storage.deckhouse.io/mount-options=true`
+          `kubectl get storageclasses.storage.k8s.io -l storage.deckhouse.io/mount-options`
 
           If it't no matter for you, you can remove the label from the StorageClass resources:
           
           `kubectl label storageclass --all storage.deckhouse.io/mount-options-`
           
     - alert: StorageClassPossibleProblemWithCephfsPool
-      expr: sum(kube_storageclass_info{provisioner=~"cephfs.csi.ceph.com|rbd.csi.ceph.com"} * on(storageclass) group_left() kube_storageclass_labels{storage.deckhouse.io/cephfs-pool="true"}) > 0
+      expr: sum(kube_storageclass_info{provisioner=~"cephfs.csi.ceph.com|rbd.csi.ceph.com"} * on(storageclass) group_left() kube_storageclass_labels{storage.deckhouse.io/cephfs-pool!=""}) > 0
       for: 5m
       labels:
         severity_level: "5"
@@ -115,7 +115,7 @@
           
           You can inspect StorageClasses with this parameter using the following command:
 
-          `kubectl get storageclasses.storage.k8s.io -l storage.deckhouse.io/cephfs-pool=true`
+          `kubectl get storageclasses.storage.k8s.io -l storage.deckhouse.io/cephfs-pool`
 
           If it't no matter for you, you can remove the label from the StorageClass resources:
           
