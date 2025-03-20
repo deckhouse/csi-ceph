@@ -43,9 +43,6 @@ const (
 	CSISnapshotterSecretNameKey      = "csi.storage.k8s.io/snapshotter-secret-name"
 	CSISnapshotterSecretNamespaceKey = "csi.storage.k8s.io/snapshotter-secret-namespace"
 
-	CSICephSecretPrefix = "csi-ceph-secret-for-"
-	CephCSISecretPrefix = "csi-"
-
 	VSCAnnotationDeletionSecretName      = "snapshot.storage.kubernetes.io/deletion-secret-name"
 	VSCAnnotationDeletionSecretNamespace = "snapshot.storage.kubernetes.io/deletion-secret-namespace"
 
@@ -105,7 +102,7 @@ func NewKubeClient() (client.Client, error) {
 	return client.New(config, clientOpts)
 }
 
-func MigrateVSClassesAndVSContentsToNewSecret(ctx context.Context, cl client.Client, migratedLabelKey, logPrefix string) error {
+func MigrateVSClassesAndVSContentsToNewSecret(ctx context.Context, cl client.Client, migratedLabelKey, oldSecretPrefix, newSecretPrefix, logPrefix string) error {
 	vsClassList := &snapv1.VolumeSnapshotClassList{}
 	err := cl.List(ctx, vsClassList)
 	if err != nil {
@@ -140,8 +137,8 @@ func MigrateVSClassesAndVSContentsToNewSecret(ctx context.Context, cl client.Cli
 
 		fmt.Printf("[%s]: Migrating VolumeSnapshotClass %s\n", logPrefix, vsClass.Name)
 		oldSecretName := vsClass.Parameters[CSISnapshotterSecretNameKey]
-		fmt.Printf("[%s]: Finding new secret name for VolumeSnapshotClass %s by old secret name %s\n", logPrefix, vsClass.Name, oldSecretName)
-		clusterConnectionName := getClusterConnectionNameByOldSecretName(oldSecretName, CephCSISecretPrefix, cephClusterConnectionList.Items)
+		fmt.Printf("[%s]: Finding new secret name for VolumeSnapshotClass %s by old secret name %s and old prefix %s\n", logPrefix, vsClass.Name, oldSecretName, oldSecretPrefix)
+		clusterConnectionName := getClusterConnectionNameByOldSecretName(oldSecretName, oldSecretPrefix, cephClusterConnectionList.Items)
 		if clusterConnectionName == "" {
 			clusterID := vsClass.Parameters[VSClassParametersClusterIDKey]
 			fmt.Printf("[%s]: cannot find CephClusterConnection by secretName %s. Trying to find by clusterID %s\n", logPrefix, oldSecretName, clusterID)
@@ -163,7 +160,7 @@ func MigrateVSClassesAndVSContentsToNewSecret(ctx context.Context, cl client.Cli
 			}
 		}
 
-		newSecretName := CSICephSecretPrefix + clusterConnectionName
+		newSecretName := newSecretPrefix + clusterConnectionName
 		fmt.Printf("[%s]: New secret name for VolumeSnapshotClass %s is %s\n", logPrefix, vsClass.Name, newSecretName)
 
 		newVSClass := vsClass.DeepCopy()

@@ -11,6 +11,9 @@ import (
 	"github.com/deckhouse/module-sdk/pkg/registry"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
+	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/selection"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	oldApi "csi-ceph/api/v1alpha1"
 	funcs "csi-ceph/funcs"
@@ -19,10 +22,13 @@ import (
 const (
 	// CephClusterAuthenticationMigratedLabel      = "storage.deckhouse.io/migratedFromCephClusterAuthentication"
 	// CephClusterAuthenticationMigratedLabelValue = "true"
-	CephCSIMigratedLabel      = "storage.deckhouse.io/migratedFromCephCSI"
-	CephCSIMigratedLabelValue = "true"
+	CephCSIMigratedLabel          = "storage.deckhouse.io/migratedFromCephCSI"
+	CephCSIMigratedLabelValueTrue = "true"
 
 	CephCSIMigrateBackupSource = "migrate-from-ceph-csi-module"
+
+	CephCSISecretPrefix = "csi-"
+	CSICephSecretPrefix = "csi-ceph-secret-for-"
 
 	MountOptionsLabelKey         = "storage.deckhouse.io/mount-options"
 	AllowVolumeExpansionLabelKey = "storage.deckhouse.io/allow-volume-expansion"
@@ -59,9 +65,14 @@ func handlerMigrateFromCephCsiModule(ctx context.Context, input *pkg.HookInput) 
 		return err
 	}
 
-	cephCSIDriverList := &oldApi.CephCSIDriverList{}
+	cephCSIDriverListToMigrate := &oldApi.CephCSIDriverList{}
+	req, err := labels.NewRequirement(CephCSIMigratedLabel, selection.NotEquals, []string{CephCSIMigratedLabelValueTrue})
+	if err != nil {
+		return fmt.Errorf("failed to create label requirement: %w", err)
+	}
+	selector := labels.NewSelector().Add(*req)
 
-	err = cl.List(ctx, cephCSIDriverList)
+	err = cl.List(ctx, cephCSIDriverListToMigrate, &client.ListOptions{LabelSelector: selector})
 	if err != nil {
 		if meta.IsNoMatchError(err) {
 			fmt.Printf("[%s]: CephCSIDriverList not found\n", LogPrefix)
@@ -75,8 +86,8 @@ func handlerMigrateFromCephCsiModule(ctx context.Context, input *pkg.HookInput) 
 	cephClusterConnectionList := &v1alpha1.CephClusterConnectionList{}
 	cephStorageClassList := &v1alpha1.CephStorageClassList{}
 
-	if len(cephCSIDriverList.Items) != 0 {
-		fmt.Printf("[%s]: Found %d CephCSIDrivers. Starting migration for them\n", LogPrefix, len(cephCSIDriverList.Items))
+	if len(cephCSIDriverListToMigrate.Items) != 0 {
+		fmt.Printf("[%s]: Found %d CephCSIDrivers to migrate. Starting migration for them\n", LogPrefix, len(cephCSIDriverListToMigrate.Items))
 		fmt.Printf("[%s]: Disabling csi controllers and csi node for cephfs and rbd in namespace %s\n", LogPrefix, funcs.ModuleNamespace)
 		err := funcs.DisableCSIComponents(ctx, cl, LogPrefix)
 		if err != nil {
@@ -105,22 +116,22 @@ func handlerMigrateFromCephCsiModule(ctx context.Context, input *pkg.HookInput) 
 		fmt.Printf("[%s]: No CephCSIDrivers found\n", LogPrefix)
 	}
 
-	for _, cephCSIDriver := range cephCSIDriverList.Items {
-		if cephCSIDriver.Labels[CephCSIMigratedLabel] == CephCSIMigratedLabelValue {
+	for _, cephCSIDriver := range cephCSIDriverListToMigrate.Items {
+		if cephCSIDriver.Labels[CephCSIMigratedLabel] == CephCSIMigratedLabelValueTrue {
 			continue
 		}
 
 		fmt.Printf("[%s]: Processing CephCSIDriver %s\n", LogPrefix, cephCSIDriver.Name)
 
 		cephClusterConnectionName := cephCSIDriver.Name
-		newSecretName := fmt.Sprintf("%s-%s", funcs.CSICephSecretPrefix, cephClusterConnectionName)
+		newSecretName := fmt.Sprintf("%s-%s", CSICephSecretPrefix, cephClusterConnectionName)
 
 		cephClusterConnection := funcs.GetClusterConnectionByName(cephClusterConnectionList, cephClusterConnectionName, LogPrefix)
 		if cephClusterConnection == nil {
 			fmt.Printf("[%s]: Creating new CephClusterConnection\n", LogPrefix)
 			cephClusterConnection = &v1alpha1.CephClusterConnection{}
 			cephClusterConnection.Name = cephClusterConnectionName
-			cephClusterConnection.Labels = map[string]string{CephCSIMigratedLabel: CephCSIMigratedLabelValue}
+			cephClusterConnection.Labels = map[string]string{CephCSIMigratedLabel: CephCSIMigratedLabelValueTrue}
 			cephClusterConnection.Spec = v1alpha1.CephClusterConnectionSpec{
 				Monitors:  cephCSIDriver.Spec.Monitors,
 				ClusterID: cephCSIDriver.Spec.ClusterID,
@@ -144,7 +155,7 @@ func handlerMigrateFromCephCsiModule(ctx context.Context, input *pkg.HookInput) 
 
 					cephStorageClass = &v1alpha1.CephStorageClass{}
 					cephStorageClass.Name = cephStorageClassName
-					cephStorageClass.Labels = map[string]string{CephCSIMigratedLabel: CephCSIMigratedLabelValue}
+					cephStorageClass.Labels = map[string]string{CephCSIMigratedLabel: CephCSIMigratedLabelValueTrue}
 					cephStorageClass.Spec = v1alpha1.CephStorageClassSpec{
 						ClusterConnectionName: cephClusterConnectionName,
 						Type:                  v1alpha1.CephStorageClassTypeCephFS,
@@ -156,8 +167,8 @@ func handlerMigrateFromCephCsiModule(ctx context.Context, input *pkg.HookInput) 
 
 					if cephFSStorageClass.Pool != "" {
 						if cephFSStorageClass.Pool != CephFSDefaultPool {
-							fmt.Printf("[%s]: Pool is not empty and not equal to default pool %s\n", LogPrefix, CephFSDefaultPool)
-							return fmt.Errorf("Pool for CephFS StorageClass %s is not empty and not equal to default pool %s", cephFSStorageClass.NamePostfix, CephFSDefaultPool)
+							fmt.Printf("[%s]: Pool is not empty and is not equal to the default pool (%s). Please contact tech support for migration assistance.\n", LogPrefix, CephFSDefaultPool)
+							return fmt.Errorf("pool is not empty and is not equal to the default pool (%s). Please contact tech support for migration assistance", CephFSDefaultPool)
 						}
 						cephStorageClass.Labels[CephFSPoolLabelKey] = cephFSStorageClass.Pool
 					}
@@ -232,7 +243,7 @@ func handlerMigrateFromCephCsiModule(ctx context.Context, input *pkg.HookInput) 
 		if cephCSIDriver.Labels == nil {
 			cephCSIDriver.Labels = make(map[string]string)
 		}
-		cephCSIDriver.Labels[CephCSIMigratedLabel] = CephCSIMigratedLabelValue
+		cephCSIDriver.Labels[CephCSIMigratedLabel] = CephCSIMigratedLabelValueTrue
 		err = cl.Update(ctx, &cephCSIDriver)
 		if err != nil {
 			fmt.Printf("[%s]: CephCSIDriver update error %s\n", LogPrefix, err.Error())
@@ -243,7 +254,7 @@ func handlerMigrateFromCephCsiModule(ctx context.Context, input *pkg.HookInput) 
 	fmt.Printf("[%s]: Finished migration for CephCSIDrivers\n", LogPrefix)
 
 	fmt.Printf("[%s]: Started migration for VolumeSnapshotClasses and VolumeSnapshotcontents\n", LogPrefix)
-	err = funcs.MigrateVSClassesAndVSContentsToNewSecret(ctx, cl, CephCSIMigratedLabel, LogPrefix)
+	err = funcs.MigrateVSClassesAndVSContentsToNewSecret(ctx, cl, CephCSIMigratedLabel, CephCSISecretPrefix, CSICephSecretPrefix, LogPrefix)
 	if err != nil {
 		fmt.Printf("[%s]: MigrateVSClassesAndVSContentsToNewSecret error %s\n", LogPrefix, err.Error())
 		return err
