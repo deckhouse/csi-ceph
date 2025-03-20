@@ -124,7 +124,8 @@ func handlerMigrateFromCephCsiModule(ctx context.Context, input *pkg.HookInput) 
 		fmt.Printf("[%s]: Processing CephCSIDriver %s\n", LogPrefix, cephCSIDriver.Name)
 
 		cephClusterConnectionName := cephCSIDriver.Name
-		newSecretName := fmt.Sprintf("%s-%s", CSICephSecretPrefix, cephClusterConnectionName)
+		newSecretName := CSICephSecretPrefix + cephClusterConnectionName
+		fmt.Printf("[%s]: New secret name %s\n", LogPrefix, newSecretName)
 
 		cephClusterConnection := funcs.GetClusterConnectionByName(cephClusterConnectionList, cephClusterConnectionName, LogPrefix)
 		if cephClusterConnection == nil {
@@ -207,6 +208,7 @@ func handlerMigrateFromCephCsiModule(ctx context.Context, input *pkg.HookInput) 
 
 					cephStorageClass = &v1alpha1.CephStorageClass{}
 					cephStorageClass.Name = cephStorageClassName
+					cephStorageClass.Labels = map[string]string{CephCSIMigratedLabel: CephCSIMigratedLabelValueTrue}
 					cephStorageClass.Spec = v1alpha1.CephStorageClassSpec{
 						ClusterConnectionName: cephClusterConnectionName,
 						Type:                  v1alpha1.CephStorageClassTypeRBD,
