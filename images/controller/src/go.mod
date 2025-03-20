@@ -6,6 +6,7 @@ require (
 	github.com/deckhouse/csi-ceph/api v0.0.0-20250207141553-9b2c9a45ba22
 	github.com/go-logr/logr v1.4.2
 	github.com/google/go-cmp v0.7.0
+	github.com/kubernetes-csi/external-snapshotter/client/v8 v8.2.0
 	github.com/onsi/ginkgo/v2 v2.22.2
 	github.com/onsi/gomega v1.36.2
 	k8s.io/api v0.32.2
@@ -23,7 +24,6 @@ require (
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/emicklei/go-restful/v3 v3.12.2 // indirect
-	github.com/evanphx/json-patch v4.12.0+incompatible // indirect
 	github.com/evanphx/json-patch/v5 v5.9.11 // indirect
 	github.com/fsnotify/fsnotify v1.8.0 // indirect
 	github.com/fxamacker/cbor/v2 v2.7.0 // indirect
