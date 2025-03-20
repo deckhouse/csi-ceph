@@ -22,6 +22,7 @@ import (
 	"testing"
 
 	v1alpha1 "github.com/deckhouse/csi-ceph/api/v1alpha1"
+	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v8/apis/volumesnapshot/v1"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	v1 "k8s.io/api/apps/v1"
@@ -45,6 +46,7 @@ func NewFakeClient() client.Client {
 		extv1.AddToScheme,
 		v1.AddToScheme,
 		sv1.AddToScheme,
+		snapshotv1.AddToScheme,
 	}
 	scheme := apiruntime.NewScheme()
 	for _, f := range resourcesSchemeFuncs {
