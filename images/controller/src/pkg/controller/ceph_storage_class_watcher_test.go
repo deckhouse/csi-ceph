@@ -20,6 +20,7 @@ import (
 	"context"
 
 	v1alpha1 "github.com/deckhouse/csi-ceph/api/v1alpha1"
+	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v8/apis/volumesnapshot/v1"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
@@ -84,7 +85,11 @@ var _ = Describe(controller.CephStorageClassCtrlName, func() {
 		err = cl.List(ctx, scList)
 		Expect(err).NotTo(HaveOccurred())
 
-		shouldRequeue, _, err := controller.RunStorageClassEventReconcile(ctx, cl, log, scList, csc, controllerNamespace)
+		vsClassList := &snapshotv1.VolumeSnapshotClassList{}
+		err = cl.List(ctx, vsClassList)
+		Expect(err).NotTo(HaveOccurred())
+
+		shouldRequeue, _, err := controller.RunStorageClassEventReconcile(ctx, cl, log, scList, vsClassList, csc, controllerNamespace)
 		Expect(err).To(HaveOccurred())
 		Expect(err.Error()).To(ContainSubstring("unable to get a CephClusterConnection"))
 		Expect(shouldRequeue).To(BeTrue())
@@ -151,7 +156,11 @@ var _ = Describe(controller.CephStorageClassCtrlName, func() {
 		err = cl.List(ctx, scList)
 		Expect(err).NotTo(HaveOccurred())
 
-		shouldRequeue, _, err := controller.RunStorageClassEventReconcile(ctx, cl, log, scList, csc, controllerNamespace)
+		vsClassList := &snapshotv1.VolumeSnapshotClassList{}
+		err = cl.List(ctx, vsClassList)
+		Expect(err).NotTo(HaveOccurred())
+
+		shouldRequeue, _, err := controller.RunStorageClassEventReconcile(ctx, cl, log, scList, vsClassList, csc, controllerNamespace)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(shouldRequeue).To(BeFalse())
 
@@ -214,7 +223,11 @@ var _ = Describe(controller.CephStorageClassCtrlName, func() {
 		err = cl.List(ctx, scList)
 		Expect(err).NotTo(HaveOccurred())
 
-		shouldRequeue, _, err := controller.RunStorageClassEventReconcile(ctx, cl, log, scList, csc, controllerNamespace)
+		vsClassList := &snapshotv1.VolumeSnapshotClassList{}
+		err = cl.List(ctx, vsClassList)
+		Expect(err).NotTo(HaveOccurred())
+
+		shouldRequeue, _, err := controller.RunStorageClassEventReconcile(ctx, cl, log, scList, vsClassList, csc, controllerNamespace)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(shouldRequeue).To(BeFalse())
 
@@ -260,7 +273,11 @@ var _ = Describe(controller.CephStorageClassCtrlName, func() {
 		err = cl.List(ctx, scList)
 		Expect(err).NotTo(HaveOccurred())
 
-		shouldRequeue, _, err := controller.RunStorageClassEventReconcile(ctx, cl, log, scList, csc, controllerNamespace)
+		vsClassList := &snapshotv1.VolumeSnapshotClassList{}
+		err = cl.List(ctx, vsClassList)
+		Expect(err).NotTo(HaveOccurred())
+
+		shouldRequeue, _, err := controller.RunStorageClassEventReconcile(ctx, cl, log, scList, vsClassList, csc, controllerNamespace)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(shouldRequeue).To(BeFalse())
 
@@ -300,7 +317,11 @@ var _ = Describe(controller.CephStorageClassCtrlName, func() {
 		err = cl.List(ctx, scList)
 		Expect(err).NotTo(HaveOccurred())
 
-		shouldRequeue, _, err := controller.RunStorageClassEventReconcile(ctx, cl, log, scList, csc, controllerNamespace)
+		vsClassList := &snapshotv1.VolumeSnapshotClassList{}
+		err = cl.List(ctx, vsClassList)
+		Expect(err).NotTo(HaveOccurred())
+
+		shouldRequeue, _, err := controller.RunStorageClassEventReconcile(ctx, cl, log, scList, vsClassList, csc, controllerNamespace)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(shouldRequeue).To(BeFalse())
 
@@ -346,7 +367,11 @@ var _ = Describe(controller.CephStorageClassCtrlName, func() {
 		err = cl.List(ctx, scList)
 		Expect(err).NotTo(HaveOccurred())
 
-		shouldRequeue, _, err := controller.RunStorageClassEventReconcile(ctx, cl, log, scList, csc, controllerNamespace)
+		vsClassList := &snapshotv1.VolumeSnapshotClassList{}
+		err = cl.List(ctx, vsClassList)
+		Expect(err).NotTo(HaveOccurred())
+
+		shouldRequeue, _, err := controller.RunStorageClassEventReconcile(ctx, cl, log, scList, vsClassList, csc, controllerNamespace)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(shouldRequeue).To(BeFalse())
 
@@ -386,7 +411,11 @@ var _ = Describe(controller.CephStorageClassCtrlName, func() {
 		err = cl.List(ctx, scList)
 		Expect(err).NotTo(HaveOccurred())
 
-		shouldRequeue, _, err := controller.RunStorageClassEventReconcile(ctx, cl, log, scList, csc, controllerNamespace)
+		vsClassList := &snapshotv1.VolumeSnapshotClassList{}
+		err = cl.List(ctx, vsClassList)
+		Expect(err).NotTo(HaveOccurred())
+
+		shouldRequeue, _, err := controller.RunStorageClassEventReconcile(ctx, cl, log, scList, vsClassList, csc, controllerNamespace)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(shouldRequeue).To(BeFalse())
 
@@ -431,7 +460,11 @@ var _ = Describe(controller.CephStorageClassCtrlName, func() {
 		err = cl.List(ctx, scList)
 		Expect(err).NotTo(HaveOccurred())
 
-		shouldRequeue, _, err := controller.RunStorageClassEventReconcile(ctx, cl, log, scList, csc, controllerNamespace)
+		vsClassList := &snapshotv1.VolumeSnapshotClassList{}
+		err = cl.List(ctx, vsClassList)
+		Expect(err).NotTo(HaveOccurred())
+
+		shouldRequeue, _, err := controller.RunStorageClassEventReconcile(ctx, cl, log, scList, vsClassList, csc, controllerNamespace)
 		Expect(err).To(HaveOccurred())
 		Expect(shouldRequeue).To(BeTrue())
 
@@ -456,7 +489,11 @@ var _ = Describe(controller.CephStorageClassCtrlName, func() {
 		err = cl.List(ctx, scList)
 		Expect(err).NotTo(HaveOccurred())
 
-		shouldRequeue, _, err := controller.RunStorageClassEventReconcile(ctx, cl, log, scList, csc, controllerNamespace)
+		vsClassList := &snapshotv1.VolumeSnapshotClassList{}
+		err = cl.List(ctx, vsClassList)
+		Expect(err).NotTo(HaveOccurred())
+
+		shouldRequeue, _, err := controller.RunStorageClassEventReconcile(ctx, cl, log, scList, vsClassList, csc, controllerNamespace)
 		Expect(err).To(HaveOccurred())
 		Expect(shouldRequeue).To(BeTrue())
 
@@ -487,7 +524,11 @@ var _ = Describe(controller.CephStorageClassCtrlName, func() {
 		err = cl.List(ctx, scList)
 		Expect(err).NotTo(HaveOccurred())
 
-		shouldRequeue, _, err := controller.RunStorageClassEventReconcile(ctx, cl, log, scList, csc, controllerNamespace)
+		vsClassList := &snapshotv1.VolumeSnapshotClassList{}
+		err = cl.List(ctx, vsClassList)
+		Expect(err).NotTo(HaveOccurred())
+
+		shouldRequeue, _, err := controller.RunStorageClassEventReconcile(ctx, cl, log, scList, vsClassList, csc, controllerNamespace)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(shouldRequeue).To(BeFalse())
 
@@ -528,7 +569,11 @@ var _ = Describe(controller.CephStorageClassCtrlName, func() {
 		err = cl.List(ctx, scList)
 		Expect(err).NotTo(HaveOccurred())
 
-		shouldRequeue, _, err := controller.RunStorageClassEventReconcile(ctx, cl, log, scList, csc, controllerNamespace)
+		vsClassList := &snapshotv1.VolumeSnapshotClassList{}
+		err = cl.List(ctx, vsClassList)
+		Expect(err).NotTo(HaveOccurred())
+
+		shouldRequeue, _, err := controller.RunStorageClassEventReconcile(ctx, cl, log, scList, vsClassList, csc, controllerNamespace)
 		Expect(err).To(HaveOccurred())
 		Expect(shouldRequeue).To(BeFalse())
 		Expect(csc.Finalizers).To(HaveLen(0))
@@ -571,7 +616,11 @@ var _ = Describe(controller.CephStorageClassCtrlName, func() {
 		err = cl.List(ctx, scList)
 		Expect(err).NotTo(HaveOccurred())
 
-		shouldRequeue, _, err := controller.RunStorageClassEventReconcile(ctx, cl, log, scList, csc, controllerNamespace)
+		vsClassList := &snapshotv1.VolumeSnapshotClassList{}
+		err = cl.List(ctx, vsClassList)
+		Expect(err).NotTo(HaveOccurred())
+
+		shouldRequeue, _, err := controller.RunStorageClassEventReconcile(ctx, cl, log, scList, vsClassList, csc, controllerNamespace)
 		Expect(err).To(HaveOccurred())
 		Expect(shouldRequeue).To(BeFalse())
 		Expect(csc.Finalizers).To(HaveLen(0))
@@ -615,7 +664,11 @@ var _ = Describe(controller.CephStorageClassCtrlName, func() {
 		err = cl.List(ctx, scList)
 		Expect(err).NotTo(HaveOccurred())
 
-		shouldRequeue, _, err := controller.RunStorageClassEventReconcile(ctx, cl, log, scList, csc, controllerNamespace)
+		vsClassList := &snapshotv1.VolumeSnapshotClassList{}
+		err = cl.List(ctx, vsClassList)
+		Expect(err).NotTo(HaveOccurred())
+
+		shouldRequeue, _, err := controller.RunStorageClassEventReconcile(ctx, cl, log, scList, vsClassList, csc, controllerNamespace)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(shouldRequeue).To(BeFalse())
 
@@ -672,7 +725,11 @@ var _ = Describe(controller.CephStorageClassCtrlName, func() {
 		err = cl.List(ctx, scList)
 		Expect(err).NotTo(HaveOccurred())
 
-		shouldRequeue, _, err := controller.RunStorageClassEventReconcile(ctx, cl, log, scList, csc, controllerNamespace)
+		vsClassList := &snapshotv1.VolumeSnapshotClassList{}
+		err = cl.List(ctx, vsClassList)
+		Expect(err).NotTo(HaveOccurred())
+
+		shouldRequeue, _, err := controller.RunStorageClassEventReconcile(ctx, cl, log, scList, vsClassList, csc, controllerNamespace)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(shouldRequeue).To(BeFalse())
 
