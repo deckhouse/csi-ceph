@@ -10,7 +10,6 @@ import (
 	storagev1 "k8s.io/api/storage/v1"
 	sv1 "k8s.io/api/storage/v1"
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -109,11 +108,7 @@ func handlerRemoveScAndSecretsOnModuleDelete(ctx context.Context, _ *pkg.HookInp
 				}
 
 				fmt.Printf("[remove-sc-and-secrets-on-module-delete]: Removing %s storage class\n", sc.Name)
-				err = cl.Delete(ctx, &storagev1.StorageClass{
-					ObjectMeta: metav1.ObjectMeta{
-						Name: sc.Name,
-					},
-				})
+				err = cl.Delete(ctx, &sc)
 				if err != nil {
 					fmt.Printf("[remove-sc-and-secrets-on-module-delete]: Failed to delete storage class %s: %v", sc.Name, err)
 				}
