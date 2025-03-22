@@ -22,10 +22,11 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/deckhouse/csi-ceph/images/webhooks/handlers"
 	"github.com/sirupsen/logrus"
 	kwhlogrus "github.com/slok/kubewebhook/v2/pkg/log/logrus"
 	storagev1 "k8s.io/api/storage/v1"
+
+	"github.com/deckhouse/csi-ceph/images/webhooks/handlers"
 )
 
 type config struct {
