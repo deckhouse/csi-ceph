@@ -20,9 +20,6 @@ import (
 	"context"
 	"fmt"
 
-	v1alpha1 "github.com/deckhouse/csi-ceph/api/v1alpha1"
-	"github.com/deckhouse/csi-ceph/images/controller/pkg/config"
-	"github.com/deckhouse/csi-ceph/images/controller/pkg/logger"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/util/workqueue"
@@ -33,6 +30,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
+
+	v1alpha1 "github.com/deckhouse/csi-ceph/api/v1alpha1"
+	"github.com/deckhouse/csi-ceph/images/controller/pkg/config"
+	"github.com/deckhouse/csi-ceph/images/controller/pkg/logger"
 )
 
 const (

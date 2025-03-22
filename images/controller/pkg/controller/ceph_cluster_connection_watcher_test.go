@@ -20,16 +20,17 @@ import (
 	"context"
 	"encoding/json"
 
-	v1alpha1 "github.com/deckhouse/csi-ceph/api/v1alpha1"
-	"github.com/deckhouse/csi-ceph/images/controller/pkg/controller"
-	"github.com/deckhouse/csi-ceph/images/controller/pkg/internal"
-	"github.com/deckhouse/csi-ceph/images/controller/pkg/logger"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	v1alpha1 "github.com/deckhouse/csi-ceph/api/v1alpha1"
+	"github.com/deckhouse/csi-ceph/images/controller/pkg/controller"
+	"github.com/deckhouse/csi-ceph/images/controller/pkg/internal"
+	"github.com/deckhouse/csi-ceph/images/controller/pkg/logger"
 )
 
 var _ = Describe(controller.CephClusterConnectionCtrlName, func() {
