@@ -8,15 +8,15 @@ import (
 )
 
 var _ = tlscertificate.RegisterInternalTLSHookEM(tlscertificate.GenSelfSignedTLSHookConf{
-	CN:            consts.WEBHOOKS_CERT_CN,
-	TLSSecretName: fmt.Sprintf("%s-webhook-cert", consts.WEBHOOKS_CERT_CN),
-	Namespace:     consts.MODULE_NAMESPACE,
+	CN:            consts.WebhookCertCn,
+	TLSSecretName: fmt.Sprintf("%s-webhook-cert", consts.WebhookCertCn),
+	Namespace:     consts.ModuleNamespace,
 	SANs: tlscertificate.DefaultSANs([]string{
-		consts.WEBHOOKS_CERT_CN,
-		fmt.Sprintf("%s.%s", consts.WEBHOOKS_CERT_CN, consts.MODULE_NAMESPACE),
-		fmt.Sprintf("%s.%s.svc", consts.WEBHOOKS_CERT_CN, consts.MODULE_NAMESPACE),
+		consts.WebhookCertCn,
+		fmt.Sprintf("%s.%s", consts.WebhookCertCn, consts.ModuleNamespace),
+		fmt.Sprintf("%s.%s.svc", consts.WebhookCertCn, consts.ModuleNamespace),
 		// %CLUSTER_DOMAIN%:// is a special value to generate SAN like 'svc_name.svc_namespace.svc.cluster.local'
-		fmt.Sprintf("%%CLUSTER_DOMAIN%%://%s.%s.svc", consts.WEBHOOKS_CERT_CN, consts.MODULE_NAMESPACE),
+		fmt.Sprintf("%%CLUSTER_DOMAIN%%://%s.%s.svc", consts.WebhookCertCn, consts.ModuleNamespace),
 	}),
-	FullValuesPathPrefix: fmt.Sprintf("%s.internal.customWebhookCert", consts.MODULE_NAME),
+	FullValuesPathPrefix: fmt.Sprintf("%s.internal.customWebhookCert", consts.ModuleName),
 })

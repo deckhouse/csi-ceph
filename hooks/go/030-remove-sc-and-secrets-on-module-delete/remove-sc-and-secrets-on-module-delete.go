@@ -20,13 +20,6 @@ import (
 	"github.com/deckhouse/sds-common-lib/kubeclient"
 )
 
-var (
-	allowedProvisioners = []string{
-		"rbd.csi.ceph.com",
-		"cephfs.csi.ceph.com",
-	}
-)
-
 var _ = registry.RegisterFunc(configRemoveScAndSecretsOnModuleDelete, handlerRemoveScAndSecretsOnModuleDelete)
 
 var configRemoveScAndSecretsOnModuleDelete = &pkg.HookConfig{
@@ -43,14 +36,14 @@ func handlerRemoveScAndSecretsOnModuleDelete(ctx context.Context, input *pkg.Hoo
 		sv1.AddToScheme,
 		snapv1.AddToScheme)
 	if err != nil {
-		input.Logger.Info(fmt.Sprintf("Failed to initialize kube client: %v", err))
+		input.Logger.Error(fmt.Sprintf("Failed to initialize kube client: %v", err))
 		return err
 	}
 
 	secretList := &corev1.SecretList{}
-	err = cl.List(ctx, secretList, client.InNamespace(consts.MODULE_NAMESPACE))
+	err = cl.List(ctx, secretList, client.InNamespace(consts.ModuleNamespace))
 	if err != nil {
-		input.Logger.Info(fmt.Sprintf("[remove-sc-and-secrets-on-module-delete]: Failed to list secrets: %v", err))
+		input.Logger.Error(fmt.Sprintf("[remove-sc-and-secrets-on-module-delete]: Failed to list secrets: %v", err))
 		return err
 	}
 
@@ -62,15 +55,15 @@ func handlerRemoveScAndSecretsOnModuleDelete(ctx context.Context, input *pkg.Hoo
 
 		err = cl.Patch(ctx, &secret, patch)
 		if err != nil {
-			input.Logger.Info(fmt.Sprintf("[remove-sc-and-secrets-on-module-delete]: Failed to patch secret %s: %v", secret.Name, err))
-			continue
+			input.Logger.Error(fmt.Sprintf("[remove-sc-and-secrets-on-module-delete]: Failed to patch secret %s: %v", secret.Name, err))
+			return err
 		}
 	}
 
 	configMapList := &corev1.ConfigMapList{}
-	err = cl.List(ctx, configMapList, client.InNamespace(consts.MODULE_NAMESPACE))
+	err = cl.List(ctx, configMapList, client.InNamespace(consts.ModuleNamespace))
 	if err != nil {
-		input.Logger.Info(fmt.Sprintf("[remove-sc-and-secrets-on-module-delete]: Failed to list configmaps: %v", err))
+		input.Logger.Error(fmt.Sprintf("[remove-sc-and-secrets-on-module-delete]: Failed to list configmaps: %v", err))
 		return err
 	}
 	for _, configMap := range configMapList.Items {
@@ -81,20 +74,20 @@ func handlerRemoveScAndSecretsOnModuleDelete(ctx context.Context, input *pkg.Hoo
 
 		err = cl.Patch(ctx, &configMap, patch)
 		if err != nil {
-			input.Logger.Info(fmt.Sprintf("[remove-sc-and-secrets-on-module-delete]: Failed to patch configmap %s: %v", configMap.Name, err))
-			continue
+			input.Logger.Error(fmt.Sprintf("[remove-sc-and-secrets-on-module-delete]: Failed to patch configmap %s: %v", configMap.Name, err))
+			return err
 		}
 	}
 
 	scList := &storagev1.StorageClassList{}
 	err = cl.List(ctx, scList)
 	if err != nil {
-		input.Logger.Info(fmt.Sprintf("[remove-sc-and-secrets-on-module-delete]: Failed to list storage classes: %v", err))
+		input.Logger.Error(fmt.Sprintf("[remove-sc-and-secrets-on-module-delete]: Failed to list storage classes: %v", err))
 		return err
 	}
 
 	for _, sc := range scList.Items {
-		for _, provisioner := range allowedProvisioners {
+		for _, provisioner := range consts.AllowedProvisioners {
 			if sc.Provisioner == provisioner {
 				input.Logger.Info(fmt.Sprintf("[remove-sc-and-secrets-on-module-delete]: Removing finalizers from %s storage class\n", sc.Name))
 
@@ -103,14 +96,15 @@ func handlerRemoveScAndSecretsOnModuleDelete(ctx context.Context, input *pkg.Hoo
 
 				err = cl.Patch(ctx, &sc, patch)
 				if err != nil {
-					input.Logger.Info(fmt.Sprintf("[remove-sc-and-secrets-on-module-delete]: Failed to patch storage class %s: %v", sc.Name, err))
-					continue
+					input.Logger.Error(fmt.Sprintf("[remove-sc-and-secrets-on-module-delete]: Failed to patch storage class %s: %v", sc.Name, err))
+					return err
 				}
 
 				input.Logger.Info(fmt.Sprintf("[remove-sc-and-secrets-on-module-delete]: Removing %s storage class\n", sc.Name))
 				err = cl.Delete(ctx, &sc)
 				if err != nil {
-					input.Logger.Info(fmt.Sprintf("[remove-sc-and-secrets-on-module-delete]: Failed to delete storage class %s: %v", sc.Name, err))
+					input.Logger.Error(fmt.Sprintf("[remove-sc-and-secrets-on-module-delete]: Failed to delete storage class %s: %v", sc.Name, err))
+					return err
 				}
 			}
 		}

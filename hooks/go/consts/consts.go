@@ -1,8 +1,12 @@
 package consts
 
 const (
-	MODULE_NAME      string = "csiCeph"
-	MODULE_NAMESPACE string = "d8-csi-ceph"
-
-	WEBHOOKS_CERT_CN string = "webhooks"
+	ModuleName      string = "csiCeph"
+	ModuleNamespace string = "d8-csi-ceph"
+	WebhookCertCn   string = "webhooks"
 )
+
+var AllowedProvisioners = []string{
+	"rbd.csi.ceph.com",
+	"cephfs.csi.ceph.com",
+}
