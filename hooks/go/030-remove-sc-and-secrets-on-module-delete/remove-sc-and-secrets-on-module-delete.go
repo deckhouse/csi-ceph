@@ -33,8 +33,8 @@ var configRemoveScAndSecretsOnModuleDelete = &pkg.HookConfig{
 	OnAfterDeleteHelm: &pkg.OrderedConfig{Order: 10},
 }
 
-func handlerRemoveScAndSecretsOnModuleDelete(ctx context.Context, _ *pkg.HookInput) error {
-	fmt.Printf("[remove-sc-and-secrets-on-module-delete]: Started removing SC and Secrets on module delete\n")
+func handlerRemoveScAndSecretsOnModuleDelete(ctx context.Context, input *pkg.HookInput) error {
+	input.Logger.Info("[remove-sc-and-secrets-on-module-delete]: Started removing SC and Secrets on module delete")
 	cl, err := kubeclient.NewKubeClient("",
 		v1alpha1.AddToScheme,
 		clientgoscheme.AddToScheme,
@@ -43,26 +43,26 @@ func handlerRemoveScAndSecretsOnModuleDelete(ctx context.Context, _ *pkg.HookInp
 		sv1.AddToScheme,
 		snapv1.AddToScheme)
 	if err != nil {
-		fmt.Printf("%s", err.Error())
+		input.Logger.Info(fmt.Sprintf("Failed to initialize kube client: %v", err))
 		return err
 	}
 
 	secretList := &corev1.SecretList{}
 	err = cl.List(ctx, secretList, client.InNamespace(consts.MODULE_NAMESPACE))
 	if err != nil {
-		fmt.Printf("[remove-sc-and-secrets-on-module-delete]: Failed to list secrets: %v", err)
+		input.Logger.Info(fmt.Sprintf("[remove-sc-and-secrets-on-module-delete]: Failed to list secrets: %v", err))
 		return err
 	}
 
 	for _, secret := range secretList.Items {
-		fmt.Printf("[remove-sc-and-secrets-on-module-delete]: Removing finalizers from %s secret\n", secret.Name)
+		input.Logger.Info(fmt.Sprintf("[remove-sc-and-secrets-on-module-delete]: Removing finalizers from %s secret\n", secret.Name))
 
 		patch := client.MergeFrom(secret.DeepCopy())
 		secret.ObjectMeta.Finalizers = nil
 
 		err = cl.Patch(ctx, &secret, patch)
 		if err != nil {
-			fmt.Printf("[remove-sc-and-secrets-on-module-delete]: Failed to patch secret %s: %v", secret.Name, err)
+			input.Logger.Info(fmt.Sprintf("[remove-sc-and-secrets-on-module-delete]: Failed to patch secret %s: %v", secret.Name, err))
 			continue
 		}
 	}
@@ -70,18 +70,18 @@ func handlerRemoveScAndSecretsOnModuleDelete(ctx context.Context, _ *pkg.HookInp
 	configMapList := &corev1.ConfigMapList{}
 	err = cl.List(ctx, configMapList, client.InNamespace(consts.MODULE_NAMESPACE))
 	if err != nil {
-		fmt.Printf("[remove-sc-and-secrets-on-module-delete]: Failed to list configmaps: %v", err)
+		input.Logger.Info(fmt.Sprintf("[remove-sc-and-secrets-on-module-delete]: Failed to list configmaps: %v", err))
 		return err
 	}
 	for _, configMap := range configMapList.Items {
-		fmt.Printf("[remove-sc-and-secrets-on-module-delete]: Removing finalizers from %s configmap\n", configMap.Name)
+		input.Logger.Info(fmt.Sprintf("[remove-sc-and-secrets-on-module-delete]: Removing finalizers from %s configmap\n", configMap.Name))
 
 		patch := client.MergeFrom(configMap.DeepCopy())
 		configMap.ObjectMeta.Finalizers = nil
 
 		err = cl.Patch(ctx, &configMap, patch)
 		if err != nil {
-			fmt.Printf("[remove-sc-and-secrets-on-module-delete]: Failed to patch configmap %s: %v", configMap.Name, err)
+			input.Logger.Info(fmt.Sprintf("[remove-sc-and-secrets-on-module-delete]: Failed to patch configmap %s: %v", configMap.Name, err))
 			continue
 		}
 	}
@@ -89,34 +89,34 @@ func handlerRemoveScAndSecretsOnModuleDelete(ctx context.Context, _ *pkg.HookInp
 	scList := &storagev1.StorageClassList{}
 	err = cl.List(ctx, scList)
 	if err != nil {
-		fmt.Printf("[remove-sc-and-secrets-on-module-delete]: Failed to list storage classes: %v", err)
+		input.Logger.Info(fmt.Sprintf("[remove-sc-and-secrets-on-module-delete]: Failed to list storage classes: %v", err))
 		return err
 	}
 
 	for _, sc := range scList.Items {
 		for _, provisioner := range allowedProvisioners {
 			if sc.Provisioner == provisioner {
-				fmt.Printf("[remove-sc-and-secrets-on-module-delete]: Removing finalizers from %s storage class\n", sc.Name)
+				input.Logger.Info(fmt.Sprintf("[remove-sc-and-secrets-on-module-delete]: Removing finalizers from %s storage class\n", sc.Name))
 
 				patch := client.MergeFrom(sc.DeepCopy())
 				sc.ObjectMeta.Finalizers = nil
 
 				err = cl.Patch(ctx, &sc, patch)
 				if err != nil {
-					fmt.Printf("[remove-sc-and-secrets-on-module-delete]: Failed to patch storage class %s: %v", sc.Name, err)
+					input.Logger.Info(fmt.Sprintf("[remove-sc-and-secrets-on-module-delete]: Failed to patch storage class %s: %v", sc.Name, err))
 					continue
 				}
 
-				fmt.Printf("[remove-sc-and-secrets-on-module-delete]: Removing %s storage class\n", sc.Name)
+				input.Logger.Info(fmt.Sprintf("[remove-sc-and-secrets-on-module-delete]: Removing %s storage class\n", sc.Name))
 				err = cl.Delete(ctx, &sc)
 				if err != nil {
-					fmt.Printf("[remove-sc-and-secrets-on-module-delete]: Failed to delete storage class %s: %v", sc.Name, err)
+					input.Logger.Info(fmt.Sprintf("[remove-sc-and-secrets-on-module-delete]: Failed to delete storage class %s: %v", sc.Name, err))
 				}
 			}
 		}
 	}
 
-	fmt.Printf("[remove-sc-and-secrets-on-module-delete]: Stoped removing SC and Secrets on module delete\n")
+	input.Logger.Info("[remove-sc-and-secrets-on-module-delete]: Stoped removing SC and Secrets on module delete\n")
 
 	return nil
 }
