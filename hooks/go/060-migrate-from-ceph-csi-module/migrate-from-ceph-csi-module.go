@@ -178,7 +178,7 @@ func handlerMigrateFromCephCsiModule(ctx context.Context, input *pkg.HookInput) 
 						cephStorageClass.Labels[MountOptionsLabelKey] = strings.Join(cephFSStorageClass.MountOptions, ",")
 					}
 
-					if !*cephFSStorageClass.AllowVolumeExpansion {
+					if cephFSStorageClass.AllowVolumeExpansion != nil && !*cephFSStorageClass.AllowVolumeExpansion {
 						cephStorageClass.Labels[AllowVolumeExpansionLabelKey] = "false"
 					}
 

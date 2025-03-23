@@ -571,8 +571,7 @@ func ConfigureVSClass(oldVSClass *snapshotv1.VolumeSnapshotClass, cephSC *storag
 
 	newVSClass := &snapshotv1.VolumeSnapshotClass{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      cephSC.Name,
-			Namespace: cephSC.Namespace,
+			Name: cephSC.Name,
 			Labels: map[string]string{
 				CephStorageClassManagedLabelKey: CephStorageClassManagedLabelValue,
 			},

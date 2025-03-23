@@ -37,19 +37,26 @@ func handlerRemoveFinalizersOnModuleDelete(ctx context.Context, input *pkg.HookI
 
 	err = cl.Get(ctx, client.ObjectKey{Name: configMapName, Namespace: namespace}, cephConfigMap)
 	if err != nil {
-		if client.IgnoreNotFound(err) == nil {
-			fmt.Printf("[csi-ceph-remove-finalizers-on-module-delete]: configmap %s is absent, all ok\n", configMapName)
-		} else {
-			fmt.Printf("[csi-ceph-remove-finalizers-on-module-delete]: configmap %s get error %s\n", configMapName, err)
+		if client.IgnoreNotFound(err) != nil {
+			fmt.Printf("[csi-ceph-remove-finalizers-on-module-delete]: error getting configmap %s: %s\n", configMapName, err)
 			return err
 		}
-	} else {
-		cephConfigMap.Finalizers = nil
-		err = cl.Update(ctx, cephConfigMap)
-		if err != nil {
-			fmt.Printf("[csi-ceph-remove-finalizers-on-module-delete]: configmap %s update error %s\n", configMapName, err)
-			return err
-		}
+		fmt.Printf("[csi-ceph-remove-finalizers-on-module-delete]: configmap %s not found, nothing to clean up\n", configMapName)
+		return nil
+	}
+
+	if len(cephConfigMap.Finalizers) == 0 {
+		fmt.Printf("[csi-ceph-remove-finalizers-on-module-delete]: configmap %s has no finalizers, nothing to clean up\n", configMapName)
+		return nil
+	}
+
+	fmt.Printf("[csi-ceph-remove-finalizers-on-module-delete]: configmap %s has finalizers %v. Removing them\n", configMapName, cephConfigMap.Finalizers)
+
+	cephConfigMap.Finalizers = nil
+	err = cl.Update(ctx, cephConfigMap)
+	if err != nil {
+		fmt.Printf("[csi-ceph-remove-finalizers-on-module-delete]: configmap %s update error %s\n", configMapName, err)
+		return err
 	}
 
 	fmt.Printf("[csi-ceph-remove-finalizers-on-module-delete]: finalizers removed\n")
