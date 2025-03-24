@@ -78,6 +78,17 @@ rules:
       - get
       - watch
       - update
+  - apiGroups:
+      - snapshot.storage.k8s.io
+    resources:
+      - volumesnapshotclasses
+    verbs:
+      - create
+      - delete
+      - list
+      - get
+      - watch
+      - update
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
