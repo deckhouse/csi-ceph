@@ -5,14 +5,14 @@ go 1.23.6
 require (
 	github.com/deckhouse/csi-ceph/api v0.0.0-20250207141553-9b2c9a45ba22
 	github.com/deckhouse/module-sdk v0.2.0
-	github.com/deckhouse/sds-common-lib v0.0.0-20250322050030-9c6b017469ce
+	github.com/deckhouse/sds-common-lib v0.0.0-20250331104837-4ed70c9f1a83
 	github.com/google/go-cmp v0.7.0
 	github.com/kubernetes-csi/external-snapshotter/client/v8 v8.2.0
 	k8s.io/api v0.32.3
 	k8s.io/apiextensions-apiserver v0.32.2
 	k8s.io/apimachinery v0.32.3
 	k8s.io/client-go v0.32.3
-	sigs.k8s.io/controller-runtime v0.20.3
+	sigs.k8s.io/controller-runtime v0.20.4
 )
 
 require (
