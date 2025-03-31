@@ -6,17 +6,17 @@ import (
 	"strings"
 	"time"
 
-	"github.com/deckhouse/csi-ceph/api/v1alpha1"
-	"github.com/deckhouse/module-sdk/pkg"
-	"github.com/deckhouse/module-sdk/pkg/registry"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/selection"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	oldApi "csi-ceph/api/v1alpha1"
-	funcs "csi-ceph/funcs"
+	"github.com/deckhouse/csi-ceph/api/v1alpha1"
+	oldApi "github.com/deckhouse/csi-ceph/hooks/go/api/v1alpha1"
+	funcs "github.com/deckhouse/csi-ceph/hooks/go/funcs"
+	"github.com/deckhouse/module-sdk/pkg"
+	"github.com/deckhouse/module-sdk/pkg/registry"
 )
 
 const (
