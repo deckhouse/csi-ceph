@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -31,7 +32,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	sv1 "k8s.io/api/storage/v1"
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -565,8 +566,13 @@ func MigratePVsToNewSecret(ctx context.Context, cl client.Client, pvList *v1.Per
 				
 				err := cl.Get(ctx, client.ObjectKey{Name: newPV.Name}, pv)
 				if err != nil {
-					if errors.IsNotFound(err) {
+					if apierrors.IsNotFound(err) {
 						return true, nil
+					}
+
+					if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+						fmt.Printf("[%s]: Context canceled while getting PersistentVolume\n", logPrefix)
+						return false, nil
 					}
 
 					fmt.Printf("[%s]: PersistentVolume get error %s\n", logPrefix, err)
