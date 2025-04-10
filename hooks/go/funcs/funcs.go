@@ -31,8 +31,8 @@ import (
 	v1 "k8s.io/api/core/v1"
 	sv1 "k8s.io/api/storage/v1"
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
-	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	apiruntime "k8s.io/apimachinery/pkg/runtime"
@@ -568,12 +568,12 @@ func MigratePVsToNewSecret(ctx context.Context, cl client.Client, pvList *v1.Per
 					if errors.IsNotFound(err) {
 						return true, nil
 					}
-					
+
 					fmt.Printf("[%s]: PersistentVolume get error %s\n", logPrefix, err)
 					return false, err					
 				}
 					
-				fmt.Printf("[%s]: Waiting for PersistentVolume %s to be released\n", logPrefix, newPV.Name)
+				fmt.Printf("[%s]: Waiting for PersistentVolume %s to be deleted\n", logPrefix, newPV.Name)
 				return false, nil
 			})
 
