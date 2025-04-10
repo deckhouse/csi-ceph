@@ -55,7 +55,7 @@ const (
 	DiscardMountOption = "discard"
 
 	CephFSDefaultPool = "cephfs_data"
-    prometheusOperatorNamespace = "d8-operator-prometheus"
+	prometheusOperatorNamespace = "d8-operator-prometheus"
 	prometheusOperatorDeploymentName = "prometheus-operator"
 )
 
