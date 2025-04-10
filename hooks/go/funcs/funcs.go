@@ -559,6 +559,14 @@ func MigratePVsToNewSecret(ctx context.Context, cl client.Client, pvList *v1.Per
 				return err
 			}
 
+			checkPV := &v1.PersistentVolume{}
+			for {
+				err = cl.Get(ctx, types.NamespacedName{Name: pv.Name}, checkPV)
+				if err != nil {
+					break
+				}
+			}
+
 			err = cl.Create(ctx, newPV)
 			if err != nil {
 				fmt.Printf("[%s]: PV create error %s\n", logPrefix, err)
