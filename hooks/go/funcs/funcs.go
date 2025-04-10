@@ -32,6 +32,7 @@ import (
 	sv1 "k8s.io/api/storage/v1"
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	apiruntime "k8s.io/apimachinery/pkg/runtime"
@@ -559,12 +560,26 @@ func MigratePVsToNewSecret(ctx context.Context, cl client.Client, pvList *v1.Per
 				return err
 			}
 
-			checkPV := &v1.PersistentVolume{}
-			for {
-				err = cl.Get(ctx, types.NamespacedName{Name: pv.Name}, checkPV)
+			err = wait.PollUntilContextTimeout(ctx, 1*time.Second, 5*time.Minute, true, func(ctx context.Context) (bool, error) {
+				pv := &v1.PersistentVolume{}
+				
+				err := cl.Get(ctx, client.ObjectKey{Name: newPV.Name}, pv)
 				if err != nil {
-					break
+					if errors.IsNotFound(err) {
+						return true, nil
+					}
+					
+					fmt.Printf("[%s]: PersistentVolume get error %s\n", logPrefix, err)
+					return false, err					
 				}
+					
+				fmt.Printf("[%s]: Waiting for PersistentVolume %s to be released\n", logPrefix, newPV.Name)
+				return false, nil
+			})
+
+			if err != nil {
+				fmt.Printf("[%s]: Waiting for pv to be deleted error: %s\n", logPrefix, err)
+				return err
 			}
 
 			err = cl.Create(ctx, newPV)
