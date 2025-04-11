@@ -23,7 +23,6 @@ import (
 	"time"
 
 	v1 "k8s.io/api/core/v1"
-	v1apps "k8s.io/api/apps/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/selection"
@@ -54,8 +53,8 @@ const (
 	LogPrefix          = "migrate-from-ceph-csi-module"
 	DiscardMountOption = "discard"
 
-	CephFSDefaultPool = "cephfs_data"
-	prometheusOperatorNamespace = "d8-operator-prometheus"
+	CephFSDefaultPool                = "cephfs_data"
+	prometheusOperatorNamespace      = "d8-operator-prometheus"
 	prometheusOperatorDeploymentName = "prometheus-operator"
 )
 
@@ -142,19 +141,9 @@ func handlerMigrateFromCephCsiModule(ctx context.Context, _ *pkg.HookInput) erro
 		}
 
 		if !scalePrometheusOperatorUp {
-			prometheusOperatorDeployment := &v1apps.Deployment{}
-			err = cl.Get(ctx, client.ObjectKey{Namespace: prometheusOperatorNamespace, Name: prometheusOperatorDeploymentName}, prometheusOperatorDeployment)
-			if err != nil {
-				fmt.Printf("Cannot get prometheus-operator deployment: %s\n", err.Error())
-			} else {
-				fmt.Printf("Scaling prometheus-operator deployment down\n")
-				prometheusOperatorDeployment.Spec.Replicas = &[]int32{0}[0]
-				err = cl.Update(ctx, prometheusOperatorDeployment)
-				if err != nil {
-					fmt.Printf("Cannot update prometheus-operator deployment: %s\n", err.Error())
-				} else {
-					scalePrometheusOperatorUp = true
-				}	
+			err = funcs.ScaleDeployment(ctx, cl, prometheusOperatorNamespace, prometheusOperatorDeploymentName, &[]int32{0}[0])			
+			if err == nil {
+				scalePrometheusOperatorUp = true
 			}
 		}
 
@@ -303,19 +292,8 @@ func handlerMigrateFromCephCsiModule(ctx context.Context, _ *pkg.HookInput) erro
 	fmt.Printf("[%s]: Finished migration from Ceph CSI module\n", LogPrefix)
 
 	if scalePrometheusOperatorUp {
-		prometheusOperatorDeployment := &v1apps.Deployment{}
-		err = cl.Get(ctx, client.ObjectKey{Namespace: prometheusOperatorNamespace, Name: prometheusOperatorDeploymentName}, prometheusOperatorDeployment)
-		if err != nil {
-			fmt.Printf("Cannot get prometheus-operator deployment: %s\n", err.Error())
-		} else {
-			fmt.Printf("Scaling prometheus-operator deployment replicas up\n")
-			prometheusOperatorDeployment.Spec.Replicas = &[]int32{1}[0]
-			err = cl.Update(ctx, prometheusOperatorDeployment)
-			if err != nil {
-				fmt.Printf("Cannot update prometheus-operator deployment: %s\n", err.Error())
-			}				
+		_ = funcs.ScaleDeployment(ctx, cl, prometheusOperatorNamespace, prometheusOperatorDeploymentName, &[]int32{1}[0])
 		}
-	}
 
 	return nil
 }

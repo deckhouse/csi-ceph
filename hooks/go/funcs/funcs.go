@@ -561,34 +561,25 @@ func MigratePVsToNewSecret(ctx context.Context, cl client.Client, pvList *v1.Per
 				return err
 			}
 
-			err = wait.PollUntilContextTimeout(ctx, 15*time.Second, 5*time.Minute, true, func(ctx context.Context) (bool, error) {
-				pv := &v1.PersistentVolume{}
-				
-				err := cl.Get(ctx, client.ObjectKey{Name: newPV.Name}, pv)
+			err = wait.PollUntilContextTimeout(ctx, 5*time.Second, 5*time.Minute, true, func(ctx context.Context) (bool, error) {
+				err = cl.Create(ctx, newPV)
 				if err != nil {
-					if apierrors.IsNotFound(err) {
-						return true, nil
-					}
-
-					if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
-						fmt.Printf("[%s]: Context canceled while getting PersistentVolume\n", logPrefix)
+					if apierrors.IsAlreadyExists(err) {
 						return false, nil
 					}
 
-					fmt.Printf("[%s]: PersistentVolume get error %s\n", logPrefix, err)
-					return false, err					
+					if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+						fmt.Printf("[%s]: Context canceled while creating PersistentVolume\n", logPrefix)
+						return false, nil
+					}
+
+					return false, err
 				}
-					
-				fmt.Printf("[%s]: Waiting for PersistentVolume %s to be deleted\n", logPrefix, newPV.Name)
+
+				fmt.Printf("[%s]: Waiting for PersistentVolume %s to be created\n", logPrefix, newPV.Name)
 				return false, nil
 			})
 
-			if err != nil {
-				fmt.Printf("[%s]: Waiting for pv to be deleted error: %s\n", logPrefix, err)
-				return err
-			}
-
-			err = cl.Create(ctx, newPV)
 			if err != nil {
 				fmt.Printf("[%s]: PV create error %s\n", logPrefix, err)
 				return err
@@ -731,6 +722,26 @@ func setRecreateLabelToBackupResource(ctx context.Context, cl client.Client, bac
 	cephMetadataBackup.Labels[PVRecreatedSuccesfullyLabelKey] = labelValue
 	err = cl.Update(ctx, cephMetadataBackup)
 	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func ScaleDeployment(ctx context.Context, cl client.Client, Namespace, DeploymentName string, replicas *int32) error {
+	deployment := &appsv1.Deployment{}
+	err := cl.Get(ctx, client.ObjectKey{Namespace: Namespace, Name: DeploymentName}, deployment)
+	if err != nil {
+		fmt.Printf("Cannot get prometheus-operator deployment: %s\n", err.Error())
+		return err
+	}
+
+	fmt.Printf("Scaling prometheus-operator deployment replicas down\n")
+	deployment.Spec.Replicas = replicas
+	//&[]int32{0}[0]
+	err = cl.Update(ctx, deployment)
+	if err != nil {
+		fmt.Printf("Cannot update prometheus-operator deployment: %s\n", err.Error())
 		return err
 	}
 

@@ -37,7 +37,6 @@ import (
 	"github.com/deckhouse/sds-common-lib/kubeclient"
 )
 
-
 func removeFinalizers(ctx context.Context, cl client.Client, obj client.Object, logger pkg.Logger) error {
 	logger.Info(fmt.Sprintf("[remove-sc-and-secrets-on-module-delete]: Removing finalizers from %s %s\n", obj.GetObjectKind().GroupVersionKind().Kind, obj.GetName()))
 
@@ -130,4 +129,3 @@ func handlerRemoveScAndSecretsOnModuleDelete(ctx context.Context, input *pkg.Hoo
 
 	return resultErr
 }
-
