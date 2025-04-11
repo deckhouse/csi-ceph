@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -31,6 +32,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	sv1 "k8s.io/api/storage/v1"
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -559,7 +561,29 @@ func MigratePVsToNewSecret(ctx context.Context, cl client.Client, pvList *v1.Per
 				return err
 			}
 
-			err = cl.Create(ctx, newPV)
+			err = wait.PollUntilContextTimeout(ctx, 5*time.Second, 5*time.Minute, true, func(ctx context.Context) (bool, error) {
+				fmt.Printf("[%s]: Waiting for PersistentVolume %s to be created\n", logPrefix, newPV.Name)
+
+				newPV.ResourceVersion = ""
+				err = cl.Create(ctx, newPV)
+				if err != nil {
+					if apierrors.IsAlreadyExists(err) {
+						fmt.Printf("[%s]: Waiting for PersistentVolume %s to be deleted\n", logPrefix, newPV.Name)
+						return false, nil
+					}
+
+					if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+						fmt.Printf("[%s]: Context canceled while creating PersistentVolume\n", logPrefix)
+						return false, nil
+					}
+
+					return false, err
+				}
+
+				fmt.Printf("[%s]: PersistentVolume %s created\n", logPrefix, newPV.Name)
+				return true, nil
+			})
+
 			if err != nil {
 				fmt.Printf("[%s]: PV create error %s\n", logPrefix, err)
 				return err
@@ -702,6 +726,25 @@ func setRecreateLabelToBackupResource(ctx context.Context, cl client.Client, bac
 	cephMetadataBackup.Labels[PVRecreatedSuccesfullyLabelKey] = labelValue
 	err = cl.Update(ctx, cephMetadataBackup)
 	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func ScaleDeployment(ctx context.Context, cl client.Client, namespace, deploymentName string, replicas *int32) error {
+	deployment := &appsv1.Deployment{}
+	err := cl.Get(ctx, client.ObjectKey{Namespace: namespace, Name: deploymentName}, deployment)
+	if err != nil {
+		fmt.Printf("Cannot get prometheus-operator deployment: %s\n", err.Error())
+		return err
+	}
+
+	fmt.Printf("Scaling prometheus-operator deployment replicas down\n")
+	deployment.Spec.Replicas = replicas
+	err = cl.Update(ctx, deployment)
+	if err != nil {
+		fmt.Printf("Cannot update prometheus-operator deployment: %s\n", err.Error())
 		return err
 	}
 
