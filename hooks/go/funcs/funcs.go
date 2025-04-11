@@ -728,9 +728,9 @@ func setRecreateLabelToBackupResource(ctx context.Context, cl client.Client, bac
 	return nil
 }
 
-func ScaleDeployment(ctx context.Context, cl client.Client, Namespace, DeploymentName string, replicas *int32) error {
+func ScaleDeployment(ctx context.Context, cl client.Client, namespace, deploymentName string, replicas *int32) error {
 	deployment := &appsv1.Deployment{}
-	err := cl.Get(ctx, client.ObjectKey{Namespace: Namespace, Name: DeploymentName}, deployment)
+	err := cl.Get(ctx, client.ObjectKey{Namespace: namespace, Name: deploymentName}, deployment)
 	if err != nil {
 		fmt.Printf("Cannot get prometheus-operator deployment: %s\n", err.Error())
 		return err
@@ -738,7 +738,6 @@ func ScaleDeployment(ctx context.Context, cl client.Client, Namespace, Deploymen
 
 	fmt.Printf("Scaling prometheus-operator deployment replicas down\n")
 	deployment.Spec.Replicas = replicas
-	//&[]int32{0}[0]
 	err = cl.Update(ctx, deployment)
 	if err != nil {
 		fmt.Printf("Cannot update prometheus-operator deployment: %s\n", err.Error())
