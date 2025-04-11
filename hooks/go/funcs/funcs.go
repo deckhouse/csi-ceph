@@ -562,6 +562,8 @@ func MigratePVsToNewSecret(ctx context.Context, cl client.Client, pvList *v1.Per
 			}
 
 			err = wait.PollUntilContextTimeout(ctx, 5*time.Second, 5*time.Minute, true, func(ctx context.Context) (bool, error) {
+				fmt.Printf("[%s]: Waiting for PersistentVolume %s to be created\n", logPrefix, newPV.Name)
+
 				newPV.ResourceVersion = ""
 				err = cl.Create(ctx, newPV)
 				if err != nil {
@@ -578,8 +580,8 @@ func MigratePVsToNewSecret(ctx context.Context, cl client.Client, pvList *v1.Per
 					return false, err
 				}
 
-				fmt.Printf("[%s]: Waiting for PersistentVolume %s to be created\n", logPrefix, newPV.Name)
-				return false, nil
+				fmt.Printf("[%s]: PersistentVolume %s created\n", logPrefix, newPV.Name)
+				return true, nil
 			})
 
 			if err != nil {
