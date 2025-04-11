@@ -543,7 +543,6 @@ func MigratePVsToNewSecret(ctx context.Context, cl client.Client, pvList *v1.Per
 			newPV.ResourceVersion = ""
 			newPV.UID = ""
 			newPV.CreationTimestamp = metav1.Time{}
-			newPV.ObjectMeta.ResourceVersion = ""
 			newPV.Spec.CSI.NodeStageSecretRef.Namespace = ModuleNamespace
 			newPV.Spec.CSI.NodeStageSecretRef.Name = newSecretName
 			newPV.Spec.CSI.ControllerExpandSecretRef.Namespace = ModuleNamespace
@@ -563,6 +562,7 @@ func MigratePVsToNewSecret(ctx context.Context, cl client.Client, pvList *v1.Per
 			}
 
 			err = wait.PollUntilContextTimeout(ctx, 5*time.Second, 5*time.Minute, true, func(ctx context.Context) (bool, error) {
+				newPV.ObjectMeta.ResourceVersion = ""
 				err = cl.Create(ctx, newPV)
 				if err != nil {
 					if apierrors.IsAlreadyExists(err) {
