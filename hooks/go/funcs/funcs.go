@@ -543,6 +543,7 @@ func MigratePVsToNewSecret(ctx context.Context, cl client.Client, pvList *v1.Per
 			newPV.ResourceVersion = ""
 			newPV.UID = ""
 			newPV.CreationTimestamp = metav1.Time{}
+			newPV.ObjectMeta.ResourceVersion = ""
 			newPV.Spec.CSI.NodeStageSecretRef.Namespace = ModuleNamespace
 			newPV.Spec.CSI.NodeStageSecretRef.Name = newSecretName
 			newPV.Spec.CSI.ControllerExpandSecretRef.Namespace = ModuleNamespace
