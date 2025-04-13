@@ -20,7 +20,6 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -32,7 +31,6 @@ import (
 	v1 "k8s.io/api/core/v1"
 	sv1 "k8s.io/api/storage/v1"
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -562,28 +560,25 @@ func MigratePVsToNewSecret(ctx context.Context, cl client.Client, pvList *v1.Per
 			}
 
 			err = wait.PollUntilContextTimeout(ctx, 5*time.Second, 5*time.Minute, true, func(ctx context.Context) (bool, error) {
-				fmt.Printf("[%s]: Waiting for PersistentVolume %s to be created\n", logPrefix, newPV.Name)
+				pvList := &v1.PersistentVolumeList{}
 
-				newPV.ResourceVersion = ""
-				err = cl.Create(ctx, newPV)
+				err = cl.List(ctx, pvList)
+				for _, pv := range pvList.Items {
+					if pv.Name == newPV.Name {
+						fmt.Printf("[%s]: Waiting for PV %s to be deleted\n", logPrefix, newPV.Name)
+						return false, nil
+					}
+				}
 				if err != nil {
-					if apierrors.IsAlreadyExists(err) {
-						fmt.Printf("[%s]: Waiting for PersistentVolume %s to be deleted\n", logPrefix, newPV.Name)
-						return false, nil
-					}
-
-					if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
-						fmt.Printf("[%s]: Context canceled while creating PersistentVolume\n", logPrefix)
-						return false, nil
-					}
-
+					fmt.Printf("[%s]: PVList get error %s\n", logPrefix, err)
 					return false, err
 				}
 
-				fmt.Printf("[%s]: PersistentVolume %s created\n", logPrefix, newPV.Name)
+				fmt.Printf("[%s]: PersistentVolume %s deleted\n", logPrefix, newPV.Name)
 				return true, nil
 			})
 
+			err = cl.Create(ctx, newPV)
 			if err != nil {
 				fmt.Printf("[%s]: PV create error %s\n", logPrefix, err)
 				return err
