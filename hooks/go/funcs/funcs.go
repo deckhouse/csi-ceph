@@ -563,15 +563,16 @@ func MigratePVsToNewSecret(ctx context.Context, cl client.Client, pvList *v1.Per
 				pvList := &v1.PersistentVolumeList{}
 
 				err = cl.List(ctx, pvList)
+				if err != nil {
+					fmt.Printf("[%s]: PVList get error %s\n", logPrefix, err)
+					return false, err
+				}
+
 				for _, pv := range pvList.Items {
 					if pv.Name == newPV.Name {
 						fmt.Printf("[%s]: Waiting for PV %s to be deleted\n", logPrefix, newPV.Name)
 						return false, nil
 					}
-				}
-				if err != nil {
-					fmt.Printf("[%s]: PVList get error %s\n", logPrefix, err)
-					return false, err
 				}
 
 				fmt.Printf("[%s]: PersistentVolume %s deleted\n", logPrefix, newPV.Name)
