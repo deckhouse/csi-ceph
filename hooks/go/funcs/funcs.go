@@ -582,6 +582,16 @@ func MigratePVsToNewSecret(ctx context.Context, cl client.Client, pvList *v1.Per
 
 			err = cl.Create(ctx, newPV)
 			if err != nil {
+				if client.IgnoreAlreadyExists(err) != nil {
+					// If PV already exists, we need to return reclaim policy to original value
+					pathJSON := fmt.Sprintf(`{"spec":{"persistentVolumeReclaimPolicy":"%s"}}`, newPV.Spec.PersistentVolumeReclaimPolicy)
+					patch := client.RawPatch(types.MergePatchType, []byte(pathJSON))
+					err = cl.Patch(ctx, newPV, patch)
+					if err != nil {
+						fmt.Printf("[%s]: PV patch error %s\n", logPrefix, err)
+						// join error message
+						err = fmt.Errorf("failed to patch PV %s: %w", newPV.Name, err)
+					}
 				fmt.Printf("[%s]: PV create error %s\n", logPrefix, err)
 				return err
 			}
