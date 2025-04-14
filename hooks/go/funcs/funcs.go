@@ -571,6 +571,7 @@ func MigratePVsToNewSecret(ctx context.Context, cl client.Client, pvList *v1.Per
 				for _, pvItem := range pvList.Items {
 					if pvItem.Name == newPV.Name {
 						fmt.Printf("[%s]: Waiting for PV %s to be deleted\n", logPrefix, newPV.Name)
+						fmt.Printf("[%s]: PV %s still exists: %+v\n", logPrefix, newPV.Name, pvItem)
 						return false, nil
 					}
 				}

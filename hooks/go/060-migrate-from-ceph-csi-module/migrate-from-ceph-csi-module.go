@@ -141,7 +141,7 @@ func handlerMigrateFromCephCsiModule(ctx context.Context, _ *pkg.HookInput) erro
 		}
 
 		if !scalePrometheusOperatorUp {
-			err = funcs.ScaleDeployment(ctx, cl, prometheusOperatorNamespace, prometheusOperatorDeploymentName, &[]int32{0}[0])			
+			err = funcs.ScaleDeployment(ctx, cl, prometheusOperatorNamespace, prometheusOperatorDeploymentName, &[]int32{0}[0])
 			if err == nil {
 				scalePrometheusOperatorUp = true
 			}
@@ -293,7 +293,7 @@ func handlerMigrateFromCephCsiModule(ctx context.Context, _ *pkg.HookInput) erro
 
 	if scalePrometheusOperatorUp {
 		_ = funcs.ScaleDeployment(ctx, cl, prometheusOperatorNamespace, prometheusOperatorDeploymentName, &[]int32{1}[0])
-		}
+	}
 
 	return nil
 }
