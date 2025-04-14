@@ -572,12 +572,15 @@ func MigratePVsToNewSecret(ctx context.Context, cl client.Client, pvList *v1.Per
 					if pvItem.Name == newPV.Name {
 						fmt.Printf("[%s]: Waiting for PV %s to be deleted\n", logPrefix, newPV.Name)
 						fmt.Printf("[%s]: PV %s still exists: %+v\n", logPrefix, newPV.Name, pvItem)
-						// remove finalizers
-						patch := client.RawPatch(types.MergePatchType, []byte(`{"metadata":{"finalizers":[]}}`))
-						err = cl.Patch(ctx, &pvItem, patch)
-						if err != nil {
-							fmt.Printf("[%s]: PV patch error %s\n", logPrefix, err)
-							return false, err
+						// remove finalizers if exist
+						if len(pvItem.GetFinalizers()) > 0 {
+							fmt.Printf("[%s]: PV %s still has finalizers: %+v. Removing them\n", logPrefix, newPV.Name, pvItem.GetFinalizers())
+							patch := client.RawPatch(types.MergePatchType, []byte(`{"metadata":{"finalizers":[]}}`))
+							err = cl.Patch(ctx, &pvItem, patch)
+							if err != nil {
+								fmt.Printf("[%s]: PV patch error %s\n", logPrefix, err)
+								return false, err
+							}
 						}
 						return false, nil
 					}
@@ -589,7 +592,7 @@ func MigratePVsToNewSecret(ctx context.Context, cl client.Client, pvList *v1.Per
 
 			err = cl.Create(ctx, newPV)
 			if err != nil {
-				if client.IgnoreAlreadyExists(err) != nil {
+				if client.IgnoreAlreadyExists(err) == nil {
 					// If PV already exists, we need to return reclaim policy to original value
 					pathJSON := fmt.Sprintf(`{"spec":{"persistentVolumeReclaimPolicy":"%s"}}`, newPV.Spec.PersistentVolumeReclaimPolicy)
 					patch := client.RawPatch(types.MergePatchType, []byte(pathJSON))
