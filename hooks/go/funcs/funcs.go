@@ -589,9 +589,9 @@ func MigratePVsToNewSecret(ctx context.Context, cl client.Client, pvList *v1.Per
 					err = cl.Patch(ctx, newPV, patch)
 					if err != nil {
 						fmt.Printf("[%s]: PV patch error %s\n", logPrefix, err)
-						// join error message
 						err = fmt.Errorf("failed to patch PV %s: %w", newPV.Name, err)
 					}
+				}
 				fmt.Printf("[%s]: PV create error %s\n", logPrefix, err)
 				return err
 			}
