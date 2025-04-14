@@ -572,6 +572,13 @@ func MigratePVsToNewSecret(ctx context.Context, cl client.Client, pvList *v1.Per
 					if pvItem.Name == newPV.Name {
 						fmt.Printf("[%s]: Waiting for PV %s to be deleted\n", logPrefix, newPV.Name)
 						fmt.Printf("[%s]: PV %s still exists: %+v\n", logPrefix, newPV.Name, pvItem)
+						// remove finalizers
+						patch := client.RawPatch(types.MergePatchType, []byte(`{"metadata":{"finalizers":[]}}`))
+						err = cl.Patch(ctx, &pvItem, patch)
+						if err != nil {
+							fmt.Printf("[%s]: PV patch error %s\n", logPrefix, err)
+							return false, err
+						}
 						return false, nil
 					}
 				}
