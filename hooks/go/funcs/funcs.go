@@ -559,7 +559,7 @@ func MigratePVsToNewSecret(ctx context.Context, cl client.Client, pvList *v1.Per
 				return err
 			}
 
-			err = wait.PollUntilContextTimeout(ctx, 30*time.Second, 3*time.Minute, true, func(ctx context.Context) (bool, error) {
+			err = wait.PollUntilContextTimeout(ctx, 5*time.Second, 3*time.Minute, true, func(ctx context.Context) (bool, error) {
 				pvList := &v1.PersistentVolumeList{}
 
 				err = cl.List(ctx, pvList)
