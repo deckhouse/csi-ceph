@@ -590,6 +590,11 @@ func MigratePVsToNewSecret(ctx context.Context, cl client.Client, pvList *v1.Per
 				return true, nil
 			})
 
+			if err != nil {
+				fmt.Printf("[%s]: error while waiting PersistentVolume deleting %s\n", logPrefix, err)
+				return err
+			}
+
 			err = cl.Create(ctx, newPV)
 			if err != nil {
 				if client.IgnoreAlreadyExists(err) == nil {
