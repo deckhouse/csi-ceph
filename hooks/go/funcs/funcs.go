@@ -559,8 +559,54 @@ func MigratePVsToNewSecret(ctx context.Context, cl client.Client, pvList *v1.Per
 				return err
 			}
 
+			err = wait.PollUntilContextTimeout(ctx, 5*time.Second, 3*time.Minute, true, func(ctx context.Context) (bool, error) {
+				pvList := &v1.PersistentVolumeList{}
+
+				err = cl.List(ctx, pvList)
+				if err != nil {
+					fmt.Printf("[%s]: PVList get error %s\n", logPrefix, err)
+					return false, err
+				}
+
+				for _, pvItem := range pvList.Items {
+					if pvItem.Name == newPV.Name {
+						fmt.Printf("[%s]: Waiting for PV %s to be deleted\n", logPrefix, newPV.Name)
+						fmt.Printf("[%s]: PV %s still exists: %+v\n", logPrefix, newPV.Name, pvItem)
+						// remove finalizers if exist
+						if len(pvItem.GetFinalizers()) > 0 {
+							fmt.Printf("[%s]: PV %s still has finalizers: %+v. Removing them\n", logPrefix, newPV.Name, pvItem.GetFinalizers())
+							patch := client.RawPatch(types.MergePatchType, []byte(`{"metadata":{"finalizers":[]}}`))
+							err = cl.Patch(ctx, &pvItem, patch)
+							if err != nil {
+								fmt.Printf("[%s]: PV patch error %s\n", logPrefix, err)
+								return false, err
+							}
+						}
+						return false, nil
+					}
+				}
+
+				fmt.Printf("[%s]: PersistentVolume %s deleted\n", logPrefix, newPV.Name)
+				return true, nil
+			})
+
+			if err != nil {
+				fmt.Printf("[%s]: error while waiting PersistentVolume deleting %s\n", logPrefix, err)
+				return err
+			}
+
 			err = cl.Create(ctx, newPV)
 			if err != nil {
+				if client.IgnoreAlreadyExists(err) == nil {
+					// If PV already exists, we need to return reclaim policy to original value
+					patchJSON := fmt.Sprintf(`{"spec":{"persistentVolumeReclaimPolicy":"%s"}}`, newPV.Spec.PersistentVolumeReclaimPolicy)
+					patch := client.RawPatch(types.MergePatchType, []byte(patchJSON))
+					err = cl.Patch(ctx, newPV, patch)
+					if err != nil {
+						fmt.Printf("[%s]: PV patch error %s\n", logPrefix, err)
+						err = fmt.Errorf("failed to patch PV %s: %w", newPV.Name, err)
+					}
+				}
 				fmt.Printf("[%s]: PV create error %s\n", logPrefix, err)
 				return err
 			}
@@ -702,6 +748,25 @@ func setRecreateLabelToBackupResource(ctx context.Context, cl client.Client, bac
 	cephMetadataBackup.Labels[PVRecreatedSuccesfullyLabelKey] = labelValue
 	err = cl.Update(ctx, cephMetadataBackup)
 	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func ScaleDeployment(ctx context.Context, cl client.Client, namespace, deploymentName string, replicas *int32) error {
+	deployment := &appsv1.Deployment{}
+	err := cl.Get(ctx, client.ObjectKey{Namespace: namespace, Name: deploymentName}, deployment)
+	if err != nil {
+		fmt.Printf("Cannot get prometheus-operator deployment: %s\n", err.Error())
+		return err
+	}
+
+	fmt.Printf("Scaling prometheus-operator deployment replicas down\n")
+	deployment.Spec.Replicas = replicas
+	err = cl.Update(ctx, deployment)
+	if err != nil {
+		fmt.Printf("Cannot update prometheus-operator deployment: %s\n", err.Error())
 		return err
 	}
 

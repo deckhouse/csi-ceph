@@ -7,11 +7,13 @@ final: false
 git:
   - add: /
     to: /src
+    includePaths:
+      - images/{{ $.ImageName }}
     stageDependencies:
       install:
-        - "**/*"
-    includePaths:
-      - images/csi-ceph/patches
+        - '**/*'
+    excludePaths:
+      - images/{{ $.ImageName }}/werf.yaml
 
 shell:
   install:
