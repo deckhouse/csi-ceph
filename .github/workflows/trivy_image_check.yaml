@@ -37,9 +37,12 @@ jobs:
           module_name: ${{ vars.MODULE_NAME }}
           dd_url: ${{ secrets.DEFECTDOJO_HOST }}
           dd_token: ${{ secrets.DEFECTDOJO_API_TOKEN }}
-          prod_registry: ${{ vars.PROD_REGISTRY }}
+          prod_registry: registry.deckhouse.io
           prod_registry_user: ${{ vars.PROD_MODULES_REGISTRY_LOGIN }}
           prod_registry_password: ${{ secrets.PROD_MODULES_READ_REGISTRY_PASSWORD }}
+          dev_registry: ${{ vars.DEV_REGISTRY }}
+          dev_registry_user: ${{ vars.DEV_MODULES_REGISTRY_LOGIN }}
+          dev_registry_password: ${{ secrets.DEV_MODULES_REGISTRY_PASSWORD }}
           deckhouse_private_repo: ${{ secrets.DECKHOUSE_PRIVATE_REPO }}
   cve_scan:
     if: github.event_name != 'pull_request'
@@ -58,7 +61,7 @@ jobs:
           module_name: ${{ vars.MODULE_NAME }}
           dd_url: ${{ secrets.DEFECTDOJO_HOST }}
           dd_token: ${{ secrets.DEFECTDOJO_API_TOKEN }}
-          prod_registry: ${{ vars.PROD_REGISTRY }}
+          prod_registry: registry.deckhouse.io
           prod_registry_user: ${{ vars.PROD_MODULES_REGISTRY_LOGIN }}
           prod_registry_password: ${{ secrets.PROD_MODULES_READ_REGISTRY_PASSWORD }}
           dev_registry: ${{ vars.DEV_REGISTRY }}
