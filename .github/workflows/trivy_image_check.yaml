@@ -1,6 +1,9 @@
 name: Build and checks
 
 on:
+  schedule:
+    - cron: '0 23 * * 0,3'
+      scan_three_last_releases: 'true'
   pull_request:
     types: [opened, reopened, labeled, synchronize]
   push:
@@ -11,6 +14,27 @@ on:
       release_branch:
         description: "release branch name, example: release-1.68"
         required: false
+      prod_registry:
+        description: 'must be deckhouse prod registry, used to get trivy databases and release images'
+        required: true
+      prod_registry_user:
+        description: 'username to log in to deckhouse prod registry'
+        required: true
+      prod_registry_password:
+        description: 'password to log in to deckhouse prod registry'
+        required: true
+      dev_registry:
+        description: ' must be deckhouse dev registry, used to get dev images'
+        required: true
+      dev_registry_user:
+        description: 'username to log in to deckhouse dev registry'
+        required: true
+      dev_registry_password:
+        description: 'password to log in to deckhouse dev registry'
+        required: true
+      scan_three_last_releases:
+        description: 'true/false. whether to scan last 3 releases or not. useful for scheduled task'
+        required: true
 
 jobs:
   build_dev:
@@ -19,25 +43,25 @@ jobs:
     secrets: inherit
   cve_scan_on_pr:
     if: github.event_name == 'pull_request'
-    name: Trivy images check
+    name: CVE scan for PR
     runs-on: [self-hosted, regular]
     needs: [build_dev]
     steps:
       - uses: actions/checkout@v4
-      - uses: deckhouse/modules-actions/cve_scan@main
+      - uses: deckhouse/modules-actions/cve_scan@chore/cve_scheduled_scan
         with:
           image: ${{ vars.DEV_MODULE_SOURCE }}/${{ vars.MODULE_NAME }}
           tag: pr${{ github.event.number }}
           module_name: ${{ vars.MODULE_NAME }}
-          dd_url: ${{secrets.DEFECTDOJO_HOST}}
-          dd_token: ${{secrets.DEFECTDOJO_API_TOKEN}}
-          trivy_registry: ${{ vars.PROD_REGISTRY }}
-          trivy_registry_user: ${{ vars.PROD_MODULES_REGISTRY_LOGIN }}
-          trivy_registry_password: ${{ secrets.PROD_MODULES_READ_REGISTRY_PASSWORD }}
-          deckhouse_private_repo: ${{secrets.DECKHOUSE_PRIVATE_REPO}}
+          dd_url: ${{ secrets.DEFECTDOJO_HOST }}
+          dd_token: ${{ secrets.DEFECTDOJO_API_TOKEN }}
+          prod_registry: ${{ vars.PROD_REGISTRY }}
+          prod_registry_user: ${{ vars.PROD_MODULES_REGISTRY_LOGIN }}
+          prod_registry_password: ${{ secrets.PROD_MODULES_READ_REGISTRY_PASSWORD }}
+          deckhouse_private_repo: ${{ secrets.DECKHOUSE_PRIVATE_REPO }}
   cve_scan:
     if: github.event_name != 'pull_request'
-    name: Trivy images check
+    name: Regular CVE scan
     runs-on: [self-hosted, regular]
     steps:
       - uses: actions/checkout@v4
@@ -45,14 +69,18 @@ jobs:
         run: |
           echo "MODULE_IMAGE_TAG=${{ github.event.inputs.release_branch || 'main' }}" >> $GITHUB_ENV
         if: github.event_name != 'workflow_dispatch'
-      - uses: deckhouse/modules-actions/cve_scan@main
+      - uses: deckhouse/modules-actions/cve_scan@chore/cve_scheduled_scan
         with:
           image: ${{ vars.DEV_MODULE_SOURCE }}/${{ vars.MODULE_NAME }}
           tag: ${{ env.MODULE_IMAGE_TAG || 'main' }}
           module_name: ${{ vars.MODULE_NAME }}
-          dd_url: ${{secrets.DEFECTDOJO_HOST}}
-          dd_token: ${{secrets.DEFECTDOJO_API_TOKEN}}
-          trivy_registry: ${{ vars.PROD_REGISTRY }}
-          trivy_registry_user: ${{ vars.PROD_MODULES_REGISTRY_LOGIN }}
-          trivy_registry_password: ${{ secrets.PROD_MODULES_READ_REGISTRY_PASSWORD }}
-          deckhouse_private_repo: ${{secrets.DECKHOUSE_PRIVATE_REPO}}
+          dd_url: ${{ secrets.DEFECTDOJO_HOST }}
+          dd_token: ${{ secrets.DEFECTDOJO_API_TOKEN }}
+          prod_registry: ${{ vars.PROD_REGISTRY }}
+          prod_registry_user: ${{ vars.PROD_MODULES_REGISTRY_LOGIN }}
+          prod_registry_password: ${{ secrets.PROD_MODULES_READ_REGISTRY_PASSWORD }}
+          dev_registry: ${{ vars.DEV_REGISTRY }}
+          dev_registry_user: ${{ vars.DEV_MODULES_REGISTRY_LOGIN }}
+          dev_registry_password: ${{ secrets.DEV_MODULES_REGISTRY_PASSWORD }}
+          deckhouse_private_repo: ${{ secrets.DECKHOUSE_PRIVATE_REPO }}
+          scan_three_last_releases: ${{ github.event.schedule.scan_three_last_releases || github.event.inputs.scan_three_last_releases }}
