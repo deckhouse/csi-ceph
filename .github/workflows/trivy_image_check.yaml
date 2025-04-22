@@ -2,7 +2,7 @@ name: Build and checks
 
 on:
   schedule:
-    - cron: '0 23 * * 0,3'
+    - cron: '0 01 * * 0,3'
       scan_three_last_releases: 'true'
   pull_request:
     types: [opened, reopened, labeled, synchronize]
@@ -15,7 +15,7 @@ on:
         description: "release branch name, example: release-1.68"
         required: false
       scan_three_last_releases:
-        description: 'true/false. whether to scan last 3 releases or not. useful for scheduled task'
+        description: 'true/false. whether to scan last 3 releases or not. useful for scheduled pipeline'
         required: false
 
 jobs:
