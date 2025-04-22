@@ -37,8 +37,8 @@ jobs:
           module_name: ${{ vars.MODULE_NAME }}
           dd_url: ${{ secrets.DEFECTDOJO_HOST }}
           dd_token: ${{ secrets.DEFECTDOJO_API_TOKEN }}
-          prod_registry: registry.deckhouse.io
-          prod_registry_user: ${{ vars.PROD_MODULES_REGISTRY_LOGIN }}
+          prod_registry: "registry.deckhouse.io"
+          prod_registry_user: "license-token"
           prod_registry_password: ${{ secrets.PROD_MODULES_READ_REGISTRY_PASSWORD }}
           dev_registry: ${{ vars.DEV_REGISTRY }}
           dev_registry_user: ${{ vars.DEV_MODULES_REGISTRY_LOGIN }}
@@ -61,8 +61,8 @@ jobs:
           module_name: ${{ vars.MODULE_NAME }}
           dd_url: ${{ secrets.DEFECTDOJO_HOST }}
           dd_token: ${{ secrets.DEFECTDOJO_API_TOKEN }}
-          prod_registry: registry.deckhouse.io
-          prod_registry_user: ${{ vars.PROD_MODULES_REGISTRY_LOGIN }}
+          prod_registry: "registry.deckhouse.io"
+          prod_registry_user: "license-token"
           prod_registry_password: ${{ secrets.PROD_MODULES_READ_REGISTRY_PASSWORD }}
           dev_registry: ${{ vars.DEV_REGISTRY }}
           dev_registry_user: ${{ vars.DEV_MODULES_REGISTRY_LOGIN }}
