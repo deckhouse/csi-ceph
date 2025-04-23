@@ -18,7 +18,7 @@ linters-settings:
           name: csi-controller-rbd
           container: livenessprobe
         - kind: DaemonSet
-          name: csi-ceph-rbd
+          name: csi-node-rbd
           container: node-driver-registrar
         - kind: Deployment
           name: csi-controller-cephfs
@@ -36,7 +36,7 @@ linters-settings:
           name: csi-controller-cephfs
           container: livenessprobe
         - kind: DaemonSet
-          name: csi-ceph-cephfs
+          name: csi-node-cephfs
           container: node-driver-registrar
       readiness-probe:
         - kind: Deployment
@@ -58,10 +58,10 @@ linters-settings:
           name: csi-controller-rbd
           container: controller
         - kind: DaemonSet
-          name: csi-ceph-rbd
+          name: csi-node-rbd
           container: node
         - kind: DaemonSet
-          name: csi-ceph-rbd
+          name: csi-node-rbd
           container: node-driver-registrar
         - kind: Deployment
           name: csi-controller-cephfs
@@ -82,8 +82,8 @@ linters-settings:
           name: csi-controller-cephfs
           container: controller
         - kind: DaemonSet
-          name: csi-ceph-cephfs
+          name: csi-node-cephfs
           container: node
         - kind: DaemonSet
-          name: csi-ceph-cephfs
+          name: csi-node-cephfs
           container: node-driver-registrar
