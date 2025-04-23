@@ -1,0 +1,89 @@
+linters-settings:
+  container:
+    exclude-rules:
+      liveness-probe:
+        - kind: Deployment
+          name: csi-controller-rbd
+          container: snapshotter
+        - kind: Deployment
+          name: csi-controller-rbd
+          container: resizer
+        - kind: Deployment
+          name: csi-controller-rbd
+          container: attacher
+        - kind: Deployment
+          name: csi-controller-rbd
+          container: provisioner
+        - kind: Deployment
+          name: csi-controller-rbd
+          container: livenessprobe
+        - kind: DaemonSet
+          name: csi-node-rbd
+          container: node-driver-registrar
+        - kind: Deployment
+          name: csi-controller-cephfs
+          container: snapshotter
+        - kind: Deployment
+          name: csi-controller-cephfs
+          container: resizer
+        - kind: Deployment
+          name: csi-controller-cephfs
+          container: attacher
+        - kind: Deployment
+          name: csi-controller-cephfs
+          container: provisioner
+        - kind: Deployment
+          name: csi-controller-cephfs
+          container: livenessprobe
+        - kind: DaemonSet
+          name: csi-node-cephfs
+          container: node-driver-registrar
+      readiness-probe:
+        - kind: Deployment
+          name: csi-controller-rbd
+          container: snapshotter
+        - kind: Deployment
+          name: csi-controller-rbd
+          container: resizer
+        - kind: Deployment
+          name: csi-controller-rbd
+          container: attacher
+        - kind: Deployment
+          name: csi-controller-rbd
+          container: provisioner
+        - kind: Deployment
+          name: csi-controller-rbd
+          container: livenessprobe
+        - kind: Deployment
+          name: csi-controller-rbd
+          container: controller
+        - kind: DaemonSet
+          name: csi-node-rbd
+          container: node
+        - kind: DaemonSet
+          name: csi-node-rbd
+          container: node-driver-registrar
+        - kind: Deployment
+          name: csi-controller-cephfs
+          container: snapshotter
+        - kind: Deployment
+          name: csi-controller-cephfs
+          container: resizer
+        - kind: Deployment
+          name: csi-controller-cephfs
+          container: attacher
+        - kind: Deployment
+          name: csi-controller-cephfs
+          container: provisioner
+        - kind: Deployment
+          name: csi-controller-cephfs
+          container: livenessprobe
+        - kind: Deployment
+          name: csi-controller-cephfs
+          container: controller
+        - kind: DaemonSet
+          name: csi-node-cephfs
+          container: node
+        - kind: DaemonSet
+          name: csi-node-cephfs
+          container: node-driver-registrar
