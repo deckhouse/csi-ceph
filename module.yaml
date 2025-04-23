@@ -1,3 +1,7 @@
 name: csi-ceph
 weight: 920
-description: "CSI Ceph"
+descriptions:
+  en: "CSI Ceph"
+requirements:
+  bootstrapped: true
+namespace: "d8-csi-ceph"
