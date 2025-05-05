@@ -11,16 +11,16 @@ on:
   workflow_dispatch:
     inputs:
       release_branch:
-        description: "release branch name, example: release-1.68"
+        description: 'Optional. Set minor version of release you want to scan. e.g.: 1.23'
         required: false
       scan_several_lastest_releases:
-        description: 'true/false. whether to scan last several releases or not. For scheduled pipelines it is always true'
+        description: 'Optional. Whether to scan last several releases or not. true/false. For scheduled pipelines it is always true. Default is: false.'
         required: false
       latest_releases_amount:
-        description: 'Number of latest releases to scan. Default is: 3'
+        description: 'Optional. Number of latest releases to scan. Default is: 3'
         required: false
       severity:
-        description: 'Vulnerabilities severity to scan. Default is: UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL'
+        description: 'Optional. Vulnerabilities severity to scan. Default is: UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL'
         required: false
 
 jobs:
