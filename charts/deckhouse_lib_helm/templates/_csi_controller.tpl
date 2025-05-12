@@ -157,7 +157,7 @@ spec:
         cpu: 20m
         memory: 100Mi
     {{- if $additionalControllerVPA }}
-    {{- $additionalControllerVPA | toYaml | nindent 6 }}
+    {{- $additionalControllerVPA | toYaml | nindent 4 }}
     {{- end }}
     {{- end }}
 ---
