@@ -116,12 +116,6 @@ func handlerRemoveScAndSecretsOnModuleDelete(ctx context.Context, input *pkg.Hoo
 				resultErr = errors.Join(resultErr, fmt.Errorf("[remove-sc-and-secrets-on-module-delete]: Failed to patch storage class %s: %w", sc.Name, err))
 				continue
 			}
-
-			input.Logger.Info(fmt.Sprintf("[remove-sc-and-secrets-on-module-delete]: Removing %s storage class\n", sc.Name))
-			if err := cl.Delete(ctx, &sc); err != nil {
-				resultErr = errors.Join(resultErr, fmt.Errorf("[remove-sc-and-secrets-on-module-delete]: Failed to delete storage class %s: %w", sc.Name, err))
-				continue
-			}
 		}
 	}
 
