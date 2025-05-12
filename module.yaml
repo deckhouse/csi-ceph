@@ -1,3 +1,5 @@
 name: csi-ceph
 weight: 920
-description: "CSI Ceph"
+descriptions:
+  en: "CSI Ceph module"
+namespace: d8-csi-ceph

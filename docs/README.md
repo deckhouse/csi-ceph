@@ -3,9 +3,15 @@ title: "The csi-ceph module"
 ---
 
 {{< alert level="warning" >}}
-When switching to this module from the ceph-csi module, an automatic migration is performed.
-If the spec.cephfs.storageClasses.pool field in the CephCSIDriver resources is set to a value other than cephfs_data, the migration will fail with an error.
-In this case, it is necessary to contact technical support.
+When switching to this module from the ceph-csi module, an automatic migration is performed, but it requires preparation:
+1. Scale all operators (redis, clickhouse, kafka, etc.) to zero replicas; during migration, operators in the cluster must not be running. The only exception is the prometheus operator in Deckhouse, which will be automatically disabled during migration.
+2. Disable the ceph-csi module and enable the csi-ceph module.
+3. Wait for the migration process to complete in the Deckhouse logs (indicated by "Finished migration from Ceph CSI module").
+4. Create test pod/PVC to verify CSI functionality.
+5. Restore operators to a working state.
+If the CephCSIDriver resource has a spec.cephfs.storageClasses.pool field set to a value other than cephfs_data, the migration will fail with an error.
+If a Ceph StorageClass was created manually and not via the CephCSIDriver resource, manual migration is required.
+In these cases, contact technical support.
 {{< /alert >}}
 
 Ceph is a scalable distributed storage system that ensures high availability and fault tolerance of data. Deckhouse supports integration with Ceph clusters, enabling dynamic storage management and the use of StorageClass based on RBD (RADOS Block Device) or CephFS.
