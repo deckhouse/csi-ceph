@@ -4,12 +4,11 @@ title: "The csi-ceph module"
 
 {{< alert level="warning" >}}
 When switching to this module from the ceph-csi module, an automatic migration is performed, but it requires preparation:
-
-Scale all operators (redis, clickhouse, kafka, etc.) to zero replicas; during migration, operators in the cluster must not be running. The only exception is the prometheus operator in Deckhouse, which will be automatically disabled during migration.
-Disable the ceph-csi module and enable the csi-ceph module.
-Wait for the migration process to complete in the Deckhouse logs (indicated by "Finished migration from Ceph CSI module").
-Create test pod/PVC to verify CSI functionality.
-Restore operators to a working state.
+1. Scale all operators (redis, clickhouse, kafka, etc.) to zero replicas; during migration, operators in the cluster must not be running. The only exception is the prometheus operator in Deckhouse, which will be automatically disabled during migration.
+2. Disable the ceph-csi module and enable the csi-ceph module.
+3. Wait for the migration process to complete in the Deckhouse logs (indicated by "Finished migration from Ceph CSI module").
+4. Create test pod/PVC to verify CSI functionality.
+5. Restore operators to a working state.
 If the CephCSIDriver resource has a spec.cephfs.storageClasses.pool field set to a value other than cephfs_data, the migration will fail with an error.
 If a Ceph StorageClass was created manually and not via the cephcsidriver resource, manual migration is required.
 In these cases, contact technical support.
