@@ -149,15 +149,15 @@ spec:
       add: ["SYS_ADMIN"]
     allowPrivilegeEscalation: true
     readOnlyRootFilesystem: true
-    livenessProbe:
-      failureThreshold: 3
-      httpGet:
-        path: /healthz
-        port: 4247
-        scheme: HTTP
-      periodSeconds: 10
-      successThreshold: 1
-      timeoutSeconds: 1    
+  livenessProbe:
+    failureThreshold: 3
+    httpGet:
+      path: /healthz
+      port: 4247
+      scheme: HTTP
+    periodSeconds: 10
+    successThreshold: 1
+    timeoutSeconds: 1    
   resources:
     requests:
       {{- include "helm_lib_module_ephemeral_storage_only_logs" . | nindent 6 }}

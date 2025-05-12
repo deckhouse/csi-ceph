@@ -57,6 +57,9 @@ linters-settings:
         - kind: Deployment
           name: csi-controller-rbd
           container: controller
+        - kind: Deployment
+          name: csi-controller-rbd
+          container: rbdplugin
         - kind: DaemonSet
           name: csi-node-rbd
           container: node
