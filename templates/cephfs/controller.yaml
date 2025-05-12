@@ -156,8 +156,8 @@
 #   mountPath: /etc/ceph/
 - name: ceph-csi-config
   mountPath: /etc/ceph-csi-config/
-- name: keys-tmp-dir
-  mountPath: /tmp/csi/keys
+- name: tmp
+  mountPath: /tmp
 {{- end }}
 
 
@@ -185,7 +185,7 @@
     items:
       - key: config.json
         path: config.json
-- name: keys-tmp-dir
+- name: tmp
   emptyDir: {
     medium: "Memory"
   }

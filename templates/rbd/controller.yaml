@@ -64,10 +64,6 @@ memory: 50Mi
 - name: lib-modules
   hostPath:
     path: /lib/modules
-- name: keys-tmp-dir
-  emptyDir: {
-    medium: "Memory"
-  }
 - name: etc-ceph-dir
   emptyDir: {
     medium: "Memory"
@@ -86,10 +82,6 @@ memory: 50Mi
   mountPath: /etc/ceph-csi-config/
 - name: etc-ceph-dir
   mountPath: /etc/ceph/
-  # - name: ceph-config
-  #   mountPath: /etc/ceph/
-- name: keys-tmp-dir
-  mountPath: /tmp/csi/keys
 - name: tmp
   mountPath: /tmp
 {{- end }}
