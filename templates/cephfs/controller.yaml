@@ -231,6 +231,7 @@
 {{- $_ := set $csiNodeConfig "additionalNodeVolumes" (include "cephfs_csi_node_volumes" . | fromYamlArray) }}
 {{- $_ := set $csiNodeConfig "additionalNodeVolumeMounts" (include "cephfs_csi_node_volume_mounts" . | fromYamlArray) }}
 {{- $_ := set $csiNodeConfig "additionalPullSecrets" (include "additional_pull_secrets" . | fromYamlArray) }}
+{{- $_ := set $csiNodeConfig "forceCsiNodeAndStaticNodesDepoloy" true }}
 
 {{- include "helm_lib_csi_node_manifests" (list . $csiNodeConfig) }}
 
