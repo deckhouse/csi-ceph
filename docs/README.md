@@ -10,7 +10,7 @@ When switching to this module from the ceph-csi module, an automatic migration i
 4. Create test pod/PVC to verify CSI functionality.
 5. Restore operators to a working state.
 If the CephCSIDriver resource has a spec.cephfs.storageClasses.pool field set to a value other than cephfs_data, the migration will fail with an error.
-If a Ceph StorageClass was created manually and not via the cephcsidriver resource, manual migration is required.
+If a Ceph StorageClass was created manually and not via the CephCSIDriver resource, manual migration is required.
 In these cases, contact technical support.
 {{< /alert >}}
 
