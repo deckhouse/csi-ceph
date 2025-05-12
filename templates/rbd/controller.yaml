@@ -7,6 +7,36 @@
 {{- end }}
 
 
+{{- define "rbdplugin_resources" }}
+cpu: 10m
+memory: 50Mi
+{{- end }}
+  
+{{- if (.Values.global.enabledModules | has "vertical-pod-autoscaler-crd") }}
+---
+apiVersion: autoscaling.k8s.io/v1
+kind: VerticalPodAutoscaler
+metadata:
+  name: csi-controller-rbd-rbdplugin
+  namespace: d8-{{ .Chart.Name }}
+  {{- include "helm_lib_module_labels" (list . (dict "app" "")) | nindent 2 }}
+spec:
+  targetRef:
+    apiVersion: "apps/v1"
+    kind: Deployment
+    name: csi-controller-rbd
+  updatePolicy:
+    updateMode: "Auto"
+  resourcePolicy:
+    containerPolicies:
+      - containerName: rbdplugin
+        minAllowed:
+          {{- include "rbdplugin_resources" . | nindent 10 }}
+        maxAllowed:
+          cpu: 20m
+          memory: 100Mi
+{{- end }}
+
 ### rbd_csi_controller_args
 
 {{- define "rbd_csi_controller_args" }}
@@ -118,6 +148,22 @@
     capabilities:
       add: ["SYS_ADMIN"]
     allowPrivilegeEscalation: true
+    readOnlyRootFilesystem: true
+    livenessProbe:
+      failureThreshold: 3
+      httpGet:
+        path: /healthz
+        port: 4247
+        scheme: HTTP
+      periodSeconds: 10
+      successThreshold: 1
+      timeoutSeconds: 1    
+  resources:
+    requests:
+      {{- include "helm_lib_module_ephemeral_storage_only_logs" . | nindent 6 }}
+{{- if not ( .Values.global.enabledModules | has "vertical-pod-autoscaler-crd") }}
+      {{- include "rbdplugin_resources" . | nindent 6 }}
+{{- end }}      
   volumeMounts:
     - name: socket-dir
       mountPath: /csi
