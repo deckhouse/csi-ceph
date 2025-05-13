@@ -2,10 +2,24 @@
 ### common
 ###
 
+{{- define "rbdplugin_resources" }}
+cpu: 10m
+memory: 50Mi
+{{- end }}
+
+{{- define "additional_controller_vpa" }}
+- containerName: "rbdplugin"
+  minAllowed:
+    cpu: 10m
+    memory: 50Mi
+  maxAllowed:
+    cpu: 20m
+    memory: 100Mi
+{{- end }}
+
 {{- define "additional_pull_secrets" }} 
 - name: {{ .Chart.Name }}-module-registry
 {{- end }}
-
 
 ### rbd_csi_controller_args
 
@@ -118,6 +132,19 @@
     capabilities:
       add: ["SYS_ADMIN"]
     allowPrivilegeEscalation: true
+    readOnlyRootFilesystem: true
+  livenessProbe:
+    failureThreshold: 3
+    httpGet:
+      path: /healthz
+      port: 4247
+      scheme: HTTP
+    periodSeconds: 10
+    successThreshold: 1
+    timeoutSeconds: 1    
+  resources:
+    requests:
+      {{- include "helm_lib_module_ephemeral_storage_only_logs" . | nindent 6 }}
   volumeMounts:
     - name: socket-dir
       mountPath: /csi
@@ -190,8 +217,8 @@
   readOnly: true
 - name: ceph-csi-config
   mountPath: /etc/ceph-csi-config/
-- name: keys-tmp-dir
-  mountPath: /tmp/csi/keys
+- name: tmp
+  mountPath: /tmp
 - name: etc-ceph-dir
   mountPath: /etc/ceph/
 {{- end }}
@@ -218,7 +245,7 @@
     items:
       - key: config.json
         path: config.json
-- name: keys-tmp-dir
+- name: tmp
   emptyDir: {
     medium: "Memory"
   }
@@ -247,6 +274,7 @@
 {{- $_ := set $csiControllerConfig "additionalControllerEnvs" (include "rbd_csi_controller_envs" (list $csiDriverName) | fromYamlArray) }}
 {{- $_ := set $csiControllerConfig "additionalControllerVolumes" (include "rbd_csi_controller_volumes" . | fromYamlArray) }}
 {{- $_ := set $csiControllerConfig "additionalControllerVolumeMounts" (include "rbd_csi_controller_volume_mounts" . | fromYamlArray) }}
+{{- $_ := set $csiControllerConfig "additionalControllerVPA" (include "additional_controller_vpa" . | fromYamlArray) }}
 {{- $_ := set $csiControllerConfig "additionalContainers" (include "rbd_csi_additional_containers" (list $csiDriverName $csiControllerImage) | fromYamlArray) }}
 {{- $_ := set $csiControllerConfig "runAsRootUser" false }}
 {{- $_ := set $csiControllerConfig "additionalPullSecrets" (include "additional_pull_secrets" . | fromYamlArray) }}
@@ -266,6 +294,7 @@
 {{- $csiNodeConfig := dict }}
 {{- $_ := set $csiNodeConfig "nodeImage" $csiControllerImage }}
 {{- $_ := set $csiNodeConfig "driverFQDN" $csiDriverName }}
+{{- $_ := set $csiNodeConfig "livenessProbePort" 4252 }}
 {{- $_ := set $csiNodeConfig "fullname" "csi-node-rbd" }}
 {{- $_ := set $csiNodeConfig "serviceAccount" "csi" }}
 
@@ -274,6 +303,7 @@
 {{- $_ := set $csiNodeConfig "additionalNodeVolumes" (include "rbd_csi_node_volumes" . | fromYamlArray) }}
 {{- $_ := set $csiNodeConfig "additionalNodeVolumeMounts" (include "rbd_csi_node_volume_mounts" . | fromYamlArray) }}
 {{- $_ := set $csiNodeConfig "additionalPullSecrets" (include "additional_pull_secrets" . | fromYamlArray) }}
+{{- $_ := set $csiNodeConfig "forceCsiNodeAndStaticNodesDepoloy" true }}
 
 {{- include "helm_lib_csi_node_manifests" (list . $csiNodeConfig) }}
 
