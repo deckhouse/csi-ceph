@@ -71,3 +71,4 @@ jobs:
           scan_several_lastest_releases: ${{ github.event.inputs.scan_several_lastest_releases }}
           latest_releases_amount: ${{ github.event.inputs.latest_releases_amount || '3' }}
           severity: ${{ github.event.inputs.severity }}
+
