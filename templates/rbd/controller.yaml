@@ -217,6 +217,8 @@ memory: 50Mi
   readOnly: true
 - name: ceph-csi-config
   mountPath: /etc/ceph-csi-config/
+- name: keys-tmp-dir
+  mountPath: /tmp/csi/keys
 - name: tmp
   mountPath: /tmp
 - name: etc-ceph-dir
@@ -245,6 +247,10 @@ memory: 50Mi
     items:
       - key: config.json
         path: config.json
+- name: keys-tmp-dir
+  emptyDir: {
+    medium: "Memory"
+  }
 - name: tmp
   emptyDir: {
     medium: "Memory"
