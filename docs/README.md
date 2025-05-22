@@ -50,6 +50,12 @@ spec:
   # List of Ceph monitor IP addresses in the format 10.0.0.10:6789.
   monitors:
     - 10.0.0.10:6789
+  # User name without `client.`.
+  # The user name can be obtained using the `ceph auth list` command.
+  userID: admin
+  # Authentication key corresponding to the userID.
+  # The authentication key can be obtained using the `ceph auth get-key client.admin` command.
+  userKey: AQDiVXVmBJVRLxAAg65PhODrtwbwSWrjJwssUg==
 EOF
 ```
 
@@ -57,24 +63,6 @@ You can check the connection status with the following command (the `Phase` shou
 
 ```shell
 d8 k get cephclusterconnection ceph-cluster-1
-```
-
-## Authentication
-
-To authenticate with the Ceph cluster, you need to define the authentication parameters in the [CephClusterAuthentication](../../../reference/cr/cephclusterauthentication/) resource:
-
-```yaml
-d8 k apply -f - <<EOF
-apiVersion: storage.deckhouse.io/v1alpha1
-kind: CephClusterAuthentication
-metadata:
-  name: ceph-auth-1
-spec:
-  # User name without `client.`.
-  userID: admin
-  # Authentication key corresponding to the userID.
-  userKey: AQDbc7phl+eeGRAAaWL9y71mnUiRHKRFOWMPCQ==
-EOF
 ```
 
 ## Creating StorageClass
@@ -89,7 +77,6 @@ metadata:
   name: ceph-rbd-sc
 spec:
   clusterConnectionName: ceph-cluster-1
-  clusterAuthenticationName: ceph-auth-1
   reclaimPolicy: Delete
   type: RBD
   rbd:
@@ -108,7 +95,6 @@ metadata:
   name: ceph-fs-sc
 spec:
   clusterConnectionName: ceph-cluster-1
-  clusterAuthenticationName: ceph-auth-1
   reclaimPolicy: Delete
   type: CephFS
   cephFS:

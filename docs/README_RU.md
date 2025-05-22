@@ -50,6 +50,12 @@ spec:
   # Список IP-адресов ceph-mon’ов в формате 10.0.0.10:6789.
   monitors:
     - 10.0.0.10:6789
+  # Имя пользователя без `client.`.
+  # Получить имя пользователя можно с помощью команды `ceph auth list`.
+  userID: admin
+  # Ключ авторизации, соответствующий userID.
+  # Получить ключ авторизации можно с помощью команды `ceph auth get-key client.admin`.
+  userKey: AQDiVXVmBJVRLxAAg65PhODrtwbwSWrjJwssUg==
 EOF
 ```
 
@@ -57,24 +63,6 @@ EOF
 
 ```shell
 d8 k get cephclusterconnection ceph-cluster-1
-```
-
-## Аутентификация
-
-Чтобы пройти аутентификацию в Ceph-кластере, необходимо определить параметры аутентификации в ресурсе [CephClusterAuthentication](../../../reference/cr/cephclusterauthentication/):
-
-```yaml
-d8 k apply -f - <<EOF
-apiVersion: storage.deckhouse.io/v1alpha1
-kind: CephClusterAuthentication
-metadata:
-  name: ceph-auth-1
-spec:
-  # Имя пользователя без `client.`.
-  userID: admin
-  # Ключ авторизации, соответствующий userID.
-  userKey: AQDbc7phl+eeGRAAaWL9y71mnUiRHKRFOWMPCQ==
-EOF
 ```
 
 ## Создание StorageClass
@@ -89,7 +77,6 @@ metadata:
   name: ceph-rbd-sc
 spec:
   clusterConnectionName: ceph-cluster-1
-  clusterAuthenticationName: ceph-auth-1
   reclaimPolicy: Delete
   type: RBD
   rbd:
@@ -108,7 +95,6 @@ metadata:
   name: ceph-fs-sc
 spec:
   clusterConnectionName: ceph-cluster-1
-  clusterAuthenticationName: ceph-auth-1
   reclaimPolicy: Delete
   type: CephFS
   cephFS:
