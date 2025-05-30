@@ -1,4 +1,4 @@
-project: sds-replicated-volume
+project: csi-ceph
 configVersion: 1
 build:
   imageSpec:
