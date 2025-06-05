@@ -44,7 +44,7 @@ shell:
     - export GO_VERSION={{ env "GOLANG_VERSION" }}
     - export GOPROXY={{ env "GOPROXY" }}
     - apt-get update
-    - apt-get -y install make golang librbd-devel librados-devel gcc git libcephfs-devel
+    - apt-get -y install make golang librbd-devel librados-devel gcc git libcephfs-devel ceph-common ceph-fuse rbd-nbd e2fsprogs xfsprogs
     - cd /src/ceph-csi
     - export CGO_ENABLED=1
     - make cephcsi
