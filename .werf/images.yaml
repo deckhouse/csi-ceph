@@ -1,7 +1,16 @@
 {{- $ImagesBuildFiles := .Files.Glob "images/*/{Dockerfile,werf.inc.yaml}" }}
+# Context inside folder images
+{{- $Root := . }}
 
 {{- range $path, $content := $ImagesBuildFiles  }}
   {{ $ctx := (dict "ImageName" ($path | split "/")._1 "Root" $ "Versions" $.VERSIONS) }}
+  {{- $_ := set $ctx "SOURCE_REPO" $Root.SOURCE_REPO }}
+  {{- $_ := set $ctx "Commit" $Root.Commit }}
+  {{- $_ := set $ctx "ProjectName" (printf "%s/%s" $Root.SVACE_PROJECT_PREFIX $ctx.ImageName ) }}
+  {{- $_ := set $ctx "SVACE_IMAGE_SUFFIX" $Root.SVACE_IMAGE_SUFFIX }}
+  {{- $_ := set $ctx "SVACE_ENABLED" $Root.SVACE_ENABLED }}
+  {{- $_ := set $ctx "SVACE_ANALYZE_SSH_USER" $Root.SVACE_ANALYZE_SSH_USER }}
+  {{- $_ := set $ctx "SVACE_ANALYZE_HOST" $Root.SVACE_ANALYZE_HOST }}
 ---
   {{- /* For Dockerfile just render it from the folder. */ -}}
   {{- if not (regexMatch "/werf.inc.yaml$" $path) }}

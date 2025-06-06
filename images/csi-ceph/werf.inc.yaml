@@ -26,7 +26,7 @@ shell:
 
 ---
 image: {{ $.ImageName }}-base-binaries-artifact
-fromImage: builder/alt
+fromImage: {{ eq $.SVACE_ENABLED "false" | ternary "builder/alt" "builder/alt-go-svace" }}
 final: false
 
 import:
@@ -47,7 +47,8 @@ shell:
     - apt-get -y install make golang librbd-devel librados-devel gcc git libcephfs-devel
     - cd /src/ceph-csi
     - export CGO_ENABLED=1
-    - make cephcsi
+    - |
+      {{- include "image-build.build" (set $ "BuildCommand" `make cephcsi`) | nindent 6 }}
     - cp _output/cephcsi /cephcsi
 
 ---
