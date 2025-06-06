@@ -21,7 +21,7 @@ shell:
 
 ---
 image: {{ $.ImageName }}-golang-artifact
-fromImage: builder/golang-alpine
+fromImage: {{ eq $.SVACE_ENABLED "false" | ternary "builder/golang-alpine" "builder/alt-go-svace" }}
 final: false
 
 import:
@@ -37,7 +37,9 @@ mount:
 shell:
   setup:
     - cd /src/images/{{ $.ImageName }}/cmd
-    - GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="-s -w" -o /{{ $.ImageName }}
+    - export GOOS=linux GOARCH=amd64 CGO_ENABLED=0
+    - |
+      {{- include "image-build.build" (set $ "BuildCommand" (printf "go build -ldflags=\"-s -w\" -o /%s" $.ImageName)) | nindent 6 }}
     - chmod +x /{{ $.ImageName }}
 
 ---

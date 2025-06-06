@@ -9,3 +9,4 @@
 
 # custom constants
 {{- $_ := set $ "ALT_BASE_PACKAGES" "openssl libtirpc tzdata" }}
+{{- $_ := set $ "SVACE_PROJECT_PREFIX" "csi-ceph" }}
