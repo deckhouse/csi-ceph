@@ -118,12 +118,12 @@ jobs:
           wget https://fox.flant.com/api/v4/projects/deckhouse%2Fbase-images/packages/generic/base_images/$BASE_IMAGES_VERSION/base_images.yml -O base_images.yml
           cat base_images.yml
 
-      - uses: deckhouse/modules-actions/setup@v2
+      - uses: deckhouse/modules-actions/setup@svace-build-ssh
         with:
           registry: ${{ vars.DEV_REGISTRY }}
           registry_login: ${{ vars.DEV_MODULES_REGISTRY_LOGIN }}
           registry_password: ${{ secrets.DEV_MODULES_REGISTRY_PASSWORD }}
-      - uses: deckhouse/modules-actions/build@v2
+      - uses: deckhouse/modules-actions/build@svace-build-ssh
         with:
           module_source: "${{ vars.DEV_MODULE_SOURCE }}"
           module_name: ${{ vars.MODULE_NAME }}
