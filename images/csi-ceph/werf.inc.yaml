@@ -1,6 +1,6 @@
 {{- $binaries := "/cephcsi /sbin/mount.ceph /usr/bin/ceph-fuse /bin/mount /bin/umount /sbin/fsck /sbin/modprobe /bin/kmod /usr/bin/rbd /usr/bin/rbd-nbd /sbin/blkid /sbin/mkfs /sbin/mkfs.ext4 /sbin/mkfs.xfs /sbin/blockdev /sbin/dumpe2fs /usr/sbin/xfs_io /usr/sbin/xfs_growfs /sbin/resize2fs" }}
 ---
-image: {{ $.ImageName }}-src-artifact
+image: {{ .ModuleNamePrefix }}{{ .ImageName }}-src-artifact
 fromImage: builder/src
 final: false
 
@@ -30,7 +30,7 @@ fromImage: builder/alt
 final: false
 
 import:
-  - image: {{ $.ImageName }}-src-artifact
+  - image: {{ .ModuleNamePrefix }}{{ .ImageName }}-src-artifact
     add: /src
     to: /src
     before: install
@@ -56,7 +56,7 @@ fromImage: builder/alt
 final: false
 
 git:
-  - add: /tools/dev_images/additional_tools/alt/binary_replace.sh
+  - add: {{ .ModuleDir }}/tools/dev_images/additional_tools/binary_replace.sh
     to: /binary_replace.sh
     stageDependencies:
       install:
@@ -69,7 +69,7 @@ shell:
     - chmod +x /binary_replace.sh
 
 ---
-image: {{ $.ImageName }}-binaries-artifact
+image: {{ .ModuleNamePrefix }}{{ .ImageName }}-binaries-artifact
 fromImage: {{ $.ImageName }}-binary-replace-artifact
 final: false
 
@@ -87,7 +87,7 @@ shell:
 image: {{ $.ImageName }}
 fromImage: base/distroless
 import:
-  - image: {{ $.ImageName }}-binaries-artifact
+  - image: {{ .ModuleNamePrefix }}{{ .ImageName }}-binaries-artifact
     add: /relocate
     to: /
     before: setup
