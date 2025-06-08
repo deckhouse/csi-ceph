@@ -41,6 +41,7 @@ mount:
 
 shell:
   install:
+    {{- include "alt packages proxy" . | nindent 4 }}
     - export GO_VERSION={{ env "GOLANG_VERSION" }}
     - export GOPROXY={{ env "GOPROXY" }}
     - apt-get update
@@ -63,6 +64,7 @@ git:
         - '**/*'
 shell:
   install:
+    {{- include "alt packages proxy" . | nindent 4 }}
     - apt-get update
     - apt-get -y install glibc-utils mount ceph ceph-fuse rbd-fuse rbd-nbd
     - rm -rf /var/lib/apt/lists/* /var/cache/apt/* && mkdir -p /var/lib/apt/lists/partial /var/cache/apt/archives/partial
