@@ -99,7 +99,6 @@ jobs:
     needs: [set_edition]
     env:
       MODULE_EDITION: ${{needs.set_edition.outputs.module_edition}}
-      WERF_VIRTUAL_MERGE: 0
     steps:
       - name: Set vars for PR
         if: ${{ github.ref_name != 'main' }}
