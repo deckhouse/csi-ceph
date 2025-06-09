@@ -33,6 +33,9 @@ jobs:
     name: Lint
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
       - name: Copy openapi/values_ce.yaml to openapi/values.yaml
         run: |
           if [ -f openapi/values_ce.yaml ]; then
@@ -112,6 +115,9 @@ jobs:
           echo MODULE_EDITION=$MODULE_EDITION
 
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Download base images and auth prepare
         run: |
