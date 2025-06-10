@@ -4,7 +4,7 @@ fromImage: builder/src
 final: false
 
 git:
-  - add: /
+  - add: {{ .ModuleDir }}
     to: /src
     includePaths:
       - api
@@ -45,7 +45,7 @@ shell:
     - chmod +x /{{ $.ImageName }}
 
 ---
-image: {{ $.ImageName }}
+image: {{ .ModuleNamePrefix }}{{ .ImageName }}
 fromImage: base/distroless
 
 import:
@@ -54,6 +54,6 @@ import:
     to: /{{ $.ImageName }}
     before: setup
 
-docker:
-  ENTRYPOINT: ["/{{ $.ImageName }}"]
-  USER: deckhouse:deckhouse
+imageSpec:
+  config:
+    entrypoint: ["/{{ $.ImageName }}"]

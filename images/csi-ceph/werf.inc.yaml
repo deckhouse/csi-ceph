@@ -5,7 +5,7 @@ fromImage: builder/src
 final: false
 
 git:
-  - add: /
+  - add: {{ .ModuleDir }}
     to: /src
     includePaths:
       - images/{{ $.ImageName }}
@@ -15,17 +15,21 @@ git:
     excludePaths:
       - images/{{ $.ImageName }}/werf.yaml
 
+secrets:
+- id: SOURCE_REPO
+  value: {{ .SOURCE_REPO }}
+
 shell:
   install:
     - apt-get update
     - apt-get -y install git
-    - git clone --branch {{ $.Versions.CEPH_CSI }} --depth 1 {{ env "SOURCE_REPO" }}/ceph/ceph-csi.git /src/ceph-csi
+    - git clone --branch {{ .Versions.CEPH_CSI }} --depth 1 $(cat /run/secrets/SOURCE_REPO)/ceph/ceph-csi.git /src/ceph-csi
     - cd /src/ceph-csi
     - for patchfile in /src/images/csi-ceph/patches/*.patch ; do echo -n "Apply ${patchfile} ... "; git apply ${patchfile}; done
     - rm -rf /src/images/csi-ceph/patches/
 
 ---
-image: {{ $.ImageName }}-base-binaries-artifact
+image: {{ .ModuleNamePrefix }}{{ .ImageName }}-base-binaries-artifact
 fromImage: builder/alt
 final: false
 
@@ -52,7 +56,7 @@ shell:
     - cp _output/cephcsi /cephcsi
 
 ---
-image: {{ $.ImageName }}-binary-replace-artifact
+image: {{ .ModuleNamePrefix }}{{ .ImageName }}-binary-replace-artifact
 fromImage: builder/alt
 final: false
 
@@ -72,11 +76,11 @@ shell:
 
 ---
 image: {{ .ModuleNamePrefix }}{{ .ImageName }}-binaries-artifact
-fromImage: {{ $.ImageName }}-binary-replace-artifact
+fromImage: {{ .ModuleNamePrefix }}{{ .ImageName }}-binary-replace-artifact
 final: false
 
 import:
-  - image: {{ $.ImageName }}-base-binaries-artifact
+  - image: {{ .ModuleNamePrefix }}{{ .ImageName }}-base-binaries-artifact
     add: /cephcsi
     to: /cephcsi
     before: install
@@ -86,7 +90,7 @@ shell:
     - /binary_replace.sh -i "{{ $binaries }}" -o /relocate
 
 ---
-image: {{ $.ImageName }}
+image: {{ .ModuleNamePrefix }}{{ .ImageName }}
 fromImage: base/distroless
 import:
   - image: {{ .ModuleNamePrefix }}{{ .ImageName }}-binaries-artifact
@@ -94,6 +98,6 @@ import:
     to: /
     before: setup
 
-docker:
-  ENTRYPOINT: ["/cephcsi"]
-  USER: deckhouse:deckhouse
+imageSpec:
+  config:
+    entrypoint: ["/{{ $.ImageName }}"]
