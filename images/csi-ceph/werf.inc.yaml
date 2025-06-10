@@ -40,16 +40,19 @@ import:
     before: install
 
 mount:
-  - fromPath: ~/go-pkg-cache
-    to: /go/pkg
+{{ include "mount points for golang builds" . }}
+
+secrets:
+- id: GOPROXY
+  value: {{ .GOPROXY }}
 
 shell:
-  install:
+  beforeInstall:
     {{- include "alt packages proxy" . | nindent 4 }}
-    - export GO_VERSION={{ env "GOLANG_VERSION" }}
-    - export GOPROXY={{ env "GOPROXY" }}
     - apt-get update
     - apt-get -y install make golang librbd-devel librados-devel gcc git libcephfs-devel
+  install:
+    - export GOPROXY=$(cat /run/secrets/GOPROXY)
     - cd /src/ceph-csi
     - export CGO_ENABLED=1
     - make cephcsi
