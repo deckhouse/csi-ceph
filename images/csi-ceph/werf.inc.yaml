@@ -21,8 +21,6 @@ secrets:
 
 shell:
   install:
-    - apt-get update
-    - apt-get -y install git
     - git clone --branch {{ .Versions.CEPH_CSI }} --depth 1 $(cat /run/secrets/SOURCE_REPO)/ceph/ceph-csi.git /src/ceph-csi
     - cd /src/ceph-csi
     - for patchfile in /src/images/csi-ceph/patches/*.patch ; do echo -n "Apply ${patchfile} ... "; git apply ${patchfile}; done
