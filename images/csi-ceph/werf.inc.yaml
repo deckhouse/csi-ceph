@@ -1,11 +1,11 @@
 {{- $binaries := "/cephcsi /sbin/mount.ceph /usr/bin/ceph-fuse /bin/mount /bin/umount /sbin/fsck /sbin/modprobe /bin/kmod /usr/bin/rbd /usr/bin/rbd-nbd /sbin/blkid /sbin/mkfs /sbin/mkfs.ext4 /sbin/mkfs.xfs /sbin/blockdev /sbin/dumpe2fs /usr/sbin/xfs_io /usr/sbin/xfs_growfs /sbin/resize2fs" }}
 ---
-image: {{ $.ImageName }}-src-artifact
+image: {{ .ModuleNamePrefix }}{{ .ImageName }}-src-artifact
 fromImage: builder/src
 final: false
 
 git:
-  - add: /
+  - add: {{ .ModuleDir }}
     to: /src
     includePaths:
       - images/{{ $.ImageName }}
@@ -15,66 +15,73 @@ git:
     excludePaths:
       - images/{{ $.ImageName }}/werf.yaml
 
+secrets:
+- id: SOURCE_REPO
+  value: {{ .SOURCE_REPO }}
+
 shell:
   install:
-    - apt-get update
-    - apt-get -y install git
-    - git clone --branch {{ $.Versions.CEPH_CSI }} --depth 1 {{ env "SOURCE_REPO" }}/ceph/ceph-csi.git /src/ceph-csi
+    - git clone --branch {{ .Versions.CEPH_CSI }} --depth 1 $(cat /run/secrets/SOURCE_REPO)/ceph/ceph-csi.git /src/ceph-csi
     - cd /src/ceph-csi
     - for patchfile in /src/images/csi-ceph/patches/*.patch ; do echo -n "Apply ${patchfile} ... "; git apply ${patchfile}; done
     - rm -rf /src/images/csi-ceph/patches/
 
 ---
-image: {{ $.ImageName }}-base-binaries-artifact
+image: {{ .ModuleNamePrefix }}{{ .ImageName }}-base-binaries-artifact
 fromImage: builder/alt
 final: false
 
 import:
-  - image: {{ $.ImageName }}-src-artifact
+  - image: {{ .ModuleNamePrefix }}{{ .ImageName }}-src-artifact
     add: /src
     to: /src
     before: install
 
 mount:
-  - fromPath: ~/go-pkg-cache
-    to: /go/pkg
+{{ include "mount points for golang builds" . }}
+
+secrets:
+- id: GOPROXY
+  value: {{ .GOPROXY }}
 
 shell:
-  install:
-    - export GO_VERSION={{ env "GOLANG_VERSION" }}
-    - export GOPROXY={{ env "GOPROXY" }}
+  beforeInstall:
+    {{- include "alt packages proxy" . | nindent 4 }}
     - apt-get update
     - apt-get -y install make golang librbd-devel librados-devel gcc git libcephfs-devel
+  install:
+    - export GOPROXY=$(cat /run/secrets/GOPROXY)
     - cd /src/ceph-csi
     - export CGO_ENABLED=1
     - make cephcsi
     - cp _output/cephcsi /cephcsi
 
 ---
-image: {{ $.ImageName }}-binary-replace-artifact
+image: {{ .ModuleNamePrefix }}{{ .ImageName }}-binary-replace-artifact
 fromImage: builder/alt
 final: false
 
 git:
-  - add: /tools/dev_images/additional_tools/alt/binary_replace.sh
+  - add: {{ .ModuleDir }}/tools/dev_images/additional_tools/binary_replace.sh
     to: /binary_replace.sh
     stageDependencies:
       install:
         - '**/*'
 shell:
   install:
+    {{- include "alt packages proxy" . | nindent 4 }}
     - apt-get update
     - apt-get -y install glibc-utils mount ceph ceph-fuse rbd-fuse rbd-nbd
     - rm -rf /var/lib/apt/lists/* /var/cache/apt/* && mkdir -p /var/lib/apt/lists/partial /var/cache/apt/archives/partial
     - chmod +x /binary_replace.sh
 
 ---
-image: {{ $.ImageName }}-binaries-artifact
-fromImage: {{ $.ImageName }}-binary-replace-artifact
+image: {{ .ModuleNamePrefix }}{{ .ImageName }}-binaries-artifact
+fromImage: {{ .ModuleNamePrefix }}{{ .ImageName }}-binary-replace-artifact
 final: false
 
 import:
-  - image: {{ $.ImageName }}-base-binaries-artifact
+  - image: {{ .ModuleNamePrefix }}{{ .ImageName }}-base-binaries-artifact
     add: /cephcsi
     to: /cephcsi
     before: install
@@ -84,14 +91,14 @@ shell:
     - /binary_replace.sh -i "{{ $binaries }}" -o /relocate
 
 ---
-image: {{ $.ImageName }}
+image: {{ .ModuleNamePrefix }}{{ .ImageName }}
 fromImage: base/distroless
 import:
-  - image: {{ $.ImageName }}-binaries-artifact
+  - image: {{ .ModuleNamePrefix }}{{ .ImageName }}-binaries-artifact
     add: /relocate
     to: /
     before: setup
 
-docker:
-  ENTRYPOINT: ["/cephcsi"]
-  USER: deckhouse:deckhouse
+imageSpec:
+  config:
+    entrypoint: ["/{{ $.ImageName }}"]
