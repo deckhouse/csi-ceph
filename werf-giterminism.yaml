@@ -8,6 +8,9 @@ config:
       - GOPROXY
       - SOURCE_REPO
       - MODULE_EDITION
+      - SVACE_ENABLED
+      - SVACE_ANALYZE_HOST
+      - SVACE_ANALYZE_SSH_USER
     allowUncommittedFiles:
       - "base_images.yml"
   secrets:
@@ -19,3 +22,6 @@ config:
       allowBuildDir: true
       allowFromPaths:
         - ~/go-pkg-cache
+  secrets:
+    allowValueIds:
+    - SOURCE_REPO

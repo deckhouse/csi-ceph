@@ -1,6 +1,6 @@
 ---
 image: {{ .ModuleNamePrefix }}{{ .ImageName }}-src-artifact
-fromImage: builder/src
+fromImage: {{ eq $.SVACE_ENABLED "false" | ternary "builder/src" "builder/alt-go-svace" }}
 final: false
 git:
   - add: {{ .ModuleDir }}/hooks/go
@@ -44,4 +44,7 @@ shell:
   install:
     - cd /usr/src/app/hooks/go
     - GOPROXY=$(cat /run/secrets/GOPROXY) go mod download
-    - CGO_ENABLED=0 go build -a -gcflags=all="-l -B" -ldflags="-w -s" -o /go-hooks *.go;
+    - export CGO_ENABLED=0
+    - |
+      {{- include "image-build.build" (set $ "BuildCommand" `go build -a -gcflags=all="-l -B" -ldflags="-w -s" -o /go-hooks *.go;`) | nindent 6 }}
+`) | nindent 6 }}
