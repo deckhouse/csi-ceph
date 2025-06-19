@@ -94,6 +94,7 @@ shell:
 ---
 image: {{ .ModuleNamePrefix }}{{ .ImageName }}
 fromImage: base/distroless
+fromCacheVersion: 20250619140440
 import:
   - image: {{ .ModuleNamePrefix }}{{ .ImageName }}-binaries-artifact
     add: /relocate
