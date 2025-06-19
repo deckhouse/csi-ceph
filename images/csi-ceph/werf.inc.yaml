@@ -54,7 +54,7 @@ shell:
     - cd /src/ceph-csi
     - export CGO_ENABLED=1
     - make cephcsi
-    - cp _output/cephcsi /cephcsi
+    - cp _output/cephcsi /{{ $.ImageName }}
 
 ---
 image: {{ .ModuleNamePrefix }}{{ .ImageName }}-binary-replace-artifact
@@ -82,8 +82,8 @@ final: false
 
 import:
   - image: {{ .ModuleNamePrefix }}{{ .ImageName }}-base-binaries-artifact
-    add: /cephcsi
-    to: /cephcsi
+    add: /{{ $.ImageName }}
+    to: /{{ $.ImageName }}
     before: install
 
 shell:
