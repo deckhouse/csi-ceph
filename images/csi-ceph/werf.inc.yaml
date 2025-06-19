@@ -1,4 +1,4 @@
-{{- $binaries := "/sbin/mount.ceph /usr/bin/ceph-fuse /bin/mount /bin/umount /sbin/fsck /sbin/modprobe /bin/kmod /usr/bin/rbd /usr/bin/rbd-nbd /sbin/blkid /sbin/mkfs /sbin/mkfs.ext4 /sbin/mkfs.xfs /sbin/blockdev /sbin/dumpe2fs /usr/sbin/xfs_io /usr/sbin/xfs_growfs /sbin/resize2fs" }}
+{{- $binaries := "/csi-ceph /sbin/mount.ceph /usr/bin/ceph-fuse /bin/mount /bin/umount /sbin/fsck /sbin/modprobe /bin/kmod /usr/bin/rbd /usr/bin/rbd-nbd /sbin/blkid /sbin/mkfs /sbin/mkfs.ext4 /sbin/mkfs.xfs /sbin/blockdev /sbin/dumpe2fs /usr/sbin/xfs_io /usr/sbin/xfs_growfs /sbin/resize2fs" }}
 ---
 image: {{ .ModuleNamePrefix }}{{ .ImageName }}-src-artifact
 fromImage: builder/src
@@ -79,12 +79,6 @@ shell:
 image: {{ .ModuleNamePrefix }}{{ .ImageName }}-binaries-artifact
 fromImage: {{ .ModuleNamePrefix }}{{ .ImageName }}-binary-replace-artifact
 final: false
-
-import:
-  - image: {{ .ModuleNamePrefix }}{{ .ImageName }}-base-binaries-artifact
-    add: /{{ $.ImageName }}
-    to: /{{ $.ImageName }}
-    before: install
 
 shell:
   install:
