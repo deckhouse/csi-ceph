@@ -54,8 +54,7 @@ shell:
     - cd /src/ceph-csi
     - export CGO_ENABLED=1
     - make cephcsi
-    - cp _output/cephcsi /{{ $.ImageName }}
-    - ls -l /
+    - cp _output/cephcsi /cephcsi
 
 ---
 image: {{ .ModuleNamePrefix }}{{ .ImageName }}-binary-replace-artifact
@@ -84,8 +83,8 @@ final: false
 
 import:
   - image: {{ .ModuleNamePrefix }}{{ .ImageName }}-base-binaries-artifact
-    add: /{{ $.ImageName }}
-    to: /{{ $.ImageName }}
+    add: /cephcsi
+    to: /cephcsi
     before: install
 
 shell:
@@ -95,7 +94,6 @@ shell:
 ---
 image: {{ .ModuleNamePrefix }}{{ .ImageName }}
 fromImage: base/distroless
-fromCacheVersion: 20250619140440
 import:
   - image: {{ .ModuleNamePrefix }}{{ .ImageName }}-binaries-artifact
     add: /relocate
@@ -104,4 +102,4 @@ import:
 
 imageSpec:
   config:
-    entrypoint: ["/{{ $.ImageName }}"]
+    entrypoint: ["/cephcsi"]
