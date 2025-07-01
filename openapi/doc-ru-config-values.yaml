@@ -6,5 +6,7 @@ properties:
     description: Состояние драйвера CephFS
   rbdEnabled:
     description: Состояние драйвера RBD
-  provisionerWorkers:
-    description: Настройки для provisioner workers (по умолчанию: 10). Пожалуйста, не устанавливайте это значение, если вы не уверены, что делаете.
+  cephfsProvisionerWorkers:
+    description: Настройки для provisioner workers для драйвера CephFS (по умолчанию: 10). Пожалуйста, не устанавливайте это значение, если вы не уверены, что делаете.
+  rbd3ProvisionerWorkers:
+    description: Настройки для provisioner workers для драйвера RBD (по умолчанию: 10). Пожалуйста, не устанавливайте это значение, если вы не уверены, что делаете.
