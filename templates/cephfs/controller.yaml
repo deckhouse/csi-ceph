@@ -209,7 +209,6 @@
 {{- $csiDriverName := "cephfs.csi.ceph.com" }}
 {{- $csiControllerImage := include "helm_lib_module_image" (list . "csiCeph") }}
 
-
 {{- $csiControllerConfig := dict }}
 {{- $_ := set $csiControllerConfig "fullname" "csi-controller-cephfs" }}
 {{- $_ := set $csiControllerConfig "topologyEnabled" false }}
@@ -220,6 +219,7 @@
 {{- $_ := set $csiControllerConfig "additionalControllerVolumes" (include "cephfs_csi_controller_volumes" . | fromYamlArray) }}
 {{- $_ := set $csiControllerConfig "additionalControllerVolumeMounts" (include "cephfs_csi_controller_volume_mounts" . | fromYamlArray) }}
 {{- $_ := set $csiControllerConfig "additionalPullSecrets" (include "additional_pull_secrets" . | fromYamlArray) }}
+{{- $_ := set $csiControllerConfig "provisionerWorkers" ".values.csiCeph.cephfsProvisionerWorkers" }}
 
 {{- $_ := set $csiControllerConfig "livenessProbePort" 4246 }}
 
