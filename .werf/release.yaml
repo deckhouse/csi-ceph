@@ -2,6 +2,8 @@
 ---
 image: release-channel-version-artifact
 fromImage: builder/alpine
+fromCacheVersion: 20250701100351
+
 final: false
 shell:
   beforeInstall:
