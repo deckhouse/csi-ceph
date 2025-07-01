@@ -1,0 +1,10 @@
+type: object
+properties:
+  logLevel:
+    description: Уровень логирования для приложений модуля
+  cephfsEnabled:
+    description: Состояние драйвера CephFS
+  rbdEnabled:
+    description: Состояние драйвера RBD
+  provisionerWorkers:
+    description: Настройки для provisioner workers (по умолчанию: 10). Пожалуйста, не устанавливайте это значение, если вы не уверены, что делаете.

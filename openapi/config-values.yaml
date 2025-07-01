@@ -21,4 +21,7 @@ properties:
       - TRACE
     description: Module log level
     default: DEBUG
-
+  provisionerWorkers:
+    type: integer
+    description: Settings for provisioner workers (default: 10). Please do not set this value if you are not sure what you are doing.
+    default: 10
