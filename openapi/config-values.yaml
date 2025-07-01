@@ -23,9 +23,9 @@ properties:
     default: DEBUG
   cephfsProvisionerWorkers:
     type: integer
-    default: "10"
+    default: 10
     description: Settings for CephFS provisioner workers (default 10). Please do not set this value if you are not sure what you are doing.
   rbdProvisionerWorkers:
     type: integer
-    default: "10"
+    default: 10
     description: Settings for RBD provisioner workers (default 10). Please do not set this value if you are not sure what you are doing.
