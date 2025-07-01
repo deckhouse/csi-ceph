@@ -265,6 +265,8 @@ memory: 50Mi
 ### controller
 ###
 
+{{- $rbdProvisionerWorkers := .Values.csiCeph.rbdProvisionerWorkers }}
+
 {{- if .Values.csiCeph.rbdEnabled }}
 
 {{- $csiDriverName := "rbd.csi.ceph.com" }}
@@ -283,7 +285,7 @@ memory: 50Mi
 {{- $_ := set $csiControllerConfig "additionalContainers" (include "rbd_csi_additional_containers" (list $csiDriverName $csiControllerImage) | fromYamlArray) }}
 {{- $_ := set $csiControllerConfig "runAsRootUser" false }}
 {{- $_ := set $csiControllerConfig "additionalPullSecrets" (include "additional_pull_secrets" . | fromYamlArray) }}
-{{- $_ := set $csiControllerConfig "provisionerWorkers" .Values.csiCeph.rbdProvisionerWorkers }}
+{{- $_ := set $csiControllerConfig "provisionerWorkers" $rbdProvisionerWorkers }}
 
 {{- $_ := set $csiControllerConfig "livenessProbePort" 4247 }}
 
