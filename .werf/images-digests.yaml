@@ -14,7 +14,6 @@
 ---
 image: images-digests
 fromImage: builder/alpine
-
 dependencies:
 {{- range $ImageID := $ImagesIDList }}
   {{- $ImageNameCamel  := $ImageID | splitList "/" | last  | camelcase | untitle }}
