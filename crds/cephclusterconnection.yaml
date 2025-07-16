@@ -65,7 +65,7 @@ spec:
                   properties:
                     subvolumeGroup:
                       description: |
-                        .
+                        CephFS subvolume group name.
                       type: string
                       x-kubernetes-validations:
                         - rule: self == oldSelf
