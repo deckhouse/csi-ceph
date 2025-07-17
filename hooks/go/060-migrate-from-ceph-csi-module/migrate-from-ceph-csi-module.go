@@ -160,11 +160,21 @@ func handlerMigrateFromCephCsiModule(ctx context.Context, _ *pkg.HookInput) erro
 			cephClusterConnection.Name = cephClusterConnectionName
 			cephClusterConnection.Labels = map[string]string{CephCSIMigratedLabel: CephCSIMigratedLabelValueTrue}
 			cephClusterConnection.Spec = v1alpha1.CephClusterConnectionSpec{
-				Monitors:       cephCSIDriver.Spec.Monitors,
-				ClusterID:      cephCSIDriver.Spec.ClusterID,
-				UserID:         cephCSIDriver.Spec.UserID,
-				UserKey:        cephCSIDriver.Spec.UserKey,
-				SubvolumeGroup: cephCSIDriver.Spec.CephFS.SubvolumeGroup}
+				Monitors:  cephCSIDriver.Spec.Monitors,
+				ClusterID: cephCSIDriver.Spec.ClusterID,
+				UserID:    cephCSIDriver.Spec.UserID,
+				UserKey:   cephCSIDriver.Spec.UserKey}
+			if cephCSIDriver.Spec.CephFS != nil {
+				if cephCSIDriver.Spec.CephFS.SubvolumeGroup != "" {
+					cephClusterConnection.Spec = v1alpha1.CephClusterConnectionSpec{
+						Monitors:       cephCSIDriver.Spec.Monitors,
+						ClusterID:      cephCSIDriver.Spec.ClusterID,
+						UserID:         cephCSIDriver.Spec.UserID,
+						UserKey:        cephCSIDriver.Spec.UserKey,
+						SubvolumeGroup: cephCSIDriver.Spec.CephFS.SubvolumeGroup}
+
+				}
+			}
 			err := cl.Create(ctx, cephClusterConnection)
 			if err != nil {
 				fmt.Printf("[%s]: cephClusterConnection create error %s\n", LogPrefix, err.Error())
