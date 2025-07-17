@@ -16,6 +16,17 @@ spec:
                 monitors:
                   description: |
                     Список IP-адресов ceph-mon в формате `10.0.0.10:6789`.
+                cephFS:
+                  description: |
+                    Особые параметры CephFS (применяются ко всему кластеру).
+                  properties:
+                    subvolumeGroup:
+                      description: |
+                        Имя CephFS subvolumegroup.
+                        
+                        Используйте `ceph fs subvolumegroup help` для работы с cephfs subvolumegroup.
+                        
+                        При отсутствии параметра, по-умолчанию используется subvolumegroup `csi`.
             status:
               description: |
                 Отображает текущую информацию о ресурсах, управляемых пользовательским ресурсом CephClusterConnection.
