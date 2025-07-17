@@ -9,16 +9,6 @@ build:
       removeLabels:
         - /.*/
 ---
-# Source repo  settings
-{{- $_ := set . "SOURCE_REPO" (env "SOURCE_REPO" | default "https://github.com") }}
-
-# svace analyze toggler
-{{- $_ := set . "SVACE_ENABLED" (env "SVACE_ENABLED" "false") }}
-
-{{- $_ := set . "SVACE_ANALYZE_HOST" (env "SVACE_ANALYZE_HOST" "example.host") }}
-
-{{- $_ := set . "SVACE_ANALYZE_SSH_USER" (env "SVACE_ANALYZE_SSH_USER" "user") }}
----
 {{ tpl (.Files.Get ".werf/base-images.yaml") $ }}
 {{ tpl (.Files.Get ".werf/consts.yaml") $ }}
 {{ tpl (.Files.Get ".werf/choose-edition.yaml") $ }}
