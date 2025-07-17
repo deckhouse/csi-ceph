@@ -153,7 +153,7 @@ func generateClusterConfig(cephClusterConnection *v1alpha1.CephClusterConnection
 	cephFs := map[string]string{}
 	// if SubvolumeGroup given in connection config we should put it to configmap
 	if cephClusterConnection.Spec.SubvolumeGroup != "" {
-		cephFs["subvolumeGroup"] = cephClusterConnection.Spec.SubvolumeGroup
+		cephFs[CephClusterConnectionSubvolumeGroupConfigKey] = cephClusterConnection.Spec.SubvolumeGroup
 	}
 
 	clusterConfig := v1alpha1.ClusterConfig{
