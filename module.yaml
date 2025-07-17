@@ -1,4 +1,5 @@
 name: csi-ceph
+stage: "General Availability"
 weight: 920
 descriptions:
   en: "CSI Ceph"

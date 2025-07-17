@@ -261,20 +261,21 @@ memory: 50Mi
   }
 {{- end }}
 
-
-{{- if .Values.csiCeph.rbdEnabled }}
 ###
 ### controller
 ###
 
+{{- $rbdProvisionerWorkers := .Values.csiCeph.rbdProvisionerWorkers }}
+
+{{- if .Values.csiCeph.rbdEnabled }}
+
 {{- $csiDriverName := "rbd.csi.ceph.com" }}
 {{- $csiControllerImage := include "helm_lib_module_image" (list . "csiCeph") }}
-
 
 {{- $csiControllerConfig := dict }}
 {{- $_ := set $csiControllerConfig "fullname" "csi-controller-rbd" }}
 {{- $_ := set $csiControllerConfig "topologyEnabled" false }}
-
+{{- $_ := set $csiControllerConfig "csiControllerHaMode" true }}
 {{- $_ := set $csiControllerConfig "controllerImage" $csiControllerImage }}
 {{- $_ := set $csiControllerConfig "additionalControllerArgs" (include "rbd_csi_controller_args" . | fromYamlArray) }}
 {{- $_ := set $csiControllerConfig "additionalControllerEnvs" (include "rbd_csi_controller_envs" (list $csiDriverName) | fromYamlArray) }}
@@ -284,6 +285,7 @@ memory: 50Mi
 {{- $_ := set $csiControllerConfig "additionalContainers" (include "rbd_csi_additional_containers" (list $csiDriverName $csiControllerImage) | fromYamlArray) }}
 {{- $_ := set $csiControllerConfig "runAsRootUser" false }}
 {{- $_ := set $csiControllerConfig "additionalPullSecrets" (include "additional_pull_secrets" . | fromYamlArray) }}
+{{- $_ := set $csiControllerConfig "provisionerWorkers" $rbdProvisionerWorkers }}
 
 {{- $_ := set $csiControllerConfig "livenessProbePort" 4247 }}
 
