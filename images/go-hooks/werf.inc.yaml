@@ -10,13 +10,6 @@ git:
         - '**/go.mod'
         - '**/go.sum'
         - '**/*.go'
-  - add: {{ .ModuleDir }}/api
-    to: /src/api
-    stageDependencies:
-      install:
-        - '**/go.mod'
-        - '**/go.sum'
-        - '**/*.go'
 
 shell:
   install:
