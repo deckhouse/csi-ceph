@@ -58,3 +58,4 @@ import:
 imageSpec:
   config:
     entrypoint: ["/{{ $.ImageName }}"]
+
