@@ -205,8 +205,7 @@ func handlerMigrateFromCephCsiModule(ctx context.Context, _ *pkg.HookInput) erro
 
 					if cephFSStorageClass.Pool != "" {
 						if cephFSStorageClass.Pool != CephFSDefaultPool {
-							fmt.Printf("[%s]: Pool is not empty and is not equal to the default pool (%s). Please contact tech support for migration assistance.\n", LogPrefix, CephFSDefaultPool)
-							return fmt.Errorf("pool is not empty and is not equal to the default pool (%s). Please contact tech support for migration assistance", CephFSDefaultPool)
+							fmt.Printf("[%s]: Pool is not empty and is not equal to the default pool (%s). Please contact tech support for migration assistance if need.\n", LogPrefix, CephFSDefaultPool)
 						}
 						cephStorageClass.Labels[CephFSPoolLabelKey] = cephFSStorageClass.Pool
 					}
