@@ -166,12 +166,14 @@ func handlerMigrateFromCephCsiModule(ctx context.Context, _ *pkg.HookInput) erro
 				UserKey:   cephCSIDriver.Spec.UserKey}
 			if cephCSIDriver.Spec.CephFS != nil {
 				if cephCSIDriver.Spec.CephFS.SubvolumeGroup != "" {
-					cephClusterConnection.Spec = v1alpha1.CephClusterConnectionSpec{
-						Monitors:       cephCSIDriver.Spec.Monitors,
-						ClusterID:      cephCSIDriver.Spec.ClusterID,
-						UserID:         cephCSIDriver.Spec.UserID,
-						UserKey:        cephCSIDriver.Spec.UserKey,
+					cephClusterConnection.Spec.CephFS = v1alpha1.CephClusterConnectionSpecCephFS{
 						SubvolumeGroup: cephCSIDriver.Spec.CephFS.SubvolumeGroup}
+					cephClusterConnection.Spec = v1alpha1.CephClusterConnectionSpec{
+						Monitors:  cephCSIDriver.Spec.Monitors,
+						ClusterID: cephCSIDriver.Spec.ClusterID,
+						UserID:    cephCSIDriver.Spec.UserID,
+						UserKey:   cephCSIDriver.Spec.UserKey,
+						CephFS:    cephClusterConnection.Spec.CephFS}
 
 				}
 			}
