@@ -3,5 +3,5 @@
 
 # component versions
 {{- $versions := dict }}
-{{- $_ := set $versions "CEPH_CSI" "v3.13.1" }}
+{{- $_ := set $versions "CEPH_CSI" "v3.14.2" }}
 {{- $_ := set . "VERSIONS" $versions }}
