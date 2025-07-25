@@ -235,8 +235,8 @@ func ConfigureStorageClass(cephSC *storagev1alpha1.CephStorageClass, controllerN
 			APIVersion: StorageClassAPIVersion,
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:       cephSC.Name,
-			Namespace:  cephSC.Namespace,
+			Name:      cephSC.Name,
+			Namespace: cephSC.Namespace,
 			Annotations: map[string]string{
 				internal.CephStorageClassVolumeSnapshotClassAnnotationKey: cephSC.Name,
 			},
