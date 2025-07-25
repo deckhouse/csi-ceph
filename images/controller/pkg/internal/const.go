@@ -19,6 +19,7 @@ package internal
 const (
 	CephClusterConnectionSecretPrefix = "csi-ceph-secret-for-"
 	StorageManagedLabelKey            = "storage.deckhouse.io/managed-by"
+	CephStorageClassVolumeSnapshotClassAnnotationKey = "storage.deckhouse.io/volumesnapshotclass"
 	CSICephConfigMapName              = "ceph-csi-config"
 	CreateReconcile                   = "Create"
 	UpdateReconcile                   = "Update"
