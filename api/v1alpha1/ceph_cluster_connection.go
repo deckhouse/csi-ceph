@@ -34,10 +34,15 @@ type CephClusterConnectionList struct {
 }
 
 type CephClusterConnectionSpec struct {
-	ClusterID string   `json:"clusterID"`
-	Monitors  []string `json:"monitors"`
-	UserID    string   `json:"userID"`
-	UserKey   string   `json:"userKey"`
+	ClusterID string                          `json:"clusterID"`
+	Monitors  []string                        `json:"monitors"`
+	UserID    string                          `json:"userID"`
+	UserKey   string                          `json:"userKey"`
+	CephFS    CephClusterConnectionSpecCephFS `json:"cephFS"`
+}
+
+type CephClusterConnectionSpecCephFS struct {
+	SubvolumeGroup string `json:"subvolumeGroup"`
 }
 
 type CephClusterConnectionStatus struct {

@@ -164,6 +164,19 @@ func handlerMigrateFromCephCsiModule(ctx context.Context, _ *pkg.HookInput) erro
 				ClusterID: cephCSIDriver.Spec.ClusterID,
 				UserID:    cephCSIDriver.Spec.UserID,
 				UserKey:   cephCSIDriver.Spec.UserKey}
+			if cephCSIDriver.Spec.CephFS != nil {
+				if cephCSIDriver.Spec.CephFS.SubvolumeGroup != "" {
+					cephClusterConnection.Spec.CephFS = v1alpha1.CephClusterConnectionSpecCephFS{
+						SubvolumeGroup: cephCSIDriver.Spec.CephFS.SubvolumeGroup}
+					cephClusterConnection.Spec = v1alpha1.CephClusterConnectionSpec{
+						Monitors:  cephCSIDriver.Spec.Monitors,
+						ClusterID: cephCSIDriver.Spec.ClusterID,
+						UserID:    cephCSIDriver.Spec.UserID,
+						UserKey:   cephCSIDriver.Spec.UserKey,
+						CephFS:    cephClusterConnection.Spec.CephFS}
+
+				}
+			}
 			err := cl.Create(ctx, cephClusterConnection)
 			if err != nil {
 				fmt.Printf("[%s]: cephClusterConnection create error %s\n", LogPrefix, err.Error())
@@ -194,8 +207,7 @@ func handlerMigrateFromCephCsiModule(ctx context.Context, _ *pkg.HookInput) erro
 
 					if cephFSStorageClass.Pool != "" {
 						if cephFSStorageClass.Pool != CephFSDefaultPool {
-							fmt.Printf("[%s]: Pool is not empty and is not equal to the default pool (%s). Please contact tech support for migration assistance.\n", LogPrefix, CephFSDefaultPool)
-							return fmt.Errorf("pool is not empty and is not equal to the default pool (%s). Please contact tech support for migration assistance", CephFSDefaultPool)
+							fmt.Printf("[%s]: Pool is not empty and is not equal to the default pool (%s). Please contact tech support for migration assistance if need.\n", LogPrefix, CephFSDefaultPool)
 						}
 						cephStorageClass.Labels[CephFSPoolLabelKey] = cephFSStorageClass.Pool
 					}
