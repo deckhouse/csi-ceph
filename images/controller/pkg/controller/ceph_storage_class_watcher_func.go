@@ -370,6 +370,11 @@ func GetSCDiff(oldSC, newSC *v1.StorageClass) (string, error) {
 		return diff, nil
 	}
 
+	if !cmp.Equal(oldSC.Annotations, newSC.Annotations) {
+		diff := fmt.Sprintf("Annotations: %+v -> %+v", oldSC.Annotations, newSC.Annotations)
+		return diff, nil
+	}
+
 	if !cmp.Equal(oldSC.Finalizers, newSC.Finalizers) {
 		diff := fmt.Sprintf("Finalizers: %+v -> %+v", oldSC.Finalizers, newSC.Finalizers)
 		return diff, nil
