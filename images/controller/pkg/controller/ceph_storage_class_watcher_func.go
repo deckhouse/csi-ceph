@@ -235,8 +235,11 @@ func ConfigureStorageClass(cephSC *storagev1alpha1.CephStorageClass, controllerN
 			APIVersion: StorageClassAPIVersion,
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:       cephSC.Name,
-			Namespace:  cephSC.Namespace,
+			Name:      cephSC.Name,
+			Namespace: cephSC.Namespace,
+			Annotations: map[string]string{
+				internal.CephStorageClassVolumeSnapshotClassAnnotationKey: cephSC.Name,
+			},
 			Finalizers: []string{CephStorageClassControllerFinalizerName},
 		},
 		Parameters:           params,
@@ -364,6 +367,11 @@ func GetSCDiff(oldSC, newSC *v1.StorageClass) (string, error) {
 
 	if !cmp.Equal(oldSC.Labels, newSC.Labels) {
 		diff := fmt.Sprintf("Labels: %+v -> %+v", oldSC.Labels, newSC.Labels)
+		return diff, nil
+	}
+
+	if !cmp.Equal(oldSC.Annotations, newSC.Annotations) {
+		diff := fmt.Sprintf("Annotations: %+v -> %+v", oldSC.Annotations, newSC.Annotations)
 		return diff, nil
 	}
 
