@@ -44,6 +44,7 @@ const (
 	// This value used as a name for the controller AND the value for managed-by label.
 	CephClusterConnectionCtrlName                = "d8-ceph-cluster-connection-controller"
 	CephClusterConnectionControllerFinalizerName = "storage.deckhouse.io/ceph-cluster-connection-controller"
+	CephClusterConnectionSubvolumeGroupConfigKey = "subvolumeGroup"
 )
 
 func RunCephClusterConnectionWatcherController(
