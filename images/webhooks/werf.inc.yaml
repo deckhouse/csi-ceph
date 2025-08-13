@@ -55,7 +55,8 @@ import:
     add: /{{ $.ImageName }}
     to: /{{ $.ImageName }}
     before: install
-
+git:
+{{- include "image mount points" $ }}
 imageSpec:
   config:
     entrypoint: ["/{{ $.ImageName }}"]
