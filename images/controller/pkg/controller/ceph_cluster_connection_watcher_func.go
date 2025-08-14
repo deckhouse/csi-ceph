@@ -152,7 +152,7 @@ func getClusterConfigsFromConfigMap(configMap *corev1.ConfigMap) ([]v1alpha1.Clu
 func generateClusterConfig(cephClusterConnection *v1alpha1.CephClusterConnection) v1alpha1.ClusterConfig {
 	cephFs := map[string]string{}
 	// if SubvolumeGroup given in connection config we should put it to configmap
-	if cephClusterConnection.Spec.CephFS.SubvolumeGroup != "" {
+	if cephClusterConnection.Spec.CephFS != nil && cephClusterConnection.Spec.CephFS.SubvolumeGroup != "" {
 		cephFs[CephClusterConnectionSubvolumeGroupConfigKey] = cephClusterConnection.Spec.CephFS.SubvolumeGroup
 	}
 
@@ -517,4 +517,9 @@ func compareSecretsData(oldSecret, newSecret *corev1.Secret) bool {
 	}
 
 	return false
+}
+
+// GenerateClusterConfigForTesting is a wrapper for testing the generateClusterConfig function
+func GenerateClusterConfigForTesting(cephClusterConnection *v1alpha1.CephClusterConnection) v1alpha1.ClusterConfig {
+	return generateClusterConfig(cephClusterConnection)
 }
