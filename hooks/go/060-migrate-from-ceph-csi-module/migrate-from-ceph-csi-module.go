@@ -166,7 +166,7 @@ func handlerMigrateFromCephCsiModule(ctx context.Context, _ *pkg.HookInput) erro
 				UserKey:   cephCSIDriver.Spec.UserKey}
 			if cephCSIDriver.Spec.CephFS != nil {
 				if cephCSIDriver.Spec.CephFS.SubvolumeGroup != "" {
-					cephClusterConnection.Spec.CephFS = v1alpha1.CephClusterConnectionSpecCephFS{
+					cephClusterConnection.Spec.CephFS = &v1alpha1.CephClusterConnectionSpecCephFS{
 						SubvolumeGroup: cephCSIDriver.Spec.CephFS.SubvolumeGroup}
 
 				}

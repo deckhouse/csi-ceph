@@ -684,7 +684,7 @@ var _ = Describe(controller.CephClusterConnectionCtrlName, func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Adding SubvolumeGroup to the CephClusterConnection")
-			cephClusterConnection.Spec.CephFS = v1alpha1.CephClusterConnectionSpecCephFS{
+			cephClusterConnection.Spec.CephFS = &v1alpha1.CephClusterConnectionSpecCephFS{
 				SubvolumeGroup: subvolumeGroupValue,
 			}
 			err = cl.Update(ctx, cephClusterConnection)
@@ -717,7 +717,7 @@ var _ = Describe(controller.CephClusterConnectionCtrlName, func() {
 					Monitors:  subvolumeGroupTestMonitors,
 					UserID:    subvolumeGroupTestUserID,
 					UserKey:   subvolumeGroupTestUserKey,
-					CephFS: v1alpha1.CephClusterConnectionSpecCephFS{
+					CephFS: &v1alpha1.CephClusterConnectionSpecCephFS{
 						SubvolumeGroup: "", // Explicitly empty
 					},
 				},
@@ -755,16 +755,14 @@ var _ = Describe(controller.CephClusterConnectionCtrlName, func() {
 			Expect(cephClusterConnection.Spec.CephFS.SubvolumeGroup).To(Equal(subvolumeGroupValue))
 
 			By("Removing SubvolumeGroup from the CephClusterConnection")
-			cephClusterConnection.Spec.CephFS = v1alpha1.CephClusterConnectionSpecCephFS{
-				SubvolumeGroup: "", // Clear the field
-			}
+			cephClusterConnection.Spec.CephFS = nil // Clear the field
 			err = cl.Update(ctx, cephClusterConnection)
 			Expect(err).NotTo(HaveOccurred())
 
 			updatedCephClusterConnection := &v1alpha1.CephClusterConnection{}
 			err = cl.Get(ctx, client.ObjectKey{Name: subvolumeGroupTestClusterConnectionName}, updatedCephClusterConnection)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(updatedCephClusterConnection.Spec.CephFS.SubvolumeGroup).To(Equal(""))
+			Expect(updatedCephClusterConnection.Spec.CephFS).To(BeNil())
 
 			By("Running reconcile for CephClusterConnection without SubvolumeGroup")
 			shouldReconcile, _, err := controller.RunCephClusterConnectionEventReconcile(ctx, cl, log, updatedCephClusterConnection, controllerNamespace)
@@ -791,7 +789,7 @@ var _ = Describe(controller.CephClusterConnectionCtrlName, func() {
 					Monitors:  []string{"mon1", "mon2"},
 					UserID:    "admin",
 					UserKey:   "key",
-					CephFS: v1alpha1.CephClusterConnectionSpecCephFS{
+					CephFS: &v1alpha1.CephClusterConnectionSpecCephFS{
 						SubvolumeGroup: "", // Empty string
 					},
 				},
@@ -829,7 +827,7 @@ var _ = Describe(controller.CephClusterConnectionCtrlName, func() {
 					Monitors:  []string{"mon1", "mon2"},
 					UserID:    "admin",
 					UserKey:   "key",
-					CephFS: v1alpha1.CephClusterConnectionSpecCephFS{
+					CephFS: &v1alpha1.CephClusterConnectionSpecCephFS{
 						SubvolumeGroup: "my-subvolume-group",
 					},
 				},
