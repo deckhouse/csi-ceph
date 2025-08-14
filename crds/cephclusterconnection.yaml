@@ -23,6 +23,9 @@ spec:
           type: object
           description: |
             Ceph cluster connection parameters.
+          x-kubernetes-validations:
+            - rule: 'oldSelf == null || self.spec.cephFS == oldSelf.spec.cephFS'
+              message: "The spec.cephFS field is immutable."
           required:
             - spec
           properties:
@@ -62,9 +65,6 @@ spec:
                   description: |
                     CephFS specific parameters (Cluster wide).
                   type: object
-                  x-kubernetes-validations:
-                    - rule: self == oldSelf
-                      message: "The cephFS field is immutable."
                   properties:
                     subvolumeGroup:
                       description: |
