@@ -779,6 +779,7 @@ var _ = Describe(controller.CephClusterConnectionCtrlName, func() {
 			Expect(err).NotTo(HaveOccurred())
 			shouldReconcile, _, err = controller.RunCephClusterConnectionEventReconcile(ctx, cl, log, updatedCephClusterConnection, controllerNamespace)
 			Expect(err).NotTo(HaveOccurred())
+			Expect(shouldReconcile).To(BeFalse())
 		})
 	})
 
