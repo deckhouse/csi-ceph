@@ -518,3 +518,8 @@ func compareSecretsData(oldSecret, newSecret *corev1.Secret) bool {
 
 	return false
 }
+
+// GenerateClusterConfigForTesting is a wrapper for testing the generateClusterConfig function
+func GenerateClusterConfigForTesting(cephClusterConnection *v1alpha1.CephClusterConnection) v1alpha1.ClusterConfig {
+	return generateClusterConfig(cephClusterConnection)
+}

@@ -629,6 +629,218 @@ var _ = Describe(controller.CephClusterConnectionCtrlName, func() {
 		err = cl.Get(ctx, client.ObjectKey{Name: badClusterConnectionName}, badCephClusterConnection)
 		Expect(k8serrors.IsNotFound(err)).To(BeTrue())
 	})
+
+	Context("Testing SubvolumeGroup handling", func() {
+		const (
+			subvolumeGroupTestClusterConnectionName = "test-subvolumegroup-connection"
+			subvolumeGroupTestClusterID             = "test-subvolumegroup-cluster"
+			subvolumeGroupTestUserID                = "admin"
+			subvolumeGroupTestUserKey               = "key"
+			subvolumeGroupValue                     = "test-subvolume-group"
+		)
+
+		var (
+			subvolumeGroupTestMonitors = []string{"mon1", "mon2", "mon3"}
+		)
+
+		It("Creating CephClusterConnection without SubvolumeGroup", func() {
+			cephClusterConnection := &v1alpha1.CephClusterConnection{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: subvolumeGroupTestClusterConnectionName,
+				},
+				Spec: v1alpha1.CephClusterConnectionSpec{
+					ClusterID: subvolumeGroupTestClusterID,
+					Monitors:  subvolumeGroupTestMonitors,
+					UserID:    subvolumeGroupTestUserID,
+					UserKey:   subvolumeGroupTestUserKey,
+					// CephFS is omitted (empty struct)
+				},
+			}
+
+			By("Creating CephClusterConnection without CephFS.SubvolumeGroup")
+			err := cl.Create(ctx, cephClusterConnection)
+			Expect(err).NotTo(HaveOccurred())
+
+			createdCephClusterConnection := &v1alpha1.CephClusterConnection{}
+			err = cl.Get(ctx, client.ObjectKey{Name: subvolumeGroupTestClusterConnectionName}, createdCephClusterConnection)
+			Expect(err).NotTo(HaveOccurred())
+
+			By("Running reconcile for CephClusterConnection without SubvolumeGroup")
+			shouldReconcile, _, err := controller.RunCephClusterConnectionEventReconcile(ctx, cl, log, createdCephClusterConnection, controllerNamespace)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(shouldReconcile).To(BeFalse())
+
+			By("Verifying that ConfigMap is created without subvolumeGroup key")
+			verifyConfigMapWithoutSubvolumeGroup(ctx, cl, subvolumeGroupTestClusterID, subvolumeGroupTestMonitors)
+
+			By("Verifying that Secret is created correctly")
+			verifySecret(ctx, cl, cephClusterConnection.Name, subvolumeGroupTestUserID, subvolumeGroupTestUserKey)
+		})
+
+		It("Updating CephClusterConnection to add SubvolumeGroup", func() {
+			By("Getting the existing CephClusterConnection")
+			cephClusterConnection := &v1alpha1.CephClusterConnection{}
+			err := cl.Get(ctx, client.ObjectKey{Name: subvolumeGroupTestClusterConnectionName}, cephClusterConnection)
+			Expect(err).NotTo(HaveOccurred())
+
+			By("Adding SubvolumeGroup to the CephClusterConnection")
+			cephClusterConnection.Spec.CephFS = v1alpha1.CephClusterConnectionSpecCephFS{
+				SubvolumeGroup: subvolumeGroupValue,
+			}
+			err = cl.Update(ctx, cephClusterConnection)
+			Expect(err).NotTo(HaveOccurred())
+
+			updatedCephClusterConnection := &v1alpha1.CephClusterConnection{}
+			err = cl.Get(ctx, client.ObjectKey{Name: subvolumeGroupTestClusterConnectionName}, updatedCephClusterConnection)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(updatedCephClusterConnection.Spec.CephFS.SubvolumeGroup).To(Equal(subvolumeGroupValue))
+
+			By("Running reconcile for CephClusterConnection with SubvolumeGroup")
+			shouldReconcile, _, err := controller.RunCephClusterConnectionEventReconcile(ctx, cl, log, updatedCephClusterConnection, controllerNamespace)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(shouldReconcile).To(BeFalse())
+
+			By("Verifying that ConfigMap is updated with subvolumeGroup key")
+			verifyConfigMapWithSubvolumeGroup(ctx, cl, subvolumeGroupTestClusterID, subvolumeGroupTestMonitors, subvolumeGroupValue)
+		})
+
+		It("Creating CephClusterConnection with empty SubvolumeGroup", func() {
+			const emptySubvolumeGroupConnectionName = "test-empty-subvolumegroup-connection"
+			const emptySubvolumeGroupClusterID = "test-empty-subvolumegroup-cluster"
+
+			cephClusterConnection := &v1alpha1.CephClusterConnection{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: emptySubvolumeGroupConnectionName,
+				},
+				Spec: v1alpha1.CephClusterConnectionSpec{
+					ClusterID: emptySubvolumeGroupClusterID,
+					Monitors:  subvolumeGroupTestMonitors,
+					UserID:    subvolumeGroupTestUserID,
+					UserKey:   subvolumeGroupTestUserKey,
+					CephFS: v1alpha1.CephClusterConnectionSpecCephFS{
+						SubvolumeGroup: "", // Explicitly empty
+					},
+				},
+			}
+
+			By("Creating CephClusterConnection with empty SubvolumeGroup")
+			err := cl.Create(ctx, cephClusterConnection)
+			Expect(err).NotTo(HaveOccurred())
+
+			createdCephClusterConnection := &v1alpha1.CephClusterConnection{}
+			err = cl.Get(ctx, client.ObjectKey{Name: emptySubvolumeGroupConnectionName}, createdCephClusterConnection)
+			Expect(err).NotTo(HaveOccurred())
+
+			By("Running reconcile for CephClusterConnection with empty SubvolumeGroup")
+			shouldReconcile, _, err := controller.RunCephClusterConnectionEventReconcile(ctx, cl, log, createdCephClusterConnection, controllerNamespace)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(shouldReconcile).To(BeFalse())
+
+			By("Verifying that ConfigMap is created without subvolumeGroup key (empty string is ignored)")
+			verifyConfigMapWithoutSubvolumeGroup(ctx, cl, emptySubvolumeGroupClusterID, subvolumeGroupTestMonitors)
+
+			By("Cleaning up empty SubvolumeGroup test connection")
+			err = cl.Delete(ctx, createdCephClusterConnection)
+			Expect(err).NotTo(HaveOccurred())
+			shouldReconcile, _, err = controller.RunCephClusterConnectionEventReconcile(ctx, cl, log, createdCephClusterConnection, controllerNamespace)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(shouldReconcile).To(BeFalse())
+		})
+
+		It("Removing SubvolumeGroup from existing CephClusterConnection", func() {
+			By("Getting the existing CephClusterConnection with SubvolumeGroup")
+			cephClusterConnection := &v1alpha1.CephClusterConnection{}
+			err := cl.Get(ctx, client.ObjectKey{Name: subvolumeGroupTestClusterConnectionName}, cephClusterConnection)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(cephClusterConnection.Spec.CephFS.SubvolumeGroup).To(Equal(subvolumeGroupValue))
+
+			By("Removing SubvolumeGroup from the CephClusterConnection")
+			cephClusterConnection.Spec.CephFS = v1alpha1.CephClusterConnectionSpecCephFS{
+				SubvolumeGroup: "", // Clear the field
+			}
+			err = cl.Update(ctx, cephClusterConnection)
+			Expect(err).NotTo(HaveOccurred())
+
+			updatedCephClusterConnection := &v1alpha1.CephClusterConnection{}
+			err = cl.Get(ctx, client.ObjectKey{Name: subvolumeGroupTestClusterConnectionName}, updatedCephClusterConnection)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(updatedCephClusterConnection.Spec.CephFS.SubvolumeGroup).To(Equal(""))
+
+			By("Running reconcile for CephClusterConnection without SubvolumeGroup")
+			shouldReconcile, _, err := controller.RunCephClusterConnectionEventReconcile(ctx, cl, log, updatedCephClusterConnection, controllerNamespace)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(shouldReconcile).To(BeFalse())
+
+			By("Verifying that ConfigMap is updated to remove subvolumeGroup key")
+			verifyConfigMapWithoutSubvolumeGroup(ctx, cl, subvolumeGroupTestClusterID, subvolumeGroupTestMonitors)
+
+			By("Cleaning up test connection")
+			err = cl.Delete(ctx, updatedCephClusterConnection)
+			Expect(err).NotTo(HaveOccurred())
+			shouldReconcile, _, err = controller.RunCephClusterConnectionEventReconcile(ctx, cl, log, updatedCephClusterConnection, controllerNamespace)
+			Expect(err).NotTo(HaveOccurred())
+		})
+	})
+
+	Describe("generateClusterConfig function", func() {
+		It("should generate config without subvolumeGroup when SubvolumeGroup is empty", func() {
+			cephClusterConnection := &v1alpha1.CephClusterConnection{
+				Spec: v1alpha1.CephClusterConnectionSpec{
+					ClusterID: "test-cluster",
+					Monitors:  []string{"mon1", "mon2"},
+					UserID:    "admin",
+					UserKey:   "key",
+					CephFS: v1alpha1.CephClusterConnectionSpecCephFS{
+						SubvolumeGroup: "", // Empty string
+					},
+				},
+			}
+
+			config := controller.GenerateClusterConfigForTesting(cephClusterConnection)
+
+			Expect(config.ClusterID).To(Equal("test-cluster"))
+			Expect(config.Monitors).To(ConsistOf([]string{"mon1", "mon2"}))
+			Expect(config.CephFS).NotTo(HaveKey("subvolumeGroup"))
+		})
+
+		It("should generate config without subvolumeGroup when CephFS is zero-value struct", func() {
+			cephClusterConnection := &v1alpha1.CephClusterConnection{
+				Spec: v1alpha1.CephClusterConnectionSpec{
+					ClusterID: "test-cluster",
+					Monitors:  []string{"mon1", "mon2"},
+					UserID:    "admin",
+					UserKey:   "key",
+					// CephFS is zero-value struct
+				},
+			}
+
+			config := controller.GenerateClusterConfigForTesting(cephClusterConnection)
+
+			Expect(config.ClusterID).To(Equal("test-cluster"))
+			Expect(config.Monitors).To(ConsistOf([]string{"mon1", "mon2"}))
+			Expect(config.CephFS).NotTo(HaveKey("subvolumeGroup"))
+		})
+
+		It("should generate config with subvolumeGroup when SubvolumeGroup is not empty", func() {
+			cephClusterConnection := &v1alpha1.CephClusterConnection{
+				Spec: v1alpha1.CephClusterConnectionSpec{
+					ClusterID: "test-cluster",
+					Monitors:  []string{"mon1", "mon2"},
+					UserID:    "admin",
+					UserKey:   "key",
+					CephFS: v1alpha1.CephClusterConnectionSpecCephFS{
+						SubvolumeGroup: "my-subvolume-group",
+					},
+				},
+			}
+
+			config := controller.GenerateClusterConfigForTesting(cephClusterConnection)
+
+			Expect(config.ClusterID).To(Equal("test-cluster"))
+			Expect(config.Monitors).To(ConsistOf([]string{"mon1", "mon2"}))
+			Expect(config.CephFS).To(HaveKeyWithValue("subvolumeGroup", "my-subvolume-group"))
+		})
+	})
 })
 
 func verifyConfigMap(ctx context.Context, cl client.Client, clusterID string, monitors []string) {
@@ -650,6 +862,60 @@ func verifyConfigMap(ctx context.Context, cl client.Client, clusterID string, mo
 	for _, cfg := range clusterConfigs {
 		if cfg.ClusterID == clusterID {
 			Expect(cfg.Monitors).To(ConsistOf(monitors))
+			found = true
+			break
+		}
+	}
+	Expect(found).To(BeTrue(), "Cluster config not found in ConfigMap")
+}
+
+func verifyConfigMapWithSubvolumeGroup(ctx context.Context, cl client.Client, clusterID string, monitors []string, expectedSubvolumeGroup string) {
+	controllerNamespace := "test-namespace"
+	configMap := &corev1.ConfigMap{}
+	err := cl.Get(ctx, client.ObjectKey{Name: internal.CSICephConfigMapName, Namespace: controllerNamespace}, configMap)
+	Expect(err).NotTo(HaveOccurred())
+	Expect(configMap).NotTo(BeNil())
+	Expect(configMap.Data).To(HaveKey("config.json"))
+	Expect(configMap.Labels).To(HaveKeyWithValue(internal.StorageManagedLabelKey, controller.CephClusterConnectionCtrlName))
+	Expect(configMap.Finalizers).To(HaveLen(1))
+	Expect(configMap.Finalizers).To(ContainElement(controller.CephClusterConnectionControllerFinalizerName))
+
+	var clusterConfigs []v1alpha1.ClusterConfig
+	err = json.Unmarshal([]byte(configMap.Data["config.json"]), &clusterConfigs)
+	Expect(err).NotTo(HaveOccurred())
+	Expect(clusterConfigs).NotTo(BeNil())
+	found := false
+	for _, cfg := range clusterConfigs {
+		if cfg.ClusterID == clusterID {
+			Expect(cfg.Monitors).To(ConsistOf(monitors))
+			Expect(cfg.CephFS).To(HaveKeyWithValue("subvolumeGroup", expectedSubvolumeGroup))
+			found = true
+			break
+		}
+	}
+	Expect(found).To(BeTrue(), "Cluster config not found in ConfigMap")
+}
+
+func verifyConfigMapWithoutSubvolumeGroup(ctx context.Context, cl client.Client, clusterID string, monitors []string) {
+	controllerNamespace := "test-namespace"
+	configMap := &corev1.ConfigMap{}
+	err := cl.Get(ctx, client.ObjectKey{Name: internal.CSICephConfigMapName, Namespace: controllerNamespace}, configMap)
+	Expect(err).NotTo(HaveOccurred())
+	Expect(configMap).NotTo(BeNil())
+	Expect(configMap.Data).To(HaveKey("config.json"))
+	Expect(configMap.Labels).To(HaveKeyWithValue(internal.StorageManagedLabelKey, controller.CephClusterConnectionCtrlName))
+	Expect(configMap.Finalizers).To(HaveLen(1))
+	Expect(configMap.Finalizers).To(ContainElement(controller.CephClusterConnectionControllerFinalizerName))
+
+	var clusterConfigs []v1alpha1.ClusterConfig
+	err = json.Unmarshal([]byte(configMap.Data["config.json"]), &clusterConfigs)
+	Expect(err).NotTo(HaveOccurred())
+	Expect(clusterConfigs).NotTo(BeNil())
+	found := false
+	for _, cfg := range clusterConfigs {
+		if cfg.ClusterID == clusterID {
+			Expect(cfg.Monitors).To(ConsistOf(monitors))
+			Expect(cfg.CephFS).NotTo(HaveKey("subvolumeGroup"))
 			found = true
 			break
 		}
