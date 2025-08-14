@@ -59,9 +59,12 @@ spec:
                   type: string
                   minLength: 1
                 cephFS:
-                  type: object
                   description: |
                     CephFS specific parameters (Cluster wide).
+                  type: object
+                  x-kubernetes-validations:
+                    - rule: self == oldSelf
+                      message: "The cephFS field is immutable."
                   properties:
                     subvolumeGroup:
                       description: |
