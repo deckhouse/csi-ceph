@@ -1,6 +1,6 @@
 module github.com/deckhouse/csi-ceph/api
 
-go 1.24.2
+go 1.24.5
 
 require k8s.io/apimachinery v0.32.3
 
