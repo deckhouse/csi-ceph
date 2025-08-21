@@ -41,7 +41,7 @@ jobs:
     needs: [build_dev]
     steps:
       - uses: actions/checkout@v4
-      - uses: deckhouse/modules-actions/cve_scan@v4
+      - uses: deckhouse/modules-actions/cve_scan@license_scan
         with:
           tag: pr${{ github.event.number }}
           module_name: ${{ vars.MODULE_NAME }}
