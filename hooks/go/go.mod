@@ -1,6 +1,6 @@
 module github.com/deckhouse/csi-ceph/hooks/go
 
-go 1.24.5
+go 1.24.6
 
 require (
 	github.com/deckhouse/csi-ceph/api v0.0.0-20250207141553-9b2c9a45ba22
