@@ -1,6 +1,6 @@
 module github.com/deckhouse/csi-ceph/images/controller
 
-go 1.24.5
+go 1.24.6
 
 require (
 	github.com/deckhouse/csi-ceph/api v0.0.0-20250314071238-6a7df30c52cc
