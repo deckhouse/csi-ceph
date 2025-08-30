@@ -14,7 +14,7 @@ title: "Модуль csi-ceph"
 {{< /alert >}}
 
 {{< alert level="info" >}}
-Для работы с снапшотами требуется подключенный модуль [snapshot-controller](../../modules/snapshot-controller/).
+Для работы с снапшотами требуется подключенный модуль [snapshot-controller](../../snapshot-controller/).
 {{< /alert >}}
 
 Ceph — это масштабируемая распределённая система хранения, обеспечивающая высокую доступность и отказоустойчивость данных. В Deckhouse поддерживается интеграция с Ceph-кластерами, что позволяет динамически управлять хранилищем и использовать StorageClass на основе RBD (RADOS Block Device) или CephFS.

@@ -14,7 +14,7 @@ In this case, please contact technical support.
 {{< /alert >}}
 
 {{< alert level="info" >}}
-For working with snapshots, the [snapshot-controller](../../modules/snapshot-controller/) module must be connected.
+For working with snapshots, the [snapshot-controller](../../snapshot-controller/) module must be connected.
 {{< /alert >}}
 
 Ceph is a scalable distributed storage system that ensures high availability and fault tolerance of data. Deckhouse supports integration with Ceph clusters, enabling dynamic storage management and the use of StorageClass based on RBD (RADOS Block Device) or CephFS.
