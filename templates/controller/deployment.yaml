@@ -91,8 +91,6 @@ spec:
 {{- if not ( .Values.global.enabledModules | has "vertical-pod-autoscaler-crd") }}
               {{- include "controller_resources" . | nindent 14 }}
 {{- end }}
-          securityContext:
-            privileged: false
           env:
             - name: LOG_LEVEL
 {{- if eq .Values.csiCeph.logLevel "ERROR" }}
