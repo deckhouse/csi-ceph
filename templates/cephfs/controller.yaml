@@ -48,6 +48,8 @@
 {{- define "cephfs_csi_controller_volume_mounts" }}
 - name: host-sys
   mountPath: /sys
+- name: host-sys-fs-cgroup
+  mountPath:  /sys/fs/cgroup
 - name: lib-modules
   mountPath: /lib/modules
   readOnly: true
@@ -84,6 +86,9 @@
 - name: host-sys
   hostPath:
     path: /sys
+- name: host-sys-fs-cgroup
+  hostPath:
+    path: /sys/fs/cgroup
 - name: lib-modules
   hostPath:
     path: /lib/modules
@@ -144,6 +149,8 @@
   name: host-mount
 - mountPath: /sys
   name: host-sys
+- mountPath: /sys/fs/cgroup
+  name: host-sys-fs-cgroup
 - mountPath: /etc/selinux
   name: etc-selinux
   readOnly: true
@@ -169,6 +176,9 @@
 - name: host-sys
   hostPath:
     path: /sys
+- name: host-sys-fs-cgroup
+  hostPath:
+    path: /sys/fs/cgroup
 - name: etc-selinux
   hostPath:
     path: /etc/selinux

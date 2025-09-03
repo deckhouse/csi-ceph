@@ -61,6 +61,9 @@ memory: 50Mi
 - name: host-sys
   hostPath:
     path: /sys
+- name: host-sys-fs-cgroup
+  hostPath:
+    path: /sys/fs/cgroup
 - name: lib-modules
   hostPath:
     path: /lib/modules
@@ -152,6 +155,8 @@ memory: 50Mi
       name: host-dev
     - mountPath: /sys
       name: host-sys
+    - mountPath: /sys/fs/cgroup
+      name: host-sys-fs-cgroup
     - mountPath: /lib/modules
       name: lib-modules
       readOnly: true
@@ -209,6 +214,8 @@ memory: 50Mi
   name: host-mount
 - mountPath: /sys
   name: host-sys
+- mountPath: /sys/fs/cgroup
+  name: host-sys-fs-cgroup
 - mountPath: /etc/selinux
   name: etc-selinux
   readOnly: true
@@ -235,6 +242,9 @@ memory: 50Mi
 - name: host-sys
   hostPath:
     path: /sys
+- name: host-sys-fs-cgroup
+  hostPath:
+    path: /sys/fs/cgroup
 - name: etc-selinux
   hostPath:
     path: /etc/selinux
