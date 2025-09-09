@@ -17,8 +17,7 @@ on:
   # call from trivy_image_check.yaml, which in turn call from pull_request
   # https://stackoverflow.com/a/71489231
   workflow_call:
-    inputs:    # Run every Saturday at 16:00 UTC with svace_enabled=true for main branch
-
+    inputs:
       svace_enabled:
         description: "Enable svace build and analyze"
         type: boolean
