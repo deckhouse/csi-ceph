@@ -69,8 +69,7 @@ jobs:
       module_edition: ${{ steps.set-vars.outputs.MODULE_EDITION }}
     steps:
       - name: Get Pull Request Labels
-        id: get-labels    # Run every Saturday at 16:00 UTC with svace_enabled=true for main branch
-
+        id: get-labels
         uses: actions/github-script@v7
         with:
           script: |
