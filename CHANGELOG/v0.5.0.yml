@@ -1,0 +1,4 @@
+changes:
+  - Added automatic creation of VolumeSnapshotClassName annotations in StorageClass for proper snapshot-controller operation
+  - Updated CSI to 3.14.2
+  - Added setting for specifying the number of worker threads for csi provisioner

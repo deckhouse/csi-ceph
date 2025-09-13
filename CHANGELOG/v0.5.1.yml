@@ -1,0 +1,2 @@
+changes:
+  - Added support for subvolume group when specifying cluster data (field is also considered during migration from ceph-csi)

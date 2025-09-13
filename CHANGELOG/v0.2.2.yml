@@ -1,0 +1,3 @@
+changes:
+  - Added labels to our CRDs for proper Deckhouse backup operation
+  - Fixed CSI controller templates for proper operation
