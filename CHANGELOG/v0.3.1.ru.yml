@@ -1,3 +1,0 @@
-changes:
-  - Правки в хук для автоматического слияния ресурсов CephClusterAuthorization и CephClusterConnection (теперь учитываются VolumeSnapshots, а не только PV)
-  - Чистка metadata из образов (более чистые образы для уменьшения вопросов от ИБ клиентов)

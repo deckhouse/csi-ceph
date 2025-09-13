@@ -1,4 +1,0 @@
-changes:
-  - Added liveness and readiness probes
-  - Updated ceph-csi version to 3.12.1, also updated dependencies for which there are known CVEs in old versions
-  - Enabled features needed for DVP in RBD StorageClass: exclusive-lock,object-map,fast-diff

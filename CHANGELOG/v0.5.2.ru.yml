@@ -1,3 +1,0 @@
-changes:
-  - Добавлены фиксы для поддержки containerd v2
-  - Фиксы при обработке CephClusterConnection

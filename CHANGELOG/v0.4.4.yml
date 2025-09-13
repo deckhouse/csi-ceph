@@ -1,3 +1,0 @@
-changes:
-  - Module refactoring, documentation and build process fixes
-  - Added HA mode support for CSI controller

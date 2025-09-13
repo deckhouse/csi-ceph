@@ -1,2 +1,0 @@
-changes:
-  - Updated golang to current 1.22.6 and replaced deprecated logging library to close known vulnerabilities

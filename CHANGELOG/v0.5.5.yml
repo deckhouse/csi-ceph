@@ -1,3 +1,0 @@
-changes:
-  - Added information about the need for snapshot-controller for module operation
-  - Added readonlyRootFilesystem for enhanced module security

@@ -1,3 +1,0 @@
-changes:
-  - Добавлена информация о необходимости snapshot-controller для работы модуля
-  - Добавлен readonlyRootFilesystem для большей безопасности модуля
