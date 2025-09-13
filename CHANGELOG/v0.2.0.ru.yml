@@ -1,0 +1,4 @@
+changes:
+  - Добавлены liveness и readiness пробы
+  - Обновлена версия ceph-csi до 3.12.1, а также обновлены зависимости, про старые версии которых есть известные CVE
+  - В RBD StorageClass включены фичи, нужные DVP: exclusive-lock,object-map,fast-diff

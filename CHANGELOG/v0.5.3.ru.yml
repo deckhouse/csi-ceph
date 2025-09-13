@@ -1,0 +1,3 @@
+changes:
+  - Добавлена зависимость от snapshot-controller
+  - Фиксы CVE

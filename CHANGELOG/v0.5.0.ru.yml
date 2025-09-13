@@ -1,0 +1,4 @@
+changes:
+  - Добавлено автоматическое создание аннотаций VolumeSnapshotClassName у StorageClass для корректной работы snapshot-controller
+  - Обновлен CSI до 3.14.2
+  - Добавлена настройка для указания количество рабочих потоков у csi provisioner

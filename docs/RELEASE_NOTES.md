@@ -1,5 +1,5 @@
 ---
-title: "Releases"
+title: "Release notes"
 ---
 
 ## v0.5.6
