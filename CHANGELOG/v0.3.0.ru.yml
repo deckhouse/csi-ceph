@@ -1,0 +1,3 @@
+Изменения:
+  - Исправлена ошибка генерации внутреннего configmap с настройками ceph
+  - Добавлен хук для автоматического слияния ресурсов CephClusterAuthorization и CephClusterConnection (останется только CephClusterConnection со всеми необходимыми полями)

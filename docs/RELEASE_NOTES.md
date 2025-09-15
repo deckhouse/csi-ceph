@@ -1,6 +1,10 @@
 ---
-title: "Release notes"
+title: "Release Notes"
 ---
+
+## v0.5.7
+
+* Added release notes
 
 ## v0.5.6
 
@@ -33,7 +37,7 @@ title: "Release notes"
 
 * Added automatic creation of VolumeSnapshotClassName annotations in StorageClass for proper snapshot-controller operation
 * Updated CSI to 3.14.2
-* Added setting for specifying the number of worker threads for csi provisioner
+* Added setting to specify the number of worker threads for csi provisioner
 
 ## v0.4.4
 
@@ -46,12 +50,12 @@ title: "Release notes"
 
 ## v0.3.2
 
-* Updated lib-helm and fixes in CSI code patches
+* Updated lib-helm and CSI code patch fixes
 
 ## v0.3.1
 
 * Fixed hook for automatic merging of CephClusterAuthorization and CephClusterConnection resources (now considers VolumeSnapshots, not just PV)
-* Cleaned metadata from images (cleaner images to reduce security questions from clients)
+* Cleaned metadata from images (cleaner images to reduce security client questions)
 
 ## v0.3.0
 
@@ -70,5 +74,4 @@ title: "Release notes"
 ## v0.2.0
 
 * Added liveness and readiness probes
-* Updated ceph-csi version to 3.12.1, also updated dependencies for which there are known CVEs in old versions
-* Enabled features needed for DVP in RBD StorageClass: exclusive-lock,object-map,fast-diff
+* Updated ceph-csi version to 3.12.1, and updated dependencies for which there are known CVEs in old versions
