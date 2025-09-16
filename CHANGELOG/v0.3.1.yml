@@ -1,0 +1,3 @@
+Changes:
+  - Fixed hook for automatic merging of CephClusterAuthorization and CephClusterConnection resources (now considers VolumeSnapshots, not just PV)
+  - Cleaned metadata from images (cleaner images to reduce security client questions)

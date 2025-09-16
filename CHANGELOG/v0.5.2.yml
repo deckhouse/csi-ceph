@@ -1,0 +1,3 @@
+Changes:
+  - Added fixes for containerd v2 support
+  - Fixes in CephClusterConnection processing
