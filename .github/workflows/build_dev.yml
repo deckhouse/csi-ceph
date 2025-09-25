@@ -126,12 +126,12 @@ jobs:
           wget https://fox.flant.com/api/v4/projects/deckhouse%2Fbase-images/packages/generic/base_images/$BASE_IMAGES_VERSION/base_images.yml -O base_images.yml
           cat base_images.yml
 
-      - uses: deckhouse/modules-actions/setup@v4
+      - uses: deckhouse/modules-actions/setup@feat/signing_images
         with:
           registry: ${{ vars.DEV_REGISTRY }}
           registry_login: ${{ vars.DEV_MODULES_REGISTRY_LOGIN }}
           registry_password: ${{ secrets.DEV_MODULES_REGISTRY_PASSWORD }}
-      - uses: deckhouse/modules-actions/build@v4
+      - uses: deckhouse/modules-actions/setup@feat/signing_images
         with:
           module_source: "${{ vars.DEV_MODULE_SOURCE }}"
           module_name: ${{ vars.MODULE_NAME }}
@@ -142,6 +142,15 @@ jobs:
           svace_analyze_host: "${{ secrets.SVACE_ANALYZE_HOST }}"
           svace_analyze_ssh_user: "${{ secrets.SVACE_ANALYZE_SSH_USER }}"
           svace_analyze_ssh_key: "${{ secrets.SVACE_ANALYZE_SSH_PRIVATE_KEY }}"
+          werf_sign_cert: "${{ secrets.WERF_SIGN_CERT }}"
+          werf_sign_intermediates: "${{ secrets.WERF_SIGN_INTERMEDIATES }}"
+          werf_sign_key: "${{ secrets.WERF_SIGN_KEY }}"
+          vault_addr: "${{ secrets.VAULT_ADDR }}"
+          vault_role_id: "${{ secrets.VAULT_ROLE_ID }}"
+          vault_secret_id: "${{ secrets.VAULT_SECRET_ID }}"
+          transit_secret_engine_path: "${{ secrets.TRANSIT_SECRET_ENGINE_PATH }}"
+          werf_sign_elf_files: "0"
+          werf_bsign_elf_files: "0"
 
   analyze_build:
     if: ${{ contains(github.event.pull_request.labels.*.name, 'analyze/svace') || github.event.inputs.svace_enabled == 'true' }}
