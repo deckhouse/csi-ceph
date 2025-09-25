@@ -25,7 +25,7 @@ on:
   push:
     branches:
       - main
-      - feat/signing_images
+  workflow_dispatch:
 
 defaults:
   run:
