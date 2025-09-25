@@ -133,7 +133,7 @@ jobs:
           registry_password: ${{ secrets.DEV_MODULES_REGISTRY_PASSWORD }}
           fox_access_token: ${{ secrets.FOX_ACCESS_TOKEN }}
           deckhouse_private_repo: ${{ secrets.DECKHOUSE_PRIVATE_REPO }}
-          werf_version: "v2.47.7+dk-dev"
+          werf_version: "v2.47.7-dk-dev"
       - uses: deckhouse/modules-actions/build@feat/signing_images
         with:
           module_source: "${{ vars.DEV_MODULE_SOURCE }}"
