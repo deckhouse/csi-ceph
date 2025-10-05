@@ -1,6 +1,7 @@
 project: csi-ceph
 configVersion: 1
 build:
+  cacheVersion: 20250926100000
   imageSpec:
     author: "Deckhouse Kubernetes Platform <contact@deckhouse.io>"
     clearHistory: true
