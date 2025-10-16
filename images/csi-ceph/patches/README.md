@@ -1,9 +1,9 @@
 # Patches
 
-## 001-fix-gomod.patch
+## 001-fix-cve.patch
 
 Fix CVE
 
-## 002-fix-gomod.patch
+## 002-fix-cve.patch
 
 Fix CVE
