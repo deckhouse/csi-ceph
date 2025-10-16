@@ -1,0 +1,41 @@
+From fdea29506b8d4ed7d818025400c9211af6064e9b Mon Sep 17 00:00:00 2001
+From: "v.oleynikov" <vasily.oleynikov@flant.com>
+Date: Thu, 16 Oct 2025 10:34:45 +0300
+Subject: [PATCH] fix cve
+
+---
+ go.mod | 2 +-
+ go.sum | 4 ++--
+ 2 files changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/go.mod b/go.mod
+index fc7d895f3..b639ed189 100644
+--- a/go.mod
++++ b/go.mod
+@@ -39,7 +39,7 @@ require (
+ 	k8s.io/apimachinery v0.33.3
+ 	k8s.io/cloud-provider v0.33.0
+ 	k8s.io/klog/v2 v2.130.1
+-	k8s.io/kubernetes v1.33.3
++	k8s.io/kubernetes v1.33.4
+ 	k8s.io/mount-utils v0.33.3
+ 	k8s.io/utils v0.0.0-20241210054802-24370beab758
+ )
+diff --git a/go.sum b/go.sum
+index bf76a4302..84948444f 100644
+--- a/go.sum
++++ b/go.sum
+@@ -1383,8 +1383,8 @@ k8s.io/klog/v2 v2.130.1/go.mod h1:3Jpz1GvMt720eyJH1ckRHK1EDfpxISzJ7I9OYgaDtPE=
+ k8s.io/kube-openapi v0.0.0-20221012153701-172d655c2280/go.mod h1:+Axhij7bCpeqhklhUTe3xmOn6bWxolyZEeyaFpjGtl4=
+ k8s.io/kube-openapi v0.0.0-20250318190949-c8a335a9a2ff h1:/usPimJzUKKu+m+TE36gUyGcf03XZEP0ZIKgKj35LS4=
+ k8s.io/kube-openapi v0.0.0-20250318190949-c8a335a9a2ff/go.mod h1:5jIi+8yX4RIb8wk3XwBo5Pq2ccx4FP10ohkbSKCZoK8=
+-k8s.io/kubernetes v1.33.3 h1:dBx5Z2ZhR8kNzAwCoCz4j1niUbUrNUDVxeSj4/Ienu0=
+-k8s.io/kubernetes v1.33.3/go.mod h1:nrt8sldmckKz2fCZhgRX3SKfS2e+CzXATPv6ITNkU00=
++k8s.io/kubernetes v1.33.4 h1:T1d5FLUYm3/KyUeV7YJhKTR980zHCHb7K2xhCSo3lE8=
++k8s.io/kubernetes v1.33.4/go.mod h1:nrt8sldmckKz2fCZhgRX3SKfS2e+CzXATPv6ITNkU00=
+ k8s.io/mount-utils v0.33.3 h1:Q1jsnqdS4LdtJSYSXgiQv/XNrRHQncLk3gMYjKNSZrE=
+ k8s.io/mount-utils v0.33.3/go.mod h1:1JR4rKymg8B8bCPo618hpSAdrpO6XLh0Acqok/xVwPE=
+ k8s.io/utils v0.0.0-20210802155522-efc7438f0176/go.mod h1:jPW/WVKK9YHAvNhRxK0md/EJ228hCsBRufyofKtW8HA=
+-- 
+2.43.0
+
