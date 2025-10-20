@@ -41,7 +41,7 @@ jobs:
     needs: [build_dev]
     steps:
       - uses: actions/checkout@v4
-      - uses: deckhouse/modules-actions/cve_scan@test_reorganized_dd_reports
+      - uses: deckhouse/modules-actions/cve_scan@reorganize_dd_reports
         with:
           tag: pr${{ github.event.number }}
           module_name: ${{ vars.MODULE_NAME }}
