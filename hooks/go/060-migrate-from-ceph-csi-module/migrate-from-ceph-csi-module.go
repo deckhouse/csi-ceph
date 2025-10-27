@@ -167,8 +167,8 @@ func handlerMigrateFromCephCsiModule(ctx context.Context, _ *pkg.HookInput) erro
 			if cephCSIDriver.Spec.CephFS != nil {
 				if cephCSIDriver.Spec.CephFS.SubvolumeGroup != "" {
 					cephClusterConnection.Spec.CephFS = v1alpha1.CephClusterConnectionSpecCephFS{
-						SubvolumeGroup: cephCSIDriver.Spec.CephFS.SubvolumeGroup}
-
+						SubvolumeGroup: cephCSIDriver.Spec.CephFS.SubvolumeGroup,
+					}
 				}
 			}
 			err := cl.Create(ctx, cephClusterConnection)

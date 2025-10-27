@@ -42,7 +42,7 @@ type CephClusterConnectionSpec struct {
 }
 
 type CephClusterConnectionSpecCephFS struct {
-	SubvolumeGroup string `json:"subvolumeGroup"`
+	SubvolumeGroup string `json:"subvolumeGroup,omitempty"`
 }
 
 type CephClusterConnectionStatus struct {
@@ -57,7 +57,7 @@ type ClusterConfig struct {
 }
 
 type CephFSConfig struct {
-	SubvolumeGroup             string          `json:"subvolumeGroup,omitempty"`
+	SubvolumeGroup             *string         `json:"subvolumeGroup,omitempty"`
 	ControllerPublishSecretRef SecretReference `json:"controllerPublishSecretRef"`
 }
 

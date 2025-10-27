@@ -154,11 +154,15 @@ func generateClusterConfig(cephClusterConnection *v1alpha1.CephClusterConnection
 	secretName := internal.CephClusterConnectionSecretPrefix + cephClusterConnection.Name
 
 	cephFs := v1alpha1.CephFSConfig{
-		SubvolumeGroup: cephClusterConnection.Spec.CephFS.SubvolumeGroup,
 		ControllerPublishSecretRef: v1alpha1.SecretReference{
 			Name:      secretName,
 			Namespace: controllerNamespace,
 		},
+	}
+
+	// Only add subvolumeGroup if it's specified by user
+	if cephClusterConnection.Spec.CephFS.SubvolumeGroup != "" {
+		cephFs.SubvolumeGroup = &cephClusterConnection.Spec.CephFS.SubvolumeGroup
 	}
 
 	clusterConfig := v1alpha1.ClusterConfig{
