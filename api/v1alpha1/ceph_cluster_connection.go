@@ -51,7 +51,17 @@ type CephClusterConnectionStatus struct {
 }
 
 type ClusterConfig struct {
-	CephFS    map[string]string `json:"cephFS"`
-	ClusterID string            `json:"clusterID"`
-	Monitors  []string          `json:"monitors"`
+	CephFS    CephFSConfig `json:"cephFS"`
+	ClusterID string       `json:"clusterID"`
+	Monitors  []string     `json:"monitors"`
+}
+
+type CephFSConfig struct {
+	SubvolumeGroup             string          `json:"subvolumeGroup,omitempty"`
+	ControllerPublishSecretRef SecretReference `json:"controllerPublishSecretRef"`
+}
+
+type SecretReference struct {
+	Name      string `json:"name"`
+	Namespace string `json:"namespace"`
 }

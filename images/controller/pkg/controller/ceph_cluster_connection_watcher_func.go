@@ -149,11 +149,16 @@ func getClusterConfigsFromConfigMap(configMap *corev1.ConfigMap) ([]v1alpha1.Clu
 	return clusterConfigs, nil
 }
 
-func generateClusterConfig(cephClusterConnection *v1alpha1.CephClusterConnection) v1alpha1.ClusterConfig {
-	cephFs := map[string]string{}
-	// if SubvolumeGroup given in connection config we should put it to configmap
-	if cephClusterConnection.Spec.CephFS.SubvolumeGroup != "" {
-		cephFs[CephClusterConnectionSubvolumeGroupConfigKey] = cephClusterConnection.Spec.CephFS.SubvolumeGroup
+func generateClusterConfig(cephClusterConnection *v1alpha1.CephClusterConnection, controllerNamespace string) v1alpha1.ClusterConfig {
+	// Generate secret name and namespace
+	secretName := internal.CephClusterConnectionSecretPrefix + cephClusterConnection.Name
+
+	cephFs := v1alpha1.CephFSConfig{
+		SubvolumeGroup: cephClusterConnection.Spec.CephFS.SubvolumeGroup,
+		ControllerPublishSecretRef: v1alpha1.SecretReference{
+			Name:      secretName,
+			Namespace: controllerNamespace,
+		},
 	}
 
 	clusterConfig := v1alpha1.ClusterConfig{
@@ -168,7 +173,7 @@ func generateClusterConfig(cephClusterConnection *v1alpha1.CephClusterConnection
 func createConfigMap(ctx context.Context, cl client.Client, log logger.Logger, cephClusterConnection *v1alpha1.CephClusterConnection, controllerNamespace, configMapName string) (shouldRequeue bool, msg string, err error) {
 	log.Debug(fmt.Sprintf("[createConfigMap] starts creation of ConfigMap %s for CephClusterConnection %s", configMapName, cephClusterConnection.Name))
 
-	newClusterConfig := generateClusterConfig(cephClusterConnection)
+	newClusterConfig := generateClusterConfig(cephClusterConnection, controllerNamespace)
 	newConfigMap, err := generateNewConfigMap(newClusterConfig, controllerNamespace, configMapName)
 	if err != nil {
 		err = fmt.Errorf("[createConfigMap] unable to generate the ConfigMap %s for CephClusterConnection %s: %w", configMapName, cephClusterConnection.Name, err)
@@ -245,7 +250,7 @@ func updateConfigMapIfNeeded(ctx context.Context, cl client.Client, log logger.L
 
 	log.Trace(fmt.Sprintf("[updateConfigMapIfNeeded] clusterConfigs: %+v", clusterConfigs))
 
-	clusterConfigs, updated := updateClusterConfigsIfNeeded(log, clusterConfigs, cephClusterConnection, updateAction)
+	clusterConfigs, updated := updateClusterConfigsIfNeeded(log, clusterConfigs, cephClusterConnection, updateAction, configMap.Namespace)
 	if updated {
 		needUpdate = true
 	}
@@ -298,7 +303,7 @@ func findClusterConfigByClusterID(clusterConfigs []v1alpha1.ClusterConfig, clust
 	return -1, false
 }
 
-func updateClusterConfigsIfNeeded(log logger.Logger, clusterConfigs []v1alpha1.ClusterConfig, cephClusterConnection *v1alpha1.CephClusterConnection, updateAction string) ([]v1alpha1.ClusterConfig, bool) {
+func updateClusterConfigsIfNeeded(log logger.Logger, clusterConfigs []v1alpha1.ClusterConfig, cephClusterConnection *v1alpha1.CephClusterConnection, updateAction, controllerNamespace string) ([]v1alpha1.ClusterConfig, bool) {
 	updated := false
 
 	clusterConfigIndex, clusterConfigExists := findClusterConfigByClusterID(clusterConfigs, cephClusterConnection.Spec.ClusterID)
@@ -314,7 +319,7 @@ func updateClusterConfigsIfNeeded(log logger.Logger, clusterConfigs []v1alpha1.C
 			log.Debug(fmt.Sprintf("[updateClusterConfigsIfNeeded] clusterConfigExists %t. No need to delete clusterConfig", clusterConfigExists))
 		}
 	default:
-		newClusterConfig := generateClusterConfig(cephClusterConnection)
+		newClusterConfig := generateClusterConfig(cephClusterConnection, controllerNamespace)
 		log.Trace(fmt.Sprintf("[updateClusterConfigsIfNeeded] updateAction %s, newClusterConfig: %+v", updateAction, newClusterConfig))
 
 		if clusterConfigExists {
