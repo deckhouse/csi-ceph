@@ -784,6 +784,9 @@ var _ = Describe(controller.CephClusterConnectionCtrlName, func() {
 	Describe("generateClusterConfig function", func() {
 		It("should generate config without subvolumeGroup when SubvolumeGroup is empty", func() {
 			cephClusterConnection := &v1alpha1.CephClusterConnection{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "test-cluster",
+				},
 				Spec: v1alpha1.CephClusterConnectionSpec{
 					ClusterID: "test-cluster",
 					Monitors:  []string{"mon1", "mon2"},
@@ -795,15 +798,22 @@ var _ = Describe(controller.CephClusterConnectionCtrlName, func() {
 				},
 			}
 
-			config := controller.GenerateClusterConfigForTesting(cephClusterConnection)
+			config := controller.GenerateClusterConfigForTesting(cephClusterConnection, "test-namespace")
 
 			Expect(config.ClusterID).To(Equal("test-cluster"))
 			Expect(config.Monitors).To(ConsistOf([]string{"mon1", "mon2"}))
-			Expect(config.CephFS).NotTo(HaveKey("subvolumeGroup"))
+			Expect(config.CephFS.SubvolumeGroup).To(BeEmpty())
+			Expect(config.CephFS.ControllerPublishSecretRef.Name).To(Equal("csi-ceph-secret-for-test-cluster"))
+			Expect(config.CephFS.ControllerPublishSecretRef.Namespace).To(Equal("test-namespace"))
+			Expect(config.RBD.ControllerPublishSecretRef.Name).To(Equal("csi-ceph-secret-for-test-cluster"))
+			Expect(config.RBD.ControllerPublishSecretRef.Namespace).To(Equal("test-namespace"))
 		})
 
 		It("should generate config without subvolumeGroup when CephFS is zero-value struct", func() {
 			cephClusterConnection := &v1alpha1.CephClusterConnection{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "test-cluster",
+				},
 				Spec: v1alpha1.CephClusterConnectionSpec{
 					ClusterID: "test-cluster",
 					Monitors:  []string{"mon1", "mon2"},
@@ -813,15 +823,22 @@ var _ = Describe(controller.CephClusterConnectionCtrlName, func() {
 				},
 			}
 
-			config := controller.GenerateClusterConfigForTesting(cephClusterConnection)
+			config := controller.GenerateClusterConfigForTesting(cephClusterConnection, "test-namespace")
 
 			Expect(config.ClusterID).To(Equal("test-cluster"))
 			Expect(config.Monitors).To(ConsistOf([]string{"mon1", "mon2"}))
-			Expect(config.CephFS).NotTo(HaveKey("subvolumeGroup"))
+			Expect(config.CephFS.SubvolumeGroup).To(BeEmpty())
+			Expect(config.CephFS.ControllerPublishSecretRef.Name).To(Equal("csi-ceph-secret-for-test-cluster"))
+			Expect(config.CephFS.ControllerPublishSecretRef.Namespace).To(Equal("test-namespace"))
+			Expect(config.RBD.ControllerPublishSecretRef.Name).To(Equal("csi-ceph-secret-for-test-cluster"))
+			Expect(config.RBD.ControllerPublishSecretRef.Namespace).To(Equal("test-namespace"))
 		})
 
 		It("should generate config with subvolumeGroup when SubvolumeGroup is not empty", func() {
 			cephClusterConnection := &v1alpha1.CephClusterConnection{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "test-cluster",
+				},
 				Spec: v1alpha1.CephClusterConnectionSpec{
 					ClusterID: "test-cluster",
 					Monitors:  []string{"mon1", "mon2"},
@@ -833,11 +850,15 @@ var _ = Describe(controller.CephClusterConnectionCtrlName, func() {
 				},
 			}
 
-			config := controller.GenerateClusterConfigForTesting(cephClusterConnection)
+			config := controller.GenerateClusterConfigForTesting(cephClusterConnection, "test-namespace")
 
 			Expect(config.ClusterID).To(Equal("test-cluster"))
 			Expect(config.Monitors).To(ConsistOf([]string{"mon1", "mon2"}))
-			Expect(config.CephFS).To(HaveKeyWithValue("subvolumeGroup", "my-subvolume-group"))
+			Expect(config.CephFS.SubvolumeGroup).To(Equal("my-subvolume-group"))
+			Expect(config.CephFS.ControllerPublishSecretRef.Name).To(Equal("csi-ceph-secret-for-test-cluster"))
+			Expect(config.CephFS.ControllerPublishSecretRef.Namespace).To(Equal("test-namespace"))
+			Expect(config.RBD.ControllerPublishSecretRef.Name).To(Equal("csi-ceph-secret-for-test-cluster"))
+			Expect(config.RBD.ControllerPublishSecretRef.Namespace).To(Equal("test-namespace"))
 		})
 	})
 })
@@ -887,7 +908,9 @@ func verifyConfigMapWithSubvolumeGroup(ctx context.Context, cl client.Client, cl
 	for _, cfg := range clusterConfigs {
 		if cfg.ClusterID == clusterID {
 			Expect(cfg.Monitors).To(ConsistOf(monitors))
-			Expect(cfg.CephFS).To(HaveKeyWithValue("subvolumeGroup", expectedSubvolumeGroup))
+			Expect(cfg.CephFS.SubvolumeGroup).To(Equal(expectedSubvolumeGroup))
+			Expect(cfg.CephFS.ControllerPublishSecretRef.Name).NotTo(BeEmpty())
+			Expect(cfg.RBD.ControllerPublishSecretRef.Name).NotTo(BeEmpty())
 			found = true
 			break
 		}
@@ -914,7 +937,9 @@ func verifyConfigMapWithoutSubvolumeGroup(ctx context.Context, cl client.Client,
 	for _, cfg := range clusterConfigs {
 		if cfg.ClusterID == clusterID {
 			Expect(cfg.Monitors).To(ConsistOf(monitors))
-			Expect(cfg.CephFS).NotTo(HaveKey("subvolumeGroup"))
+			Expect(cfg.CephFS.SubvolumeGroup).To(BeEmpty())
+			Expect(cfg.CephFS.ControllerPublishSecretRef.Name).NotTo(BeEmpty())
+			Expect(cfg.RBD.ControllerPublishSecretRef.Name).NotTo(BeEmpty())
 			found = true
 			break
 		}
