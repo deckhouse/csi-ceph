@@ -1,6 +1,7 @@
 ---
 image: {{ .ModuleNamePrefix }}{{ .ImageName }}-src-artifact
 fromImage: builder/src
+fromCacheVersion: 20251028165250
 final: false
 git:
   - add: {{ .ModuleDir }}/hooks/go
@@ -25,6 +26,7 @@ shell:
 ---
 image: {{ .ModuleNamePrefix }}{{ .ImageName }}-artifact
 fromImage: {{ eq .SVACE_ENABLED "false" | ternary "builder/golang-alpine" "builder/alt-go-svace" }}
+fromCacheVersion: 20251028165250
 final: false
 
 import:
