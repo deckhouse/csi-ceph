@@ -219,7 +219,7 @@ func RunStorageClassEventReconcile(ctx context.Context, cl client.Client, log lo
 	log.Debug(fmt.Sprintf("[RunStorageClassEventReconcile] Successfully identified the reconcile type for StorageClass %s: %s", cephSC.Name, reconcileTypeForStorageClass))
 	switch reconcileTypeForStorageClass {
 	case internal.CreateReconcile:
-		shouldRequeue, msg, err = reconcileStorageClassCreateFunc(ctx, cl, log, scList, cephSC, controllerNamespace, clusterID)
+		shouldRequeue, msg, err = reconcileStorageClassCreateFunc(ctx, cl, log, scList, cephSC, clusterID)
 	case internal.UpdateReconcile:
 		shouldRequeue, msg, err = reconcileStorageClassUpdateFunc(ctx, cl, log, scList, cephSC, controllerNamespace, clusterID)
 	default:

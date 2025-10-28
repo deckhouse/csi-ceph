@@ -77,7 +77,7 @@ func shouldReconcileStorageClassByUpdateFunc(log logger.Logger, scList *v1.Stora
 	for _, oldSC := range scList.Items {
 		if oldSC.Name == cephSC.Name {
 			if slices.Contains(allowedProvisioners, oldSC.Provisioner) {
-				newSC := updateStorageClass(cephSC, &oldSC, controllerNamespace, clusterID)
+				newSC := updateStorageClass(cephSC, &oldSC, clusterID)
 				diff, err := GetSCDiff(&oldSC, newSC)
 				if err != nil {
 					return false, err
@@ -109,7 +109,7 @@ func reconcileStorageClassCreateFunc(
 	log logger.Logger,
 	scList *v1.StorageClassList,
 	cephSC *storagev1alpha1.CephStorageClass,
-	controllerNamespace, clusterID string,
+	clusterID string,
 ) (shouldRequeue bool, msg string, err error) {
 	log.Debug(fmt.Sprintf("[reconcileStorageClassCreateFunc] starts for CephStorageClass %q", cephSC.Name))
 
@@ -162,7 +162,7 @@ func reconcileStorageClassUpdateFunc(
 	log.Debug(fmt.Sprintf("[reconcileStorageClassUpdateFunc] successfully found a storage class for the CephStorageClass, name: %s", cephSC.Name))
 	log.Trace(fmt.Sprintf("[reconcileStorageClassUpdateFunc] storage class: %+v", oldSC))
 
-	newSC := updateStorageClass(cephSC, oldSC, controllerNamespace, clusterID)
+	newSC := updateStorageClass(cephSC, oldSC, clusterID)
 	log.Debug(fmt.Sprintf("[reconcileStorageClassUpdateFunc] successfully configurated storage class for the CephStorageClass, name: %s", cephSC.Name))
 	log.Trace(fmt.Sprintf("[reconcileStorageClassUpdateFunc] new storage class: %+v", newSC))
 	log.Trace(fmt.Sprintf("[reconcileStorageClassUpdateFunc] old storage class: %+v", oldSC))
@@ -489,7 +489,7 @@ func getClusterID(ctx context.Context, cl client.Client, cephSC *storagev1alpha1
 	return clusterID, nil
 }
 
-func updateStorageClass(cephSC *storagev1alpha1.CephStorageClass, oldSC *v1.StorageClass, controllerNamespace, clusterID string) *v1.StorageClass {
+func updateStorageClass(cephSC *storagev1alpha1.CephStorageClass, oldSC *v1.StorageClass, clusterID string) *v1.StorageClass {
 	newSC := ConfigureStorageClass(cephSC, clusterID)
 
 	if oldSC.Annotations != nil {
