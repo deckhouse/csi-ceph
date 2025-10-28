@@ -1,0 +1,2 @@
+Changes:
+  - Fix error in generating configmap with cluster connection data
