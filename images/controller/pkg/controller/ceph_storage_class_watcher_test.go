@@ -804,14 +804,14 @@ func performStandardChecksForCephSc(sc *v1.StorageClass, nameForTestResource str
 	Expect(*sc.VolumeBindingMode).To(Equal(v1.VolumeBindingImmediate))
 	Expect(*sc.AllowVolumeExpansion).To(BeTrue())
 	// In ceph-csi v3.15.0:
-	// - provisioner-secret and node-stage-secret are in StorageClass (for CreateVolume)
-	// - controller-expand-secret is in ConfigMap (for ExpandVolume)
-	Expect(sc.Parameters).NotTo(HaveKey("csi.storage.k8s.io/controller-expand-secret-name"))
-	Expect(sc.Parameters).NotTo(HaveKey("csi.storage.k8s.io/controller-expand-secret-namespace"))
+	// - All secret parameters are in StorageClass (for CreateVolume, NodeStageVolume, ControllerExpandVolume)
+	// - ControllerPublishSecretRef is in ConfigMap (for ControllerPublishVolume)
 	Expect(sc.Parameters).To(HaveKeyWithValue("csi.storage.k8s.io/node-stage-secret-name", "csi-ceph-secret-for-ceph-connection"))
 	Expect(sc.Parameters).To(HaveKeyWithValue("csi.storage.k8s.io/node-stage-secret-namespace", "test-namespace"))
 	Expect(sc.Parameters).To(HaveKeyWithValue("csi.storage.k8s.io/provisioner-secret-name", "csi-ceph-secret-for-ceph-connection"))
 	Expect(sc.Parameters).To(HaveKeyWithValue("csi.storage.k8s.io/provisioner-secret-namespace", "test-namespace"))
+	Expect(sc.Parameters).To(HaveKeyWithValue("csi.storage.k8s.io/controller-expand-secret-name", "csi-ceph-secret-for-ceph-connection"))
+	Expect(sc.Parameters).To(HaveKeyWithValue("csi.storage.k8s.io/controller-expand-secret-namespace", "test-namespace"))
 
 	if cfg.Type == "cephfs" {
 		Expect(sc.Parameters).To(HaveKeyWithValue("fsName", cfg.CephFS.FSName))

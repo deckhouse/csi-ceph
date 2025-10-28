@@ -283,11 +283,13 @@ func GetStoragecClassParams(cephSC *storagev1alpha1.CephStorageClass, controller
 
 	params := map[string]string{
 		"clusterID": clusterID,
-		// Secret parameters for CreateVolume (still needed in ceph-csi v3.15.0)
-		"csi.storage.k8s.io/provisioner-secret-name":      secretName,
-		"csi.storage.k8s.io/provisioner-secret-namespace": controllerNamespace,
-		"csi.storage.k8s.io/node-stage-secret-name":       secretName,
-		"csi.storage.k8s.io/node-stage-secret-namespace":  controllerNamespace,
+		// Secret parameters for CSI operations (still needed in ceph-csi v3.15.0)
+		"csi.storage.k8s.io/provisioner-secret-name":            secretName,
+		"csi.storage.k8s.io/provisioner-secret-namespace":       controllerNamespace,
+		"csi.storage.k8s.io/node-stage-secret-name":             secretName,
+		"csi.storage.k8s.io/node-stage-secret-namespace":        controllerNamespace,
+		"csi.storage.k8s.io/controller-expand-secret-name":      secretName,
+		"csi.storage.k8s.io/controller-expand-secret-namespace": controllerNamespace,
 	}
 
 	if cephSC.Spec.Type == storagev1alpha1.CephStorageClassTypeRBD {
