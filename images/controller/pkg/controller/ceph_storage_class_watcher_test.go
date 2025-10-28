@@ -30,7 +30,6 @@ import (
 
 	v1alpha1 "github.com/deckhouse/csi-ceph/api/v1alpha1"
 	"github.com/deckhouse/csi-ceph/images/controller/pkg/controller"
-	"github.com/deckhouse/csi-ceph/images/controller/pkg/internal"
 	"github.com/deckhouse/csi-ceph/images/controller/pkg/logger"
 )
 
@@ -796,7 +795,6 @@ func generateCephStorageClass(cfg CephStorageClassConfig) *v1alpha1.CephStorageC
 }
 
 func performStandardChecksForCephSc(sc *v1.StorageClass, nameForTestResource string, cfg CephStorageClassConfig) {
-	controllerNamespace := "test-namespace"
 	Expect(sc).NotTo(BeNil())
 	Expect(sc.Name).To(Equal(nameForTestResource))
 	Expect(sc.Finalizers).To(HaveLen(1))
@@ -805,12 +803,13 @@ func performStandardChecksForCephSc(sc *v1.StorageClass, nameForTestResource str
 	Expect(*sc.ReclaimPolicy).To(Equal(corev1.PersistentVolumeReclaimPolicy(cfg.ReclaimPolicy)))
 	Expect(*sc.VolumeBindingMode).To(Equal(v1.VolumeBindingImmediate))
 	Expect(*sc.AllowVolumeExpansion).To(BeTrue())
-	Expect(sc.Parameters).To(HaveKeyWithValue("csi.storage.k8s.io/controller-expand-secret-name", internal.CephClusterConnectionSecretPrefix+cfg.ClusterConnectionName))
-	Expect(sc.Parameters).To(HaveKeyWithValue("csi.storage.k8s.io/controller-expand-secret-namespace", controllerNamespace))
-	Expect(sc.Parameters).To(HaveKeyWithValue("csi.storage.k8s.io/node-stage-secret-name", internal.CephClusterConnectionSecretPrefix+cfg.ClusterConnectionName))
-	Expect(sc.Parameters).To(HaveKeyWithValue("csi.storage.k8s.io/node-stage-secret-namespace", controllerNamespace))
-	Expect(sc.Parameters).To(HaveKeyWithValue("csi.storage.k8s.io/provisioner-secret-name", internal.CephClusterConnectionSecretPrefix+cfg.ClusterConnectionName))
-	Expect(sc.Parameters).To(HaveKeyWithValue("csi.storage.k8s.io/provisioner-secret-namespace", controllerNamespace))
+	// Secret parameters are now in ConfigMap, not in StorageClass
+	Expect(sc.Parameters).NotTo(HaveKey("csi.storage.k8s.io/controller-expand-secret-name"))
+	Expect(sc.Parameters).NotTo(HaveKey("csi.storage.k8s.io/controller-expand-secret-namespace"))
+	Expect(sc.Parameters).NotTo(HaveKey("csi.storage.k8s.io/node-stage-secret-name"))
+	Expect(sc.Parameters).NotTo(HaveKey("csi.storage.k8s.io/node-stage-secret-namespace"))
+	Expect(sc.Parameters).NotTo(HaveKey("csi.storage.k8s.io/provisioner-secret-name"))
+	Expect(sc.Parameters).NotTo(HaveKey("csi.storage.k8s.io/provisioner-secret-namespace"))
 
 	if cfg.Type == "cephfs" {
 		Expect(sc.Parameters).To(HaveKeyWithValue("fsName", cfg.CephFS.FSName))
