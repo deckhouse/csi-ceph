@@ -114,7 +114,7 @@ func reconcileStorageClassCreateFunc(
 	log.Debug(fmt.Sprintf("[reconcileStorageClassCreateFunc] starts for CephStorageClass %q", cephSC.Name))
 
 	log.Debug(fmt.Sprintf("[reconcileStorageClassCreateFunc] starts storage class configuration for the CephStorageClass, name: %s", cephSC.Name))
-	newSC := ConfigureStorageClass(cephSC, controllerNamespace, clusterID)
+	newSC := ConfigureStorageClass(cephSC, clusterID)
 
 	log.Debug(fmt.Sprintf("[reconcileStorageClassCreateFunc] successfully configurated storage class for the CephStorageClass, name: %s", cephSC.Name))
 	log.Trace(fmt.Sprintf("[reconcileStorageClassCreateFunc] storage class: %+v", newSC))
@@ -222,13 +222,13 @@ func reconcileStorageClassDeleteFunc(
 	return false, "", nil
 }
 
-func ConfigureStorageClass(cephSC *storagev1alpha1.CephStorageClass, controllerNamespace, clusterID string) *v1.StorageClass {
+func ConfigureStorageClass(cephSC *storagev1alpha1.CephStorageClass, clusterID string) *v1.StorageClass {
 	provisioner := GetStorageClassProvisioner(cephSC.Spec.Type)
 	allowVolumeExpansion := true
 	reclaimPolicy := corev1.PersistentVolumeReclaimPolicy(cephSC.Spec.ReclaimPolicy)
 	volumeBindingMode := v1.VolumeBindingImmediate
 
-	params := GetStoragecClassParams(cephSC, controllerNamespace, clusterID)
+	params := GetStoragecClassParams(cephSC, clusterID)
 	sc := &v1.StorageClass{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       StorageClassKind,
@@ -277,7 +277,7 @@ func GetStorageClassProvisioner(cephStorageClasstype string) string {
 	return provisioner
 }
 
-func GetStoragecClassParams(cephSC *storagev1alpha1.CephStorageClass, controllerNamespace, clusterID string) map[string]string {
+func GetStoragecClassParams(cephSC *storagev1alpha1.CephStorageClass, clusterID string) map[string]string {
 	params := map[string]string{
 		"clusterID": clusterID,
 	}
@@ -490,7 +490,7 @@ func getClusterID(ctx context.Context, cl client.Client, cephSC *storagev1alpha1
 }
 
 func updateStorageClass(cephSC *storagev1alpha1.CephStorageClass, oldSC *v1.StorageClass, controllerNamespace, clusterID string) *v1.StorageClass {
-	newSC := ConfigureStorageClass(cephSC, controllerNamespace, clusterID)
+	newSC := ConfigureStorageClass(cephSC, clusterID)
 
 	if oldSC.Annotations != nil {
 		newSC.Annotations = oldSC.Annotations
