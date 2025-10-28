@@ -77,7 +77,7 @@ func shouldReconcileStorageClassByUpdateFunc(log logger.Logger, scList *v1.Stora
 	for _, oldSC := range scList.Items {
 		if oldSC.Name == cephSC.Name {
 			if slices.Contains(allowedProvisioners, oldSC.Provisioner) {
-				newSC := updateStorageClass(cephSC, &oldSC, clusterID)
+				newSC := updateStorageClass(cephSC, &oldSC, controllerNamespace, clusterID)
 				diff, err := GetSCDiff(&oldSC, newSC)
 				if err != nil {
 					return false, err
@@ -109,12 +109,12 @@ func reconcileStorageClassCreateFunc(
 	log logger.Logger,
 	scList *v1.StorageClassList,
 	cephSC *storagev1alpha1.CephStorageClass,
-	clusterID string,
+	controllerNamespace, clusterID string,
 ) (shouldRequeue bool, msg string, err error) {
 	log.Debug(fmt.Sprintf("[reconcileStorageClassCreateFunc] starts for CephStorageClass %q", cephSC.Name))
 
 	log.Debug(fmt.Sprintf("[reconcileStorageClassCreateFunc] starts storage class configuration for the CephStorageClass, name: %s", cephSC.Name))
-	newSC := ConfigureStorageClass(cephSC, clusterID)
+	newSC := ConfigureStorageClass(cephSC, controllerNamespace, clusterID)
 
 	log.Debug(fmt.Sprintf("[reconcileStorageClassCreateFunc] successfully configurated storage class for the CephStorageClass, name: %s", cephSC.Name))
 	log.Trace(fmt.Sprintf("[reconcileStorageClassCreateFunc] storage class: %+v", newSC))
@@ -162,7 +162,7 @@ func reconcileStorageClassUpdateFunc(
 	log.Debug(fmt.Sprintf("[reconcileStorageClassUpdateFunc] successfully found a storage class for the CephStorageClass, name: %s", cephSC.Name))
 	log.Trace(fmt.Sprintf("[reconcileStorageClassUpdateFunc] storage class: %+v", oldSC))
 
-	newSC := updateStorageClass(cephSC, oldSC, clusterID)
+	newSC := updateStorageClass(cephSC, oldSC, controllerNamespace, clusterID)
 	log.Debug(fmt.Sprintf("[reconcileStorageClassUpdateFunc] successfully configurated storage class for the CephStorageClass, name: %s", cephSC.Name))
 	log.Trace(fmt.Sprintf("[reconcileStorageClassUpdateFunc] new storage class: %+v", newSC))
 	log.Trace(fmt.Sprintf("[reconcileStorageClassUpdateFunc] old storage class: %+v", oldSC))
@@ -222,13 +222,13 @@ func reconcileStorageClassDeleteFunc(
 	return false, "", nil
 }
 
-func ConfigureStorageClass(cephSC *storagev1alpha1.CephStorageClass, clusterID string) *v1.StorageClass {
+func ConfigureStorageClass(cephSC *storagev1alpha1.CephStorageClass, controllerNamespace, clusterID string) *v1.StorageClass {
 	provisioner := GetStorageClassProvisioner(cephSC.Spec.Type)
 	allowVolumeExpansion := true
 	reclaimPolicy := corev1.PersistentVolumeReclaimPolicy(cephSC.Spec.ReclaimPolicy)
 	volumeBindingMode := v1.VolumeBindingImmediate
 
-	params := GetStoragecClassParams(cephSC, clusterID)
+	params := GetStoragecClassParams(cephSC, controllerNamespace, clusterID)
 	sc := &v1.StorageClass{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       StorageClassKind,
@@ -277,9 +277,17 @@ func GetStorageClassProvisioner(cephStorageClasstype string) string {
 	return provisioner
 }
 
-func GetStoragecClassParams(cephSC *storagev1alpha1.CephStorageClass, clusterID string) map[string]string {
+func GetStoragecClassParams(cephSC *storagev1alpha1.CephStorageClass, controllerNamespace, clusterID string) map[string]string {
+	// Generate secret name
+	secretName := internal.CephClusterConnectionSecretPrefix + cephSC.Spec.ClusterConnectionName
+
 	params := map[string]string{
 		"clusterID": clusterID,
+		// Secret parameters for CreateVolume (still needed in ceph-csi v3.15.0)
+		"csi.storage.k8s.io/provisioner-secret-name":      secretName,
+		"csi.storage.k8s.io/provisioner-secret-namespace": controllerNamespace,
+		"csi.storage.k8s.io/node-stage-secret-name":       secretName,
+		"csi.storage.k8s.io/node-stage-secret-namespace":  controllerNamespace,
 	}
 
 	if cephSC.Spec.Type == storagev1alpha1.CephStorageClassTypeRBD {
@@ -489,8 +497,8 @@ func getClusterID(ctx context.Context, cl client.Client, cephSC *storagev1alpha1
 	return clusterID, nil
 }
 
-func updateStorageClass(cephSC *storagev1alpha1.CephStorageClass, oldSC *v1.StorageClass, clusterID string) *v1.StorageClass {
-	newSC := ConfigureStorageClass(cephSC, clusterID)
+func updateStorageClass(cephSC *storagev1alpha1.CephStorageClass, oldSC *v1.StorageClass, controllerNamespace, clusterID string) *v1.StorageClass {
+	newSC := ConfigureStorageClass(cephSC, controllerNamespace, clusterID)
 
 	if oldSC.Annotations != nil {
 		newSC.Annotations = oldSC.Annotations
