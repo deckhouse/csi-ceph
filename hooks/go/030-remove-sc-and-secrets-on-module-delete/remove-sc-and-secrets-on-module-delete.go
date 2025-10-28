@@ -59,7 +59,7 @@ func handlerRemoveScAndSecretsOnModuleDelete(ctx context.Context, input *pkg.Hoo
 	input.Logger.Info("[remove-sc-and-secrets-on-module-delete]: Started removing SC and Secrets on module delete")
 	var resultErr error
 
-	cl, err := kubeclient.New("",
+	cl, err := kubeclient.New(
 		v1alpha1.AddToScheme,
 		clientgoscheme.AddToScheme,
 		extv1.AddToScheme,
