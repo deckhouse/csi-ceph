@@ -159,7 +159,7 @@ func RunCephClusterConnectionEventReconcile(ctx context.Context, cl client.Clien
 		return true, err.Error(), err
 	}
 
-	shouldRequeue, msg, err = reconcileConfigMap(ctx, cl, log, configMapList, cephClusterConnection, controllerNamespace, internal.CSICephConfigMapName)
+	shouldRequeue, msg, err = reconcileConfigMap(ctx, cl, log, configMapList, cephClusterConnection, controllerNamespace, internal.CSICephConfigMapName, controllerNamespace)
 	if err != nil || shouldRequeue {
 		return shouldRequeue, msg, err
 	}

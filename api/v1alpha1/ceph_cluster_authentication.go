@@ -20,6 +20,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+// +k8s:deepcopy-gen=true
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type CephClusterAuthentication struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -27,17 +29,21 @@ type CephClusterAuthentication struct {
 	Status            *CephClusterAuthenticationStatus `json:"status,omitempty"`
 }
 
+// +k8s:deepcopy-gen=true
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type CephClusterAuthenticationList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata"`
 	Items           []CephClusterAuthentication `json:"items"`
 }
 
+// +k8s:deepcopy-gen=true
 type CephClusterAuthenticationSpec struct {
 	UserID  string `json:"userID"`
 	UserKey string `json:"userKey"`
 }
 
+// +k8s:deepcopy-gen=true
 type CephClusterAuthenticationStatus struct {
 	Phase  string `json:"phase,omitempty"`
 	Reason string `json:"reason,omitempty"`

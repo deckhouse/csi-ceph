@@ -20,6 +20,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+// +k8s:deepcopy-gen=true
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type CephClusterConnection struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -27,12 +29,15 @@ type CephClusterConnection struct {
 	Status            *CephClusterConnectionStatus `json:"status,omitempty"`
 }
 
+// +k8s:deepcopy-gen=true
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type CephClusterConnectionList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata"`
 	Items           []CephClusterConnection `json:"items"`
 }
 
+// +k8s:deepcopy-gen=true
 type CephClusterConnectionSpec struct {
 	ClusterID string                           `json:"clusterID"`
 	Monitors  []string                         `json:"monitors"`
@@ -41,17 +46,38 @@ type CephClusterConnectionSpec struct {
 	CephFS    *CephClusterConnectionSpecCephFS `json:"cephFS,omitempty"`
 }
 
+// +k8s:deepcopy-gen=true
 type CephClusterConnectionSpecCephFS struct {
 	SubvolumeGroup string `json:"subvolumeGroup,omitempty"`
 }
 
+// +k8s:deepcopy-gen=true
 type CephClusterConnectionStatus struct {
 	Phase  string `json:"phase,omitempty"`
 	Reason string `json:"reason,omitempty"`
 }
 
+// +k8s:deepcopy-gen=true
 type ClusterConfig struct {
-	CephFS    map[string]string `json:"cephFS"`
-	ClusterID string            `json:"clusterID"`
-	Monitors  []string          `json:"monitors"`
+	CephFS    CephFSConfig `json:"cephFS"`
+	RBD       RBDConfig    `json:"rbd"`
+	ClusterID string       `json:"clusterID"`
+	Monitors  []string     `json:"monitors"`
+}
+
+// +k8s:deepcopy-gen=true
+type CephFSConfig struct {
+	SubvolumeGroup             string          `json:"subvolumeGroup,omitempty"`
+	ControllerPublishSecretRef SecretReference `json:"controllerPublishSecretRef"`
+}
+
+// +k8s:deepcopy-gen=true
+type RBDConfig struct {
+	ControllerPublishSecretRef SecretReference `json:"controllerPublishSecretRef"`
+}
+
+// +k8s:deepcopy-gen=true
+type SecretReference struct {
+	Name      string `json:"name"`
+	Namespace string `json:"namespace"`
 }
