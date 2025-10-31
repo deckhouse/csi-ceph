@@ -1,6 +1,6 @@
 module github.com/deckhouse/csi-ceph/images/webhooks
 
-go 1.24.8
+go 1.24.9
 
 require (
 	github.com/sirupsen/logrus v1.9.3
