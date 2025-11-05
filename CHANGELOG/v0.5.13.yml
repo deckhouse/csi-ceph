@@ -1,4 +1,2 @@
 Changes:
-  - Updated Go version to 1.24.9
-  - Updated lib-helm to deckhouse_lib_helm-1.64.1
-  - Fixed Prometheus rules for storage classes
+  - Updated base images versions
