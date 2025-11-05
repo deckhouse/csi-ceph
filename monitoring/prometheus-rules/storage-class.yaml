@@ -1,7 +1,7 @@
 - name: kubernetes.replicated.storage_class
   rules:
     - alert: StorageClassNewCephClusterConnectionCreated
-      expr: sum(kube_storageclass_info{provisioner=~"cephfs.csi.ceph.com|rbd.csi.ceph.com"} * on(storageclass) group_left() kube_storageclass_labels{storage.deckhouse.io/migratedFromCephClusterAuthenticationWarning="true"}) > 0
+      expr: sum(kube_storageclass_info{provisioner=~"cephfs.csi.ceph.com|rbd.csi.ceph.com"} * on(storageclass) group_left() kube_storageclass_labels{"storage.deckhouse.io/migratedFromCephClusterAuthenticationWarning"="true"}) > 0
       for: 5m
       labels:
         severity_level: "6"
@@ -20,7 +20,7 @@
           `kubectl label storageclass --all storage.deckhouse.io/migratedFromCephClusterAuthenticationWarning-`
           
     - alert: StorageClassCephClusterAuthenticationNotMigrated
-      expr: sum(kube_storageclass_info{provisioner=~"cephfs.csi.ceph.com|rbd.csi.ceph.com"} * on(storageclass) group_left() kube_storageclass_labels{storage.deckhouse.io/migratedFromCephClusterAuthentication="false"}) > 0
+      expr: sum(kube_storageclass_info{provisioner=~"cephfs.csi.ceph.com|rbd.csi.ceph.com"} * on(storageclass) group_left() kube_storageclass_labels{"storage.deckhouse.io/migratedFromCephClusterAuthentication"="false"}) > 0
       for: 5m
       labels:
         severity_level: "4"
@@ -39,7 +39,7 @@
           Check the Deckhouse logs and address the existing issues.
           
     - alert: StorageClassPossibleProblemWithAllowVolumeExpansion
-      expr: sum(kube_storageclass_info{provisioner=~"cephfs.csi.ceph.com|rbd.csi.ceph.com"} * on(storageclass) group_left() kube_storageclass_labels{storage.deckhouse.io/allow-volume-expansion="false"}) > 0
+      expr: sum(kube_storageclass_info{provisioner=~"cephfs.csi.ceph.com|rbd.csi.ceph.com"} * on(storageclass) group_left() kube_storageclass_labels{"storage.deckhouse.io/allow-volume-expansion"="false"}) > 0
       for: 5m
       labels:
         severity_level: "5"
@@ -66,7 +66,7 @@
           `kubectl label storageclass --all storage.deckhouse.io/allow-volume-expansion-`
           
     - alert: StorageClassPossibleProblemWithMountOptions
-      expr: sum(kube_storageclass_info{provisioner=~"cephfs.csi.ceph.com|rbd.csi.ceph.com"} * on(storageclass) group_left() kube_storageclass_labels{storage.deckhouse.io/mount-options!=""}) > 0
+      expr: sum(kube_storageclass_info{provisioner=~"cephfs.csi.ceph.com|rbd.csi.ceph.com"} * on(storageclass) group_left() kube_storageclass_labels{"storage.deckhouse.io/mount-options"!=""}) > 0
       for: 5m
       labels:
         severity_level: "5"
@@ -95,7 +95,7 @@
           `kubectl label storageclass --all storage.deckhouse.io/mount-options-`
           
     - alert: StorageClassPossibleProblemWithCephfsPool
-      expr: sum(kube_storageclass_info{provisioner=~"cephfs.csi.ceph.com|rbd.csi.ceph.com"} * on(storageclass) group_left() kube_storageclass_labels{storage.deckhouse.io/cephfs-pool!=""}) > 0
+      expr: sum(kube_storageclass_info{provisioner=~"cephfs.csi.ceph.com|rbd.csi.ceph.com"} * on(storageclass) group_left() kube_storageclass_labels{"storage.deckhouse.io/cephfs-pool"!=""}) > 0
       for: 5m
       labels:
         severity_level: "5"
