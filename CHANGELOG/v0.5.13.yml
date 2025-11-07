@@ -1,3 +1,5 @@
 Changes:
   - Updated base images versions
   - Fixed Prometheus rules
+  - Fixed CVE
+  - Updated Deckhouse dependency to 1.71
