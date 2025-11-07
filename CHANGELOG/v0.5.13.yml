@@ -3,3 +3,4 @@ Changes:
   - Fixed Prometheus rules
   - Fixed CVE
   - Updated Deckhouse dependency to 1.71
+  - Updated Go version to 1.24.10
