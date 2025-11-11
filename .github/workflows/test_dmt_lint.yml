@@ -9,5 +9,8 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-      - name: DMT
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: DMT Lint
         uses: deckhouse/modules-actions/lint@fix/trdl-action-link
