@@ -1,0 +1,13 @@
+name: Test DMT Lint (Manual)
+
+on:
+  push:
+    branches:
+      - test/lint
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup TRDL
+        uses: deckhouse/modules-actions/lint@feat/trdl-action
