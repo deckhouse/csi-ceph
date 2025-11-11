@@ -9,5 +9,5 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-      - name: Setup TRDL
-        uses: deckhouse/modules-actions/lint@feat/trdl-action
+      - name: DMT
+        uses: deckhouse/modules-actions/lint@fix/trdl-action-link
