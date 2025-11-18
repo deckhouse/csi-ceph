@@ -3,9 +3,9 @@ properties:
   logLevel:
     description: Уровень логирования для приложений модуля
   cephfsEnabled:
-    description: Состояние драйвера CephFS
+    description: Включить или отключить CSI драйвер CephFS. При установке значения false контроллер драйвера CephFS и ресурсы CSIDriver не будут развернуты.
   rbdEnabled:
-    description: Состояние драйвера RBD
+    description: Включить или отключить CSI драйвер RBD. При установке значения false контроллер драйвера RBD и ресурсы CSIDriver не будут развернуты.
   cephfsProvisionerWorkers:
     description: Настройки для provisioner workers для драйвера CephFS (по умолчанию 10). Пожалуйста, не устанавливайте это значение, если вы не уверены, что делаете.
   rbd3ProvisionerWorkers:
