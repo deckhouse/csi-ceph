@@ -1,6 +1,22 @@
 linters-settings:
   container:
     exclude-rules:
+      no-new-privileges:
+        - kind: DaemonSet
+          name: csi-node-rbd
+          container: node
+        - kind: DaemonSet
+          name: csi-node-cephfs
+          container: node
+        - kind: DaemonSet
+          name: csi-node-rbd
+          container: node-driver-registrar
+        - kind: DaemonSet
+          name: csi-node-cephfs
+          container: node-driver-registrar
+        - kind: Deployment
+          name: csi-controller-rbd
+          container: rbdplugin
       liveness-probe:
         - kind: Deployment
           name: csi-controller-rbd

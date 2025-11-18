@@ -6,11 +6,11 @@ properties:
   cephfsEnabled:
     type: boolean
     default: true
-    description: Cephfs driver state
+    description: Enable or disable the CephFS CSI driver. When set to false, the CephFS driver controller and CSIDriver resources will not be deployed.
   rbdEnabled:
     type: boolean
     default: true
-    description: RBD driver state
+    description: Enable or disable the RBD CSI driver. When set to false, the RBD driver controller and CSIDriver resources will not be deployed.
   logLevel:
     type: string
     enum:
