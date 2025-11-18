@@ -136,6 +136,8 @@ memory: 50Mi
       add: ["SYS_ADMIN"]
     allowPrivilegeEscalation: true
     readOnlyRootFilesystem: true
+    seccompProfile:
+      type: RuntimeDefault
   livenessProbe:
     failureThreshold: 3
     httpGet:

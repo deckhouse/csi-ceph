@@ -14,6 +14,9 @@ linters-settings:
         - kind: DaemonSet
           name: csi-node-cephfs
           container: node-driver-registrar
+        - kind: Deployment
+          name: csi-controller-rbd
+          container: rbdplugin
       liveness-probe:
         - kind: Deployment
           name: csi-controller-rbd
