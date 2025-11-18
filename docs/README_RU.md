@@ -4,17 +4,18 @@ title: "Модуль csi-ceph"
 
 {{< alert level="warning" >}}
 При переключении на данный модуль с модуля ceph-csi производится автоматическая миграция, но ее запуск требует подготовки:
+
 1. Необходимо сделать scale всех операторов (redis, clickhouse, kafka и т.д) в ноль реплик, в момент миграции операторы в кластере работать не должны. Единственное исключение - оператор prometheus в составе Deckhouse, в процессе миграции его отключит автоматически
-2. Выключить модуль ceph-csi и включить модуль csi-ceph
-3. В логах Deckhouse дождаться окончания процесса миграции (Finished migration from Ceph CSI module)
-4. Создать тестовые pod/pvc для проверки работоспособности CSI
-5. Вернуть операторы в работоспособное состояние
+1. Выключить модуль ceph-csi и включить модуль csi-ceph
+1. В логах Deckhouse дождаться окончания процесса миграции (Finished migration from Ceph CSI module)
+1. Создать тестовые pod/pvc для проверки работоспособности CSI
+1. Вернуть операторы в работоспособное состояние
 При наличии Ceph StorageClass, созданного не с помощью ресурса CephCSIDriver потребуется ручная миграция.
 В этом случае необходимо связаться с техподдержкой.
 {{< /alert >}}
 
 {{< alert level="info" >}}
-Для работы с снапшотами требуется подключенный модуль [snapshot-controller](../../snapshot-controller/).
+Для работы с снапшотами требуется подключенный модуль [snapshot-controller](/modules/snapshot-controller/).
 {{< /alert >}}
 
 Ceph — это масштабируемая распределённая система хранения, обеспечивающая высокую доступность и отказоустойчивость данных. В Deckhouse поддерживается интеграция с Ceph-кластерами, что позволяет динамически управлять хранилищем и использовать StorageClass на основе RBD (RADOS Block Device) или CephFS.
@@ -38,7 +39,7 @@ EOF
 
 ## Подключение к Ceph-кластеру
 
-Чтобы настроить подключение к Ceph-кластеру, необходимо применить ресурс [CephClusterConnection](../../../reference/cr/cephclusterconnection/). Пример команды:
+Чтобы настроить подключение к Ceph-кластеру, необходимо применить ресурс [CephClusterConnection](cr.html#cephclusterconnection). Пример команды:
 
 ```yaml
 d8 k apply -f - <<EOF
@@ -70,7 +71,7 @@ d8 k get cephclusterconnection ceph-cluster-1
 
 ## Создание StorageClass
 
-Создание объектов StorageClass осуществляется через ресурс [CephStorageClass](../../../reference/cr/cephstorageclass/), который определяет конфигурацию для желаемого класса хранения. Ручное создание ресурса StorageClass без [CephStorageClass](../../../reference/cr/cephstorageclass/) может привести к ошибкам. Пример создания StorageClass на основе RBD (RADOS Block Device):
+Создание объектов StorageClass осуществляется через ресурс [CephStorageClass](cr.html#cephstorageclass), который определяет конфигурацию для желаемого класса хранения. Ручное создание ресурса StorageClass без [CephStorageClass](cr.html#cephstorageclass) может привести к ошибкам. Пример создания StorageClass на основе RBD (RADOS Block Device):
 
 ```yaml
 d8 k apply -f - <<EOF
@@ -105,13 +106,13 @@ spec:
 EOF
 ```
 
-Проверьте, что созданные ресурсы [CephStorageClass](../../../reference/cr/cephstorageclass/) перешли в состояние `Created`, выполнив следующую команду:
+Проверьте, что созданные ресурсы [CephStorageClass](cr.html#cephstorageclass) перешли в состояние `Created`, выполнив следующую команду:
 
 ```shell
 d8 k get cephstorageclass
 ```
 
-В результате будет выведена информация о созданных ресурсах [CephStorageClass](../../../reference/cr/cephstorageclass/):
+В результате будет выведена информация о созданных ресурсах [CephStorageClass](cr.html#cephstorageclass):
 
 ```console
 NAME          PHASE     AGE
