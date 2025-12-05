@@ -64,4 +64,3 @@ func EnsureConfigMapExists(ctx context.Context, cl client.Client, namespace stri
 	log.Info(fmt.Sprintf("[EnsureConfigMapExists] successfully created empty ConfigMap %s/%s", namespace, configMapName))
 	return nil
 }
-
