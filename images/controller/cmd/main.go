@@ -108,12 +108,6 @@ func main() {
 	}
 	log.Info("[main] successfully created kubernetes manager")
 
-	if err = controller.EnsureConfigMapExists(ctx, mgr.GetClient(), cfgParams.ControllerNamespace, *log); err != nil {
-		log.Error(err, "[main] unable to ensure ConfigMap exists")
-		os.Exit(1)
-	}
-	log.Info("[main] successfully ensured ConfigMap exists")
-
 	if _, err = controller.RunCephStorageClassWatcherController(mgr, *cfgParams, *log); err != nil {
 		log.Error(err, fmt.Sprintf("[main] unable to run %s", controller.CephStorageClassCtrlName))
 		os.Exit(1)
@@ -146,4 +140,10 @@ func main() {
 		log.Error(err, "[main] unable to mgr.Start")
 		os.Exit(1)
 	}
+
+	if err = controller.EnsureConfigMapExists(ctx, mgr.GetClient(), cfgParams.ControllerNamespace, *log); err != nil {
+		log.Error(err, "[main] unable to ensure ConfigMap exists")
+		os.Exit(1)
+	}
+	log.Info("[main] successfully ensured ConfigMap exists")
 }
