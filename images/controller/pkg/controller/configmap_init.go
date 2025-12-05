@@ -31,11 +31,12 @@ import (
 
 // EnsureConfigMapExists ensures that the ceph-csi-config ConfigMap exists in the given namespace.
 // If it doesn't exist, creates an empty one with config.json containing an empty array.
-func EnsureConfigMapExists(ctx context.Context, cl client.Client, namespace string, log logger.Logger) error {
+// reader is used for Get operations (bypasses cache), writer is used for Create operations.
+func EnsureConfigMapExists(ctx context.Context, reader client.Reader, writer client.Writer, namespace string, log logger.Logger) error {
 	configMapName := internal.CSICephConfigMapName
 	configMap := &corev1.ConfigMap{}
 
-	err := cl.Get(ctx, client.ObjectKey{Name: configMapName, Namespace: namespace}, configMap)
+	err := reader.Get(ctx, client.ObjectKey{Name: configMapName, Namespace: namespace}, configMap)
 	if err == nil {
 		log.Info(fmt.Sprintf("[EnsureConfigMapExists] ConfigMap %s/%s already exists", namespace, configMapName))
 		return nil
@@ -56,7 +57,7 @@ func EnsureConfigMapExists(ctx context.Context, cl client.Client, namespace stri
 		},
 	}
 
-	err = cl.Create(ctx, emptyConfigMap)
+	err = writer.Create(ctx, emptyConfigMap)
 	if err != nil {
 		return fmt.Errorf("unable to create ConfigMap %s/%s: %w", namespace, configMapName, err)
 	}

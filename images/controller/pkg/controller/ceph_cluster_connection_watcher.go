@@ -55,7 +55,10 @@ func RunCephClusterConnectionWatcherController(
 	cl := mgr.GetClient()
 
 	ctx := context.Background()
-	if err := EnsureConfigMapExists(ctx, cl, cfg.ControllerNamespace, log); err != nil {
+	// Use APIReader (direct client) for Get operations since cache may not be started yet
+	// Use regular client for Create operations (writes bypass cache)
+	apiReader := mgr.GetAPIReader()
+	if err := EnsureConfigMapExists(ctx, apiReader, cl, cfg.ControllerNamespace, log); err != nil {
 		log.Error(err, "[RunCephClusterConnectionWatcherController] unable to ensure ConfigMap exists")
 		return nil, err
 	}
