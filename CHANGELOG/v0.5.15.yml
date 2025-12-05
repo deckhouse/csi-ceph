@@ -1,0 +1,4 @@
+Changes:
+  - Updated base images versions
+  - Updated Deckhouse dependency to 1.72
+  - Updated CSI version to 3.15.1
