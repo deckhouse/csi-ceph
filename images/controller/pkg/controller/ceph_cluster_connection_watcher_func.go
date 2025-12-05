@@ -25,13 +25,12 @@ import (
 	"slices"
 	"strings"
 
-	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-
 	v1alpha1 "github.com/deckhouse/csi-ceph/api/v1alpha1"
 	"github.com/deckhouse/csi-ceph/images/controller/pkg/internal"
 	"github.com/deckhouse/csi-ceph/images/controller/pkg/logger"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 func validateCephClusterConnectionSpec(cephClusterConnection *v1alpha1.CephClusterConnection) (bool, string) {
@@ -200,7 +199,7 @@ func createConfigMap(ctx context.Context, cl client.Client, log logger.Logger, c
 	}
 
 	log.Debug(fmt.Sprintf("[createConfigMap] successfully created ConfigMap %s for the CephClusterConnection %s", newConfigMap.Name, cephClusterConnection.Name))
-		return false, fmt.Sprintf("Successfully created ConfigMap %s", newConfigMap.Name), nil
+	return false, fmt.Sprintf("Successfully created ConfigMap %s", newConfigMap.Name), nil
 }
 
 func generateNewConfigMap(clusterConfig v1alpha1.ClusterConfig, controllerNamespace, configMapName string) (*corev1.ConfigMap, error) {
