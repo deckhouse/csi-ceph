@@ -199,8 +199,8 @@ func createConfigMap(ctx context.Context, cl client.Client, log logger.Logger, c
 		return true, err.Error(), err
 	}
 
-    log.Debug(fmt.Sprintf("[createConfigMap] successfully created ConfigMap %s for the CephClusterConnection %s", newConfigMap.Name, cephClusterConnection.Name))
- 	return false, fmt.Sprintf("Successfully created ConfigMap %s", newConfigMap.Name), nil
+	log.Debug(fmt.Sprintf("[createConfigMap] successfully created ConfigMap %s for the CephClusterConnection %s", newConfigMap.Name, cephClusterConnection.Name))
+		return false, fmt.Sprintf("Successfully created ConfigMap %s", newConfigMap.Name), nil
 }
 
 func generateNewConfigMap(clusterConfig v1alpha1.ClusterConfig, controllerNamespace, configMapName string) (*corev1.ConfigMap, error) {
