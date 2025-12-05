@@ -54,6 +54,7 @@ rules:
       - update
       - patch
       - list
+      - watch
 
 ---
 kind: ClusterRole
