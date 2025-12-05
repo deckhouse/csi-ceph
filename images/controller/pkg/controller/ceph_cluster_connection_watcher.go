@@ -54,6 +54,13 @@ func RunCephClusterConnectionWatcherController(
 ) (controller.Controller, error) {
 	cl := mgr.GetClient()
 
+	ctx := context.Background()
+	if err := EnsureConfigMapExists(ctx, cl, cfg.ControllerNamespace, log); err != nil {
+		log.Error(err, "[RunCephClusterConnectionWatcherController] unable to ensure ConfigMap exists")
+		return nil, err
+	}
+	log.Info("[RunCephClusterConnectionWatcherController] successfully ensured ConfigMap exists")
+
 	c, err := controller.New(CephClusterConnectionCtrlName, mgr, controller.Options{
 		Reconciler: reconcile.Func(func(ctx context.Context, request reconcile.Request) (reconcile.Result, error) {
 			log.Info(fmt.Sprintf("[CephClusterConnectionReconciler] starts Reconcile for the CephClusterConnection %q", request.Name))

@@ -140,10 +140,4 @@ func main() {
 		log.Error(err, "[main] unable to mgr.Start")
 		os.Exit(1)
 	}
-
-	if err = controller.EnsureConfigMapExists(ctx, mgr.GetClient(), cfgParams.ControllerNamespace, *log); err != nil {
-		log.Error(err, "[main] unable to ensure ConfigMap exists")
-		os.Exit(1)
-	}
-	log.Info("[main] successfully ensured ConfigMap exists")
 }
