@@ -18,6 +18,8 @@ package controller
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -25,6 +27,7 @@ import (
 	"slices"
 	"strings"
 
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -200,6 +203,14 @@ func createConfigMap(ctx context.Context, cl client.Client, log logger.Logger, c
 	}
 
 	log.Debug(fmt.Sprintf("[createConfigMap] successfully created ConfigMap %s for the CephClusterConnection %s", newConfigMap.Name, cephClusterConnection.Name))
+
+	// Update annotations on CSI deployments and daemonsets after configmap creation
+	err = updateCSIResourcesAnnotations(ctx, cl, log, newConfigMap, controllerNamespace)
+	if err != nil {
+		log.Warning(fmt.Sprintf("[createConfigMap] unable to update CSI resources annotations: %v", err))
+		// Don't fail the reconcile if annotation update fails
+	}
+
 	return false, fmt.Sprintf("Successfully created ConfigMap %s", newConfigMap.Name), nil
 }
 
@@ -299,6 +310,13 @@ func updateConfigMapIfNeeded(ctx context.Context, cl client.Client, log logger.L
 	err = cl.Update(ctx, configMap)
 	if err != nil {
 		return fmt.Errorf("[updateConfigMapIfNeeded] unable to update the ConfigMap %s: %w", configMap.Name, err)
+	}
+
+	// Update annotations on CSI deployments and daemonsets after configmap update
+	err = updateCSIResourcesAnnotations(ctx, cl, log, configMap, controllerNamespace)
+	if err != nil {
+		log.Warning(fmt.Sprintf("[updateConfigMapIfNeeded] unable to update CSI resources annotations: %v", err))
+		// Don't fail the reconcile if annotation update fails
 	}
 
 	return nil
@@ -538,4 +556,83 @@ func compareSecretsData(oldSecret, newSecret *corev1.Secret) bool {
 // GenerateClusterConfigForTesting is a wrapper for testing the generateClusterConfig function
 func GenerateClusterConfigForTesting(cephClusterConnection *v1alpha1.CephClusterConnection, controllerNamespace string) v1alpha1.ClusterConfig {
 	return generateClusterConfig(cephClusterConnection, controllerNamespace)
+}
+
+// calculateConfigMapSHA256 calculates SHA256 hash of the configmap data
+func calculateConfigMapSHA256(configMap *corev1.ConfigMap) string {
+	// Sort keys to ensure consistent hash
+	jsonData, ok := configMap.Data["config.json"]
+	if !ok {
+		return ""
+	}
+
+	hash := sha256.Sum256([]byte(jsonData))
+	return hex.EncodeToString(hash[:])
+}
+
+// updateCSIResourcesAnnotations updates annotations on CSI deployments and daemonsets
+func updateCSIResourcesAnnotations(ctx context.Context, cl client.Client, log logger.Logger, configMap *corev1.ConfigMap, namespace string) error {
+	checksum := calculateConfigMapSHA256(configMap)
+	if checksum == "" {
+		return fmt.Errorf("unable to calculate configmap checksum")
+	}
+
+	annotationKey := "checksum/ca"
+	annotationValue := checksum
+
+	// Update deployments
+	deploymentNames := []string{"csi-controller-rbd", "csi-controller-cephfs"}
+	for _, name := range deploymentNames {
+		deployment := &appsv1.Deployment{}
+		err := cl.Get(ctx, client.ObjectKey{Name: name, Namespace: namespace}, deployment)
+		if err != nil {
+			if client.IgnoreNotFound(err) == nil {
+				log.Debug(fmt.Sprintf("[updateCSIResourcesAnnotations] Deployment %s/%s not found, skipping", namespace, name))
+				continue
+			}
+			return fmt.Errorf("unable to get Deployment %s/%s: %w", namespace, name, err)
+		}
+
+		if deployment.Annotations == nil {
+			deployment.Annotations = make(map[string]string)
+		}
+
+		if deployment.Annotations[annotationKey] != annotationValue {
+			deployment.Annotations[annotationKey] = annotationValue
+			err = cl.Update(ctx, deployment)
+			if err != nil {
+				return fmt.Errorf("unable to update Deployment %s/%s: %w", namespace, name, err)
+			}
+			log.Info(fmt.Sprintf("[updateCSIResourcesAnnotations] updated annotation %s=%s on Deployment %s/%s", annotationKey, annotationValue, namespace, name))
+		}
+	}
+
+	// Update daemonsets
+	daemonsetNames := []string{"csi-node-rbd", "csi-node-cephfs"}
+	for _, name := range daemonsetNames {
+		daemonset := &appsv1.DaemonSet{}
+		err := cl.Get(ctx, client.ObjectKey{Name: name, Namespace: namespace}, daemonset)
+		if err != nil {
+			if client.IgnoreNotFound(err) == nil {
+				log.Debug(fmt.Sprintf("[updateCSIResourcesAnnotations] DaemonSet %s/%s not found, skipping", namespace, name))
+				continue
+			}
+			return fmt.Errorf("unable to get DaemonSet %s/%s: %w", namespace, name, err)
+		}
+
+		if daemonset.Annotations == nil {
+			daemonset.Annotations = make(map[string]string)
+		}
+
+		if daemonset.Annotations[annotationKey] != annotationValue {
+			daemonset.Annotations[annotationKey] = annotationValue
+			err = cl.Update(ctx, daemonset)
+			if err != nil {
+				return fmt.Errorf("unable to update DaemonSet %s/%s: %w", namespace, name, err)
+			}
+			log.Info(fmt.Sprintf("[updateCSIResourcesAnnotations] updated annotation %s=%s on DaemonSet %s/%s", annotationKey, annotationValue, namespace, name))
+		}
+	}
+
+	return nil
 }
