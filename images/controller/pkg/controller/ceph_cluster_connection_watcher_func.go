@@ -199,9 +199,8 @@ func createConfigMap(ctx context.Context, cl client.Client, log logger.Logger, c
 		return true, err.Error(), err
 	}
 
-	log.Debug(fmt.Sprintf("[createConfigMap] successfully created ConfigMap %s for the CephClusterConnection %s", newConfigMap.Name, cephClusterConnection.Name))
-
-	return false, fmt.Sprintf("Successfully created ConfigMap %s", newConfigMap.Name), nil
+    log.Debug(fmt.Sprintf("[createConfigMap] successfully created ConfigMap %s for the CephClusterConnection %s", newConfigMap.Name, cephClusterConnection.Name))
+ 	return false, fmt.Sprintf("Successfully created ConfigMap %s", newConfigMap.Name), nil
 }
 
 func generateNewConfigMap(clusterConfig v1alpha1.ClusterConfig, controllerNamespace, configMapName string) (*corev1.ConfigMap, error) {
@@ -300,13 +299,6 @@ func updateConfigMapIfNeeded(ctx context.Context, cl client.Client, log logger.L
 	err = cl.Update(ctx, configMap)
 	if err != nil {
 		return fmt.Errorf("[updateConfigMapIfNeeded] unable to update the ConfigMap %s: %w", configMap.Name, err)
-	}
-
-	// Update annotations on CSI deployments and daemonsets after configmap update
-	err = updateCSIResourcesAnnotations(ctx, cl, log, configMap, controllerNamespace)
-	if err != nil {
-		log.Warning(fmt.Sprintf("[updateConfigMapIfNeeded] unable to update CSI resources annotations: %v", err))
-		// Don't fail the reconcile if annotation update fails
 	}
 
 	return nil
