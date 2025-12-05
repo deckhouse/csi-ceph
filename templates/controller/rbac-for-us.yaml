@@ -44,17 +44,6 @@ rules:
       - delete
       - update
       - create
-  - apiGroups:
-      - apps
-    resources:
-      - deployments
-      - daemonsets
-    verbs:
-      - get
-      - update
-      - patch
-      - list
-      - watch
 
 ---
 kind: ClusterRole
