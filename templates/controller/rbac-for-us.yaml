@@ -53,6 +53,7 @@ rules:
       - get
       - update
       - patch
+      - list
 
 ---
 kind: ClusterRole
