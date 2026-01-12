@@ -1,9 +1,29 @@
+{{- /* Webhook TLS Certs Secret */ -}}
+{{- $secretConfig := dict
+  "valuesKey" "csiCeph"
+  "webhookCertPath" "internal.customWebhookCert"
+}}
+{{ include "helm_lib_module_webhook_certs_secret" (list . $secretConfig) }}
+
 {{- /* Controller Deployment */ -}}
 {{- $config := dict
   "valuesKey" "csiCeph"
-  "webhookEnabled" false
-  "onMasterNode" false
-  "priorityClass" "cluster-medium"
-  "podSecurityContext" "nobody"
+  "webhookEnabled" true
+  "webhookCertPath" "internal.customWebhookCert"
+  "onMasterNode" true
+  "podSecurityContext" "deckhouse"
 }}
 {{ include "helm_lib_module_controller_manifests" (list . $config) }}
+
+{{- /* Webhook Service */ -}}
+{{ include "helm_lib_module_webhook_service" (list . dict) }}
+
+{{- /* ValidatingWebhookConfiguration */ -}}
+{{- $webhookConfig := dict
+  "name" "sc-validation"
+  "webhookName" "sc-validation"
+  "valuesKey" "csiCeph"
+  "path" "/sc-validate"
+  "rules" (list (dict "apiGroups" (list "storage.k8s.io") "apiVersions" (list "v1") "operations" (list "*") "resources" (list "storageclasses") "scope" "Cluster"))
+}}
+{{ include "helm_lib_module_validating_webhook_configuration" (list . $webhookConfig) }}
