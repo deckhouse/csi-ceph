@@ -1,0 +1,9 @@
+{{- /* Controller Deployment */ -}}
+{{- $config := dict
+  "valuesKey" "csiCeph"
+  "webhookEnabled" false
+  "onMasterNode" false
+  "priorityClass" "cluster-medium"
+  "podSecurityContext" "nobody"
+}}
+{{ include "helm_lib_module_controller_manifests" (list . $config) }}
