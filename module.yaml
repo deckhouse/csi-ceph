@@ -4,7 +4,8 @@ weight: 920
 descriptions:
   en: "CSI Ceph"
 requirements:
-  deckhouse: ">= 1.72"
+  bootstrapped: true
+  deckhouse: ">= 1.74"
   modules:
-    snapshot-controller: ">= 0.0.0"
+    storage-foundation: ">= 0.0.0"
 namespace: "d8-csi-ceph"
