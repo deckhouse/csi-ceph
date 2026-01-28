@@ -2,7 +2,8 @@ name: csi-ceph
 stage: "General Availability"
 weight: 920
 descriptions:
-  en: "CSI Ceph"
+  en: "Provides integration with Ceph clusters, allows dynamic storage management and the use of StorageClass based on RBD (RADOS Block Device) or CephFS."
+  ru: "Обеспечивает интеграцию с Ceph-кластерами, позволяет динамически управлять хранилищем и использовать StorageClass на основе RBD (RADOS Block Device) или CephFS."
 requirements:
   deckhouse: ">= 1.72"
   modules:
