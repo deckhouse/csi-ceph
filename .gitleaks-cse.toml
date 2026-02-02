@@ -1,0 +1,27 @@
+# Конфигурация gitleaks для модуля csi-ceph
+#
+# Исключения настроены для файлов из внешнего репозитория ceph/ceph-csi.git,
+# который клонируется во время сборки образа. Эти файлы содержат тестовые
+# данные и примеры конфигурации, не являющиеся реальными секретами.
+
+[extend]
+useDefault = true
+
+[allowlist]
+  # Обоснование исключений:
+  #
+  # 1. ceph-csi/examples/kms/vault/kp-credentials.yaml
+  #    Файл примера конфигурации IBM Key Protect для интеграции с Vault KMS.
+  #    Содержит демонстрационные значения IBM_KP_SERVICE_API_KEY и IBM_KP_CUSTOMER_ROOT_KEY,
+  #    которые являются заглушками для документации, а не реальными секретами.
+  #    Этот файл не участвует в сборке и не попадает в финальный образ.
+  #
+  # 2. ceph-csi/internal/util/credentials_test.go
+  #    Файл юнит-тестов для проверки обработки учётных данных Ceph.
+  #    Содержит тестовые ключи в формате base64 (например, "AQA8QvJVayBPERAAh/Kg0OYZAHOBz7jFpzLqtg=="),
+  #    которые используются только в тестовом окружении и не представляют угрозы безопасности.
+  #    Этот файл не участвует в сборке и не попадает в финальный образ.
+  paths = [
+    '''src/csi-ceph__csi-ceph/ceph-csi/examples/kms/vault/kp-credentials\.yaml$''',
+    '''src/csi-ceph__csi-ceph/ceph-csi/internal/util/credentials_test\.go$''',
+  ]
