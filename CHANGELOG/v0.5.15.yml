@@ -1,4 +1,6 @@
 Changes:
-  - Updated base images versions
+  - Updated version of base images
   - Updated Deckhouse dependency to 1.72
-  - Updated CSI version to 3.15.1
+  - Updated CSI to 3.15.1
+  - Reworking manifestos
+  - Fixed a bug when creating VolumeSnapshotClasses
