@@ -158,7 +158,7 @@ func MigrateVSClassesAndVSContentsToNewSecret(ctx context.Context, cl client.Cli
 		if clusterConnectionName == "" {
 			clusterID := vsClass.Parameters[VSClassParametersClusterIDKey]
 			fmt.Printf("[%s]: cannot find CephClusterConnection by secretName %s. Trying to find by clusterID %s\n", logPrefix, oldSecretName, clusterID)
-			clusterConnectionName := getClusterConnectionNameByClusterID(clusterID, cephClusterConnectionList.Items)
+			clusterConnectionName = getClusterConnectionNameByClusterID(clusterID, cephClusterConnectionList.Items)
 			if clusterConnectionName == "" {
 				fmt.Printf("[%s]: cannot find CephClusterConnection by clusterID %s. Labeling VolumeSnapshotClass %s with %s=%s and skipping\n", logPrefix, clusterID, vsClass.Name, migratedLabelKey, LabelValueFalse)
 
