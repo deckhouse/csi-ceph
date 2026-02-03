@@ -21,7 +21,7 @@ secrets:
 
 shell:
   install:
-    - git clone --branch {{ .Versions.CEPH_CSI }} --depth 1 $(cat /run/secrets/SOURCE_REPO)/ceph/ceph-csi.git /src/ceph-csi
+    - git clone --branch v{{ include "get_oss_version_by_id" (list "cephcsi" .) }} --depth 1 $(cat /run/secrets/SOURCE_REPO)/ceph/ceph-csi.git /src/ceph-csi
     - cd /src/ceph-csi
     - for patchfile in /src/images/csi-ceph/patches/*.patch ; do echo -n "Apply ${patchfile} ... "; git apply ${patchfile}; done
     - rm -rf /src/images/csi-ceph/patches/
