@@ -1,7 +1,2 @@
 # Edition module settings, default ce
 {{- $_ := set . "MODULE_EDITION" (env "MODULE_EDITION" "ce") }}
-
-# component versions
-{{- $versions := dict }}
-{{- $_ := set $versions "CEPH_CSI" "v3.15.1" }}
-{{- $_ := set . "VERSIONS" $versions }}
