@@ -4,7 +4,7 @@ go 1.24.10
 
 require (
 	github.com/deckhouse/csi-ceph/api v0.0.0-20251016081727-8de00d43187a
-	github.com/deckhouse/module-sdk v0.4.1
+	github.com/deckhouse/module-sdk v0.7.0
 	github.com/deckhouse/sds-common-lib v0.6.3
 	github.com/google/go-cmp v0.7.0
 	github.com/kubernetes-csi/external-snapshotter/client/v8 v8.4.0
