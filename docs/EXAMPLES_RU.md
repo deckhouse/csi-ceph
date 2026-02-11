@@ -2,7 +2,11 @@
 title: "Модуль csi-ceph: примеры"
 ---
 
-## Пример описания `CephClusterConnection`
+## Настройка ресурса CephClusterConnection
+
+Ресурс [CephClusterConnection](/modules/csi-ceph/cr.html#cephclusterconnection) определяет параметры подключения к вашему Ceph-кластеру. Этот ресурс должен быть создан перед созданием объектов [CephStorageClass](/modules/csi-ceph/cr.html#cephstorageclass).
+
+Пример конфигурации:
 
 ```yaml
 apiVersion: storage.deckhouse.io/v1alpha1
@@ -19,15 +23,19 @@ spec:
   userKey: AQDiVXVmBJVRLxAAg65PhODrtwbwSWrjJwssUg==
 ```
 
-- Проверить создание объекта можно командой (Phase должен быть `Created`):
+Чтобы проверить создание объекта, выполните следующую команду (Phase должен быть `Created`):
 
 ```shell
-kubectl get cephclusterconnection <имя cephclusterconnection>
+d8 k get cephclusterconnection <имя cephclusterconnection>
 ```
 
-## Пример описания `CephStorageClass`
+## Настройка ресурса CephStorageClass
+
+Ресурс [CephStorageClass](/modules/csi-ceph/cr.html#cephstorageclass) определяет параметры класса хранилища для создания постоянных томов. Вы можете создать различные классы хранилища для типов RBD и CephFS.
 
 ### RBD
+
+Пример конфигурации класса хранилища для томов RBD (RADOS Block Device):
 
 ```yaml
 apiVersion: storage.deckhouse.io/v1alpha1
@@ -40,10 +48,12 @@ spec:
   type: RBD
   rbd:
     defaultFSType: ext4
-    pool: ceph-rbd-pool  
+    pool: ceph-rbd-pool
 ```
 
 ### CephFS
+
+Пример конфигурации класса хранилища для томов CephFS (Ceph File System):
 
 ```yaml
 apiVersion: storage.deckhouse.io/v1alpha1
@@ -58,8 +68,8 @@ spec:
     fsName: cephfs
 ```
 
-### Проверить создание объекта можно командой (Phase должен быть `Created`):
+Чтобы проверить создание объекта, выполните следующую команду (Phase должен быть `Created`):
 
 ```shell
-kubectl get cephstorageclass <имя storage class>
+d8 k get cephstorageclass <имя cephstorageclass>
 ```

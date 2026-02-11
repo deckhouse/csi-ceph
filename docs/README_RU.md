@@ -2,136 +2,149 @@
 title: "Модуль csi-ceph"
 ---
 
-{{< alert level="warning" >}}
-При переключении на данный модуль с модуля ceph-csi производится автоматическая миграция, но ее запуск требует подготовки:
-
-1. Необходимо сделать scale всех операторов (redis, clickhouse, kafka и т.д) в ноль реплик, в момент миграции операторы в кластере работать не должны. Единственное исключение - оператор prometheus в составе Deckhouse, в процессе миграции его отключит автоматически
-1. Выключить модуль ceph-csi и включить модуль csi-ceph
-1. В логах Deckhouse дождаться окончания процесса миграции (Finished migration from Ceph CSI module)
-1. Создать тестовые pod/pvc для проверки работоспособности CSI
-1. Вернуть операторы в работоспособное состояние
-При наличии Ceph StorageClass, созданного не с помощью ресурса CephCSIDriver потребуется ручная миграция.
-В этом случае необходимо связаться с техподдержкой.
-{{< /alert >}}
-
-{{< alert level="info" >}}
-Для работы с снапшотами требуется подключенный модуль [snapshot-controller](/modules/snapshot-controller/).
-{{< /alert >}}
-
-Ceph — это масштабируемая распределённая система хранения, обеспечивающая высокую доступность и отказоустойчивость данных. В Deckhouse поддерживается интеграция с Ceph-кластерами, что позволяет динамически управлять хранилищем и использовать StorageClass на основе RBD (RADOS Block Device) или CephFS.
+Ceph — это масштабируемая распределённая система хранения с высокой доступностью и отказоустойчивостью. Deckhouse Kubernetes Platform (DKP) обеспечивает интеграцию Ceph-кластера при помощи модуля `csi-ceph`. Это даёт возможность динамически управлять хранилищем и использовать StorageClass на основе RADOS Block Device (RBD) или CephFS.
 
 На этой странице представлены инструкции по подключению Ceph в Deckhouse, настройке аутентификации, созданию объектов StorageClass, а также проверке работоспособности хранилища.
 
-## Включение модуля
+{{< alert level="info" >}}
+Для работы со снимками требуется подключенный модуль [snapshot-controller](/modules/snapshot-controller/).
+{{< /alert >}}
 
-Для подключения Ceph-кластера в Deckhouse необходимо включить модуль `csi-ceph`. Для этого примените ресурс ModuleConfig:
+## Миграция с модуля `ceph-csi`
 
-```yaml
-d8 k apply -f - <<EOF
-apiVersion: deckhouse.io/v1alpha1
-kind: ModuleConfig
-metadata:
-  name: csi-ceph
-spec:
-  enabled: true
-EOF
-```
+При переключении на модуль `csi-ceph` с модуля `ceph-csi` выполняется автоматическая миграция, но её запуск требует предварительной подготовки:
+
+1. Установите количество реплик в ноль для всех операторов (redis, clickhouse, kafka и др.). Исключение: оператор `prometheus` будет отключен автоматически.
+
+1. Отключите модуль `ceph-csi` и [включите](#подключение-к-ceph-кластеру) `csi-ceph`.
+
+1. Дождитесь завершения операции. В логах Deckhouse должно появиться сообщение "Finished migration from Ceph CSI module".
+
+1. Проверьте работоспособность. Для этого создайте тестовые поды и PVC для проверки CSI.
+
+1. Верните операторы в рабочее состояние.
+
+{{< alert level="warning" >}}
+сли Ceph StorageClass был создан не через ресурс CephCSIDriver, потребуется ручная миграция. Обратитесь в техподдержку.
+{{< /alert >}}
 
 ## Подключение к Ceph-кластеру
 
-Чтобы настроить подключение к Ceph-кластеру, необходимо применить ресурс [CephClusterConnection](cr.html#cephclusterconnection). Пример команды:
+Для подключения Ceph-кластера следуйте пошаговым инструкциям ниже. Все команды выполняйте на машине с административным доступом к API Kubernetes.
 
-```yaml
-d8 k apply -f - <<EOF
-apiVersion: storage.deckhouse.io/v1alpha1
-kind: CephClusterConnection
-metadata:
-  name: ceph-cluster-1
-spec:
-  # FSID/UUID Ceph-кластера.
-  # Получить FSID/UUID Ceph-кластера можно с помощью команды `ceph fsid`.
-  clusterID: 2bf085fc-5119-404f-bb19-820ca6a1b07e
-  # Список IP-адресов ceph-mon’ов в формате 10.0.0.10:6789.
-  monitors:
-    - 10.0.0.10:6789
-  # Имя пользователя без `client.`.
-  # Получить имя пользователя можно с помощью команды `ceph auth list`.
-  userID: admin
-  # Ключ авторизации, соответствующий userID.
-  # Получить ключ авторизации можно с помощью команды `ceph auth get-key client.admin`.
-  userKey: AQDiVXVmBJVRLxAAg65PhODrtwbwSWrjJwssUg==
-EOF
-```
+1. Выполните команду для активации модуля `csi-ceph`:
 
-Проверить создание подключения можно командой (фаза должна быть в статусе `Created`):
+   ```shell
+   d8 s module enable csi-ceph
+   ```
 
-```shell
-d8 k get cephclusterconnection ceph-cluster-1
-```
+1. Дождитесь перехода модуля в состояние `Ready`:
 
-## Создание StorageClass
+   ```shell
+   d8 k get module csi-ceph -w
+   ```
 
-Создание объектов StorageClass осуществляется через ресурс [CephStorageClass](cr.html#cephstorageclass), который определяет конфигурацию для желаемого класса хранения. Ручное создание ресурса StorageClass без [CephStorageClass](cr.html#cephstorageclass) может привести к ошибкам. Пример создания StorageClass на основе RBD (RADOS Block Device):
+1. Убедитесь, что все поды в пространстве имён `d8-csi-ceph` находятся в состоянии `Running` или `Completed` и развернуты на всех узлах кластера:
 
-```yaml
-d8 k apply -f - <<EOF
-apiVersion: storage.deckhouse.io/v1alpha1
-kind: CephStorageClass
-metadata:
-  name: ceph-rbd-sc
-spec:
-  clusterConnectionName: ceph-cluster-1
-  reclaimPolicy: Delete
-  type: RBD
-  rbd:
-    defaultFSType: ext4
-    pool: ceph-rbd-pool
-EOF
-```
+   ```shell
+   d8 k -n d8-csi-ceph get pod -owide -w
+   ```
 
-Пример создания StorageClass на основе файловой системы Ceph:
+1. Для настройки подключения к Ceph-кластеру примените ресурс [CephClusterConnection](/modules/csi-ceph/cr.html#cephclusterconnection).
 
-```yaml
-d8 k apply -f - <<EOF
-apiVersion: storage.deckhouse.io/v1alpha1
-kind: CephStorageClass
-metadata:
-  name: ceph-fs-sc
-spec:
-  clusterConnectionName: ceph-cluster-1
-  reclaimPolicy: Delete
-  type: CephFS
-  cephFS:
-    fsName: cephfs
-EOF
-```
+   Пример команды:
 
-Проверьте, что созданные ресурсы [CephStorageClass](cr.html#cephstorageclass) перешли в состояние `Created`, выполнив следующую команду:
+   ```yaml
+   d8 k apply -f - <<EOF
+   apiVersion: storage.deckhouse.io/v1alpha1
+   kind: CephClusterConnection
+   metadata:
+     name: ceph-cluster-1
+   spec:
+     # FSID/UUID Ceph-кластера.
+     # Получить FSID/UUID Ceph-кластера можно с помощью команды `ceph fsid`.
+     clusterID: 2bf085fc-5119-404f-bb19-820ca6a1b07e
+     # Список IP-адресов ceph-mon’ов в формате 10.0.0.10:6789.
+     monitors:
+       - 10.0.0.10:6789
+     # Имя пользователя без `client.`.
+     # Получить имя пользователя можно с помощью команды `ceph auth list`.
+     userID: admin
+     # Ключ авторизации, соответствующий userID.
+     # Получить ключ авторизации можно с помощью команды `ceph auth get-key client.admin`.
+     userKey: AQDiVXVmBJVRLxAAg65PhODrtwbwSWrjJwssUg==
+   EOF
+   ```
 
-```shell
-d8 k get cephstorageclass
-```
+1. Проверьте создание подключения командой (`Phase` должна быть в статусе `Created`):
 
-В результате будет выведена информация о созданных ресурсах [CephStorageClass](cr.html#cephstorageclass):
+   ```shell
+   d8 k get cephclusterconnection ceph-cluster-1
+   ```
 
-```console
-NAME          PHASE     AGE
-ceph-rbd-sc   Created   1h
-ceph-fs-sc    Created   1h
-```
+1. Создайте объект StorageClass при помощи ресурса [CephStorageClass](/modules/csi-ceph/cr.html#cephstorageclass). Ручное создание StorageClass без использования [CephStorageClass](/modules/csi-ceph/cr.html#cephstorageclass) может привести к ошибкам.
 
-Проверьте созданный StorageClass с помощью следующей команды:
+   Пример создания StorageClass на основе RBD:
 
-```shell
-d8 k get sc
-```
+   ```yaml
+   d8 k apply -f - <<EOF
+   apiVersion: storage.deckhouse.io/v1alpha1
+   kind: CephStorageClass
+   metadata:
+     name: ceph-rbd-sc
+   spec:
+     clusterConnectionName: ceph-cluster-1
+     reclaimPolicy: Delete
+     type: RBD
+     rbd:
+       defaultFSType: ext4
+       pool: ceph-rbd-pool
+   EOF
+   ```
 
-В результате будет выведена информация о созданном StorageClass:
+   Пример создания StorageClass на основе файловой системы Ceph:
 
-```console
-NAME          PROVISIONER        RECLAIMPOLICY   VOLUMEBINDINGMODE      ALLOWVOLUMEEXPANSION   AGE
-ceph-rbd-sc   rbd.csi.ceph.com   Delete          WaitForFirstConsumer   true                   15s
-ceph-fs-sc    rbd.csi.ceph.com   Delete          WaitForFirstConsumer   true                   15s
-```
+   ```yaml
+   d8 k apply -f - <<EOF
+   apiVersion: storage.deckhouse.io/v1alpha1
+   kind: CephStorageClass
+   metadata:
+     name: ceph-fs-sc
+   spec:
+     clusterConnectionName: ceph-cluster-1
+     reclaimPolicy: Delete
+     type: CephFS
+     cephFS:
+       fsName: cephfs
+   EOF
+   ```
 
-Если объекты StorageClass появились, значит настройка модуля `csi-ceph` завершена. Теперь пользователи могут создавать PersistentVolume, указывая созданные объекты StorageClass.
+1. Проверьте, что созданные ресурсы [CephStorageClass](/modules/csi-ceph/cr.html#cephstorageclass) перешли в состояние `Created`:
+
+   ```shell
+   d8 k get cephstorageclass
+   ```
+
+   В результате будет выведена информация о созданных ресурсах [CephStorageClass](/modules/csi-ceph/cr.html#cephstorageclass):
+
+   ```console
+   NAME          PHASE     AGE
+   ceph-rbd-sc   Created   1h
+   ceph-fs-sc    Created   1h
+   ```
+
+1. Проверьте созданный StorageClass:
+
+   ```shell
+   d8 k get sc
+   ```
+
+   В результате будет выведена информация о созданном StorageClass:
+
+   ```console
+   NAME          PROVISIONER        RECLAIMPOLICY   VOLUMEBINDINGMODE      ALLOWVOLUMEEXPANSION   AGE
+   ceph-rbd-sc   rbd.csi.ceph.com   Delete          WaitForFirstConsumer   true                   15s
+   ceph-fs-sc    rbd.csi.ceph.com   Delete          WaitForFirstConsumer   true                   15s
+   ```
+
+Настройка подключения к Ceph-кластеру завершена. Вы можете использовать созданный StorageClass для создания PersistentVolumeClaim в ваших приложениях.
