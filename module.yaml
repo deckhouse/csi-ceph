@@ -5,7 +5,8 @@ descriptions:
   en: "Provides integration with Ceph clusters, allows dynamic storage management and the use of StorageClass based on RBD (RADOS Block Device) or CephFS."
   ru: "Обеспечивает интеграцию с Ceph-кластерами, позволяет динамически управлять хранилищем и использовать StorageClass на основе RBD (RADOS Block Device) или CephFS."
 requirements:
-  deckhouse: ">= 1.72"
+  bootstrapped: true
+  deckhouse: ">= 1.74"
   modules:
-    snapshot-controller: ">= 0.0.0"
+    storage-foundation: ">= 0.0.0"
 namespace: "d8-csi-ceph"
