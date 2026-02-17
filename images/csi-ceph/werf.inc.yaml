@@ -28,7 +28,7 @@ shell:
 
 ---
 image: {{ .ModuleNamePrefix }}{{ .ImageName }}-base-binaries-artifact
-fromImage: {{ eq .SVACE_ENABLED "false" | ternary "builder/golang-alpine" "builder/golang-alt-svace" }}
+fromImage: {{ eq .SVACE_ENABLED "false" | ternary "builder/alt" "builder/golang-alt-svace" }}
 final: false
 
 import:
@@ -46,14 +46,9 @@ secrets:
 
 shell:
   beforeInstall:
-    {{- if eq .SVACE_ENABLED "false" }}
-    {{- include "alpine packages proxy" . | nindent 4 }}    
-    - apk add --no-cache make go ceph19-dev gcc git
-    {{- else }}
     {{- include "alt packages proxy" . | nindent 4 }}
     - apt-get update
-    - apt-get -y install make golang librbd-devel librados-devel gcc git libcephfs-devel
-    {{- end }}  
+    - apt-get -y install make librbd-devel librados-devel gcc git libcephfs-devel
   install:
     - export GOPROXY=$(cat /run/secrets/GOPROXY)
     - cd /src/ceph-csi
