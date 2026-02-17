@@ -658,7 +658,7 @@ func reconcileVolumeSnapshotClassUpdateFunc(
 ) (bool, error) {
 	log.Debug(fmt.Sprintf("[reconcileVolumeSnapshotClassUpdateFunc] starts for VolumeSnapshotClass %q", newVSClass.Name))
 
-	newVSClass.ObjectMeta.ResourceVersion = oldVSClass.ObjectMeta.ResourceVersion
+	newVSClass.ResourceVersion = oldVSClass.ResourceVersion
 	err := cl.Update(ctx, newVSClass)
 	if err != nil {
 		err = fmt.Errorf("[reconcileVolumeSnapshotClassUpdateFunc] unable to update a VolumeSnapshotClass %s: %w", newVSClass.Name, err)
