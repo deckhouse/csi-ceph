@@ -616,14 +616,14 @@ func CompareVSClasses(vsClass, newVSClass *snapshotv1.VolumeSnapshotClass) strin
 			fmt.Sprintf("Parameters diff: %s", cmp.Diff(vsClass.Parameters, newVSClass.Parameters)))
 	}
 
-	if !cmp.Equal(vsClass.ObjectMeta.Labels, newVSClass.ObjectMeta.Labels) {
+	if !cmp.Equal(vsClass.Labels, newVSClass.Labels) {
 		diffs = append(diffs,
-			fmt.Sprintf("Labels diff: %s", cmp.Diff(vsClass.ObjectMeta.Labels, newVSClass.ObjectMeta.Labels)))
+			fmt.Sprintf("Labels diff: %s", cmp.Diff(vsClass.Labels, newVSClass.Labels)))
 	}
 
-	if !cmp.Equal(vsClass.ObjectMeta.Annotations, newVSClass.ObjectMeta.Annotations) {
+	if !cmp.Equal(vsClass.Annotations, newVSClass.Annotations) {
 		diffs = append(diffs,
-			fmt.Sprintf("Annotations diff: %s", cmp.Diff(vsClass.ObjectMeta.Annotations, newVSClass.ObjectMeta.Annotations)))
+			fmt.Sprintf("Annotations diff: %s", cmp.Diff(vsClass.Annotations, newVSClass.Annotations)))
 	}
 
 	return strings.Join(diffs, ", ")
