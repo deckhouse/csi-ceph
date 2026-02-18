@@ -813,9 +813,10 @@ func performStandardChecksForCephSc(sc *v1.StorageClass, nameForTestResource str
 	Expect(sc.Parameters).To(HaveKeyWithValue("csi.storage.k8s.io/controller-expand-secret-name", "csi-ceph-secret-for-ceph-connection"))
 	Expect(sc.Parameters).To(HaveKeyWithValue("csi.storage.k8s.io/controller-expand-secret-namespace", "test-namespace"))
 
-	if cfg.Type == "cephfs" {
+	switch cfg.Type {
+	case "cephfs":
 		Expect(sc.Parameters).To(HaveKeyWithValue("fsName", cfg.CephFS.FSName))
-	} else if cfg.Type == "rbd" {
+	case "rbd":
 		Expect(sc.Parameters).To(HaveKeyWithValue("pool", cfg.RBD.Pool))
 		Expect(sc.Parameters).To(HaveKeyWithValue("csi.storage.k8s.io/fstype", cfg.RBD.DefaultFSType))
 	}

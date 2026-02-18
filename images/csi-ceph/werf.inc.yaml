@@ -28,7 +28,7 @@ shell:
 
 ---
 image: {{ .ModuleNamePrefix }}{{ .ImageName }}-base-binaries-artifact
-fromImage: {{ eq .SVACE_ENABLED "false" | ternary "builder/alt" "builder/golang-alt-svace" }}
+fromImage: {{ eq .SVACE_ENABLED "false" | ternary "builder/golang-alt" "builder/golang-alt-svace" }}
 final: false
 
 import:
@@ -48,7 +48,7 @@ shell:
   beforeInstall:
     {{- include "alt packages proxy" . | nindent 4 }}
     - apt-get update
-    - apt-get -y install make golang librbd-devel librados-devel gcc git libcephfs-devel
+    - apt-get -y install make librbd-devel librados-devel gcc git libcephfs-devel
   install:
     - export GOPROXY=$(cat /run/secrets/GOPROXY)
     - cd /src/ceph-csi
