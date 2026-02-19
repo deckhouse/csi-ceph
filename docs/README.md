@@ -2,7 +2,7 @@
 title: "The csi-ceph module"
 ---
 
-Ceph is a scalable distributed storage system that ensures high availability and fault tolerance of data.Deckhouse Kubernetes Platform (DKP) provides Ceph cluster integration using the `csi-ceph` module. This enables dynamic storage management and the use of StorageClass based on RADOS Block Device (RBD) or CephFS.
+Ceph is a scalable distributed storage system that ensures high availability and fault tolerance of data. Deckhouse Kubernetes Platform (DKP) provides Ceph cluster integration using the `csi-ceph` module. This enables dynamic storage management and the use of StorageClass based on RADOS Block Device (RBD) or CephFS.
 
 {{< alert level="info" >}}
 The [snapshot-controller](/modules/snapshot-controller/) module is required for working with snapshots.
@@ -22,13 +22,13 @@ When switching from the `ceph-csi` module to `csi-ceph`, an automatic migration 
 
 1. Verify functionality. Create test pods and PVCs to test CSI.
 
-1. Restore operators to working state.
+1. Restore the operators to working state.
 
 {{< alert level="warning" >}}
 If Ceph StorageClass was created without using the `CephCSIDriver` resource, manual migration will be required. Contact technical support.
 {{< /alert >}}
 
-## Connecting to Ceph cluster
+## Connecting to a Ceph cluster
 
 To connect to a Ceph cluster, follow the step-by-step instructions below. Execute all commands on a machine with administrative access to the Kubernetes API.
 
@@ -64,7 +64,7 @@ To connect to a Ceph cluster, follow the step-by-step instructions below. Execut
      # FSID/UUID of the Ceph cluster.
      # Get the FSID/UUID of the Ceph cluster using the command `ceph fsid`.
      clusterID: 2bf085fc-5119-404f-bb19-820ca6a1b07e
-     # List of IP addresses of ceph-mon in format 10.0.0.10:6789.
+     # List of IP addresses of ceph-mon in the format 10.0.0.10:6789.
      monitors:
        - 10.0.0.10:6789
      # Username without `client.`.

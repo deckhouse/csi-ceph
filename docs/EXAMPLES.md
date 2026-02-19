@@ -31,11 +31,11 @@ d8 k get cephclusterconnection <cephclusterconnection name>
 
 ## CephStorageClass configuration
 
-The [CephStorageClass](/modules/csi-ceph/cr.html#cephstorageclass) resource defines storage class parameters for provisioning persistent volumes. You can create different storage classes for RBD and CephFS storage types.
+The [CephStorageClass](/modules/csi-ceph/cr.html#cephstorageclass) resource defines StorageClass parameters for provisioning persistent volumes. You can create different storage classes for RBD and CephFS storage types.
 
 ### RBD
 
-Example of a storage class configuration for RBD (RADOS Block Device) volumes:
+Example of a StorageClass configuration for RBD (RADOS Block Device) volumes:
 
 ```yaml
 apiVersion: storage.deckhouse.io/v1alpha1
@@ -53,7 +53,7 @@ spec:
 
 ### CephFS
 
-Example of a storage class configuration for CephFS (Ceph File System) volumes:
+Example of a StorageClass configuration for CephFS (Ceph File System) volumes:
 
 ```yaml
 apiVersion: storage.deckhouse.io/v1alpha1

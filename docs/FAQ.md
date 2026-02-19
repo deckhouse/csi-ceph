@@ -13,7 +13,7 @@ d8 k -n d8-csi-ceph get po -l app=csi-node-rbd -o custom-columns=NAME:.metadata.
 
 ## Which versions of Ceph clusters are supported
 
-The `csi-ceph` module has specific requirements for the Ceph cluster version to ensure compatibility and stable operation. Officially supported versions are >= 16.2.0. In practice, the current version works with clusters of versions >=14.2.0, but it's recommended to update Ceph to the latest version.
+The `csi-ceph` module has specific requirements for the Ceph cluster version to ensure compatibility and stable operation. Officially supported versions are >= 16.2.0. In practice, the current version works with clusters running versions >= 14.2.0, but it's recommended to update Ceph to the latest version.
 
 ## Which volume access modes are supported
 
