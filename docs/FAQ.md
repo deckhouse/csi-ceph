@@ -4,26 +4,33 @@ title: "The csi-ceph module: FAQ"
 
 ## How to get a list of RBD volumes separated by nodes?
 
+For monitoring and diagnostics, it's useful to know which RBD volumes are connected to each cluster node. The following command provides detailed information about volume mapping:
+
 ```shell
-kubectl -n d8-csi-ceph get po -l app=csi-node-rbd -o custom-columns=NAME:.metadata.name,NODE:.spec.nodeName --no-headers \
+d8 k -n d8-csi-ceph get po -l app=csi-node-rbd -o custom-columns=NAME:.metadata.name,NODE:.spec.nodeName --no-headers \
   | awk '{print "echo "$2"; kubectl -n d8-csi-ceph exec  "$1" -c node -- rbd showmapped"}' | bash
 ```
 
 ## Which versions of Ceph clusters are supported
 
-Officially, versions >= 16.2.0 are currently supported. Based on our experience, the current version can work with clusters of versions >= 14.2.0, but we recommend updating the Ceph version.
+The `csi-ceph` module has specific requirements for the Ceph cluster version to ensure compatibility and stable operation. Officially supported versions are >= 16.2.0. In practice, the current version works with clusters running versions >= 14.2.0, but it's recommended to update Ceph to the latest version.
 
 ## Which volume access modes are supported
 
-RBD supports only ReadWriteOnce (RWO, access to the volume within a single node). CephFS supports both ReadWriteOnce and ReadWriteMany (RWX, simultaneous access to the volume from multiple nodes).
+Different types of Ceph storage support different volume access modes, which is important to consider when planning application architecture.
+
+- **RBD**: Supports only ReadWriteOnce (RWO) — access to volume from only one cluster node.
+- **CephFS**: Supports ReadWriteOnce (RWO) and ReadWriteMany (RWX) — simultaneous access to volume from multiple cluster nodes.
 
 ## Examples of permissions (caps) for Ceph users
 
+To ensure proper operation of the `csi-ceph` module, Ceph users must have appropriate permissions (caps) configured. The required permissions depend on the storage type being used (RBD, CephFS, or both). Below are examples of correct permission configurations for different scenarios.
+
 ### RBD
 
-For a single pool named `rbd`:
+For a single pool named `rbd`, the following permissions are required:
 
-```
+```ini
 [client.name]
         key = key
         caps mgr = "profile rbd pool=rbd"
@@ -33,34 +40,36 @@ For a single pool named `rbd`:
 
 ### CephFS
 
-A subvolumegroup `csi` or another one must be created in CephFS, if configured according to `Custom resources`.
+Before configuring CephFS permissions, ensure that a subvolumegroup `csi` (or another one specified in `Custom resources`) is created in CephFS.
 
-You can create a new subvolumegroup using the following command (on the Ceph management node):
-```
+You can create a new subvolumegroup using the following command on the Ceph management node:
+
+```shell
 ceph fs subvolumegroup create <fs_name> <group_name>
 ```
 
-For example, if fs `myfs`, subvolumegroup `csi`:
-```
+For example, to create a subvolumegroup `csi` for filesystem `myfs`:
+
+```shell
 ceph fs subvolumegroup create myfs csi
 ```
 
-Caps for CephFS named `myfs`:
+Required permissions for CephFS named `myfs`:
 
-```
+```ini
 [client.name]
-        key: key
-        caps: [mds] allow rwps fsname=myfs
-        caps: [mgr] allow rw
-        caps: [mon] allow r fsname=myfs
-        caps: [osd] allow rw tag cephfs data=myfs, allow rw tag cephfs metadata=myfs
+        key = key
+        caps mds = "allow rwps fsname=myfs"
+        caps mgr = "allow rw"
+        caps mon = "allow r fsname=myfs"
+        caps osd = "allow rw tag cephfs data=myfs, allow rw tag cephfs metadata=myfs"
 ```
 
 ### CephFS + RBD
 
-Example of a user with permissions in CephFS `myfs` and RBD pool `rbd`:
+For a user that needs access to both CephFS `myfs` and RBD pool `rbd`, combine the permissions as follows:
 
-```
+```ini
 [client.name]
         key = key
         caps mds = "allow rwps fsname=myfs"

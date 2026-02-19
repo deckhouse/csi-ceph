@@ -2,7 +2,11 @@
 title: "The csi-ceph module: examples"
 ---
 
-## Example of `CephClusterConnection` configuration
+## CephClusterConnection configuration
+
+The [CephClusterConnection](/modules/csi-ceph/cr.html#cephclusterconnection) resource defines the connection parameters to your Ceph cluster. This resource must be created before creating [CephStorageClass](/modules/csi-ceph/cr.html#cephstorageclass) objects.
+
+Example configuration:
 
 ```yaml
 apiVersion: storage.deckhouse.io/v1alpha1
@@ -19,15 +23,19 @@ spec:
   userKey: AQDiVXVmBJVRLxAAg65PhODrtwbwSWrjJwssUg==
 ```
 
-- To verify the creation of the object, use the following command (Phase should be `Created`):
+To verify the creation of the object, use the following command (Phase should be `Created`):
 
 ```shell
-kubectl get cephclusterconnection <cephclusterconnection name>
+d8 k get cephclusterconnection <cephclusterconnection name>
 ```
 
-## Example of `CephStorageClass` configuration
+## CephStorageClass configuration
+
+The [CephStorageClass](/modules/csi-ceph/cr.html#cephstorageclass) resource defines StorageClass parameters for provisioning persistent volumes. You can create different storage classes for RBD and CephFS storage types.
 
 ### RBD
+
+Example of a StorageClass configuration for RBD (RADOS Block Device) volumes:
 
 ```yaml
 apiVersion: storage.deckhouse.io/v1alpha1
@@ -40,10 +48,12 @@ spec:
   type: RBD
   rbd:
     defaultFSType: ext4
-    pool: ceph-rbd-pool  
+    pool: ceph-rbd-pool
 ```
 
 ### CephFS
+
+Example of a StorageClass configuration for CephFS (Ceph File System) volumes:
 
 ```yaml
 apiVersion: storage.deckhouse.io/v1alpha1
@@ -58,8 +68,8 @@ spec:
     fsName: cephfs
 ```
 
-### To verify the creation of the object, use the following command (Phase should be `Created`):
+To verify the creation of the object, use the following command (Phase should be `Created`):
 
 ```shell
-kubectl get cephstorageclass <cephstorageclass name>
+d8 k get cephstorageclass <cephstorageclass name>
 ```
