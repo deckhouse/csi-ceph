@@ -19,9 +19,10 @@ on:
       latest_releases_amount:
         description: "Optional. Number of latest releases to scan. Default is: 3"
         required: false
-      severity:
-        description: "Optional. Vulnerabilities severity to scan. Default is: UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL"
+      release_in_dev:
+        description: 'If true, release tag will be searched in dev registry instead of prod'
         required: false
+        default: 'False'
       svace_enabled:
         description: "Enable svace build and analyze"
         type: boolean
@@ -43,30 +44,9 @@ jobs:
       - uses: actions/checkout@v4
       - uses: deckhouse/modules-actions/cve_scan@v6
         with:
-          tag: pr${{ github.event.number }}
-          tag_type: "dev"
-          module_name: ${{ vars.MODULE_NAME }}
-          dd_url: ${{ secrets.DEFECTDOJO_HOST }}
-          dd_token: ${{ secrets.DEFECTDOJO_API_TOKEN }}
-          prod_registry: "registry.deckhouse.io"
-          prod_registry_user: "license-token"
-          prod_registry_password: ${{ secrets.PROD_MODULES_READ_REGISTRY_PASSWORD }}
-          dev_registry: ${{ vars.DEV_REGISTRY }}
-          dev_registry_user: ${{ vars.DEV_MODULES_REGISTRY_LOGIN }}
-          dev_registry_password: ${{ secrets.DEV_MODULES_REGISTRY_PASSWORD }}
-          deckhouse_private_repo: ${{ secrets.DECKHOUSE_PRIVATE_REPO }}
-          severity: "HIGH,CRITICAL"
-  cve_scan:
-    if: github.event_name != 'pull_request'
-    name: Regular CVE scan
-    runs-on: [self-hosted, regular]
-    steps:
-      - uses: actions/checkout@v4
-      - uses: deckhouse/modules-actions/cve_scan@v6
-        with:
-          tag: ${{ github.event.inputs.release_branch || github.event.repository.default_branch }}
-          tag_type: "dev"
-          module_name: ${{ vars.MODULE_NAME }}
+          source_tag: ${{ github.event.number }}
+          case: "External Modules"
+          external_module_name: ${{ vars.MODULE_NAME }}
           dd_url: ${{ secrets.DEFECTDOJO_HOST }}
           dd_token: ${{ secrets.DEFECTDOJO_API_TOKEN }}
           prod_registry: "registry.deckhouse.io"
@@ -78,4 +58,34 @@ jobs:
           deckhouse_private_repo: ${{ secrets.DECKHOUSE_PRIVATE_REPO }}
           scan_several_lastest_releases: ${{ github.event.inputs.scan_several_lastest_releases }}
           latest_releases_amount: ${{ github.event.inputs.latest_releases_amount || '3' }}
-          severity: ${{ github.event.inputs.severity }}
+          codeowners_repo_token: ${{ secrets.CODEOWNERS_REPO_TOKEN }}
+          cve_test_repo_git: ${{ secrets.CVE_TEST_REPO_GIT }}
+          cve_ssh_private_key: ${{ secrets.CVE_SSH_PRIVATE_KEY }}
+          trivy_reports_log_output: "1"
+  cve_scan:
+    if: github.event_name != 'pull_request'
+    name: Regular CVE scan
+    runs-on: [self-hosted, regular]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: deckhouse/modules-actions/cve_scan@v6
+        with:
+          source_tag: ${{ github.event.inputs.release_branch || github.event.repository.default_branch }}
+          case: "External Modules"
+          external_module_name: ${{ vars.MODULE_NAME }}
+          dd_url: ${{ secrets.DEFECTDOJO_HOST }}
+          dd_token: ${{ secrets.DEFECTDOJO_API_TOKEN }}
+          prod_registry: "registry.deckhouse.io"
+          prod_registry_user: "license-token"
+          prod_registry_password: ${{ secrets.PROD_MODULES_READ_REGISTRY_PASSWORD }}
+          dev_registry: ${{ vars.DEV_REGISTRY }}
+          dev_registry_user: ${{ vars.DEV_MODULES_REGISTRY_LOGIN }}
+          dev_registry_password: ${{ secrets.DEV_MODULES_REGISTRY_PASSWORD }}
+          deckhouse_private_repo: ${{ secrets.DECKHOUSE_PRIVATE_REPO }}
+          scan_several_lastest_releases: ${{ github.event.inputs.scan_several_lastest_releases || 'True'}}
+          latest_releases_amount: ${{ github.event.inputs.latest_releases_amount || '3' }}
+          codeowners_repo_token: ${{ secrets.CODEOWNERS_REPO_TOKEN }}
+          cve_test_repo_git: ${{ secrets.CVE_TEST_REPO_GIT }}
+          cve_ssh_private_key: ${{ secrets.CVE_SSH_PRIVATE_KEY }}
+          release_in_dev: ${{ github.event.inputs.release_in_dev || 'False' }}
+          trivy_reports_log_output: "1"
