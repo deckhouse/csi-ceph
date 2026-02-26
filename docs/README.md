@@ -72,7 +72,7 @@ To connect to a Ceph cluster, follow the step-by-step instructions below. Execut
      userID: admin
      # Authorization key corresponding to userID.
      # Get the authorization key using the command `ceph auth get-key client.admin`.
-     userKey: AQDiVXVmBJVRLxAAg65PhODrtwbwSWrjJwssUg==
+     userKey: <your-ceph-auth-key>
    EOF
    ```
 

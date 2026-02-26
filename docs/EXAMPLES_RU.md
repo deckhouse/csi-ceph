@@ -20,7 +20,7 @@ spec:
   - 172.20.1.34:6789
   - 172.20.1.37:6789
   userID: admin
-  userKey: AQDiVXVmBJVRLxAAg65PhODrtwbwSWrjJwssUg==
+  userKey: <your-ceph-auth-key>
 ```
 
 Чтобы проверить создание объекта, выполните следующую команду (Phase должен быть `Created`):

@@ -72,7 +72,7 @@ Ceph — это масштабируемая распределённая сис
      userID: admin
      # Ключ авторизации, соответствующий userID.
      # Получить ключ авторизации можно с помощью команды `ceph auth get-key client.admin`.
-     userKey: AQDiVXVmBJVRLxAAg65PhODrtwbwSWrjJwssUg==
+     userKey: <your-ceph-auth-key>
    EOF
    ```
 

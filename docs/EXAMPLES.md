@@ -20,7 +20,7 @@ spec:
   - 172.20.1.34:6789
   - 172.20.1.37:6789
   userID: admin
-  userKey: AQDiVXVmBJVRLxAAg65PhODrtwbwSWrjJwssUg==
+  userKey: <your-ceph-auth-key>
 ```
 
 To verify the creation of the object, use the following command (Phase should be `Created`):
