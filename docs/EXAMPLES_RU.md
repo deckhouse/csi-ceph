@@ -14,7 +14,7 @@ kind: CephClusterConnection
 metadata:
   name: ceph-cluster-1
 spec:
-  clusterID: 0324bfe8-c36a-4829-bacd-9e28b6480de9
+  clusterID: 014df517-39d1-4453-b7b3-9930c563627c
   monitors:
   - 172.20.1.28:6789
   - 172.20.1.34:6789

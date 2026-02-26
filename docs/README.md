@@ -63,7 +63,7 @@ To connect to a Ceph cluster, follow the step-by-step instructions below. Execut
    spec:
      # FSID/UUID of the Ceph cluster.
      # Get the FSID/UUID of the Ceph cluster using the command `ceph fsid`.
-     clusterID: 2bf085fc-5119-404f-bb19-820ca6a1b07e
+     clusterID: 014df517-39d1-4453-b7b3-9930c563627c
      # List of IP addresses of ceph-mon in the format 10.0.0.10:6789.
      monitors:
        - 10.0.0.10:6789
