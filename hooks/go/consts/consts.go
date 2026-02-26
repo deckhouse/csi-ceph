@@ -27,3 +27,17 @@ var AllowedProvisioners = []string{
 	"rbd.csi.ceph.com",
 	"cephfs.csi.ceph.com",
 }
+
+var WebhookConfigurationsToDelete = []string{}
+
+// CRGVKsForFinalizerRemoval lists CRs from module's crd folder for finalizer removal on module delete.
+var CRGVKsForFinalizerRemoval = []CRGVK{
+	{Group: "storage.deckhouse.io", Version: "v1alpha1", Kind: "CephClusterConnection", Namespaced: false},
+}
+
+type CRGVK struct {
+	Group      string
+	Version    string
+	Kind       string
+	Namespaced bool
+}
