@@ -2,3 +2,9 @@
 [extend]
 useDefault = false
 path = "/tmp/gitleaks.base.toml"
+
+# Ceph auth key examples in docs (false positives)
+[allowlist]
+paths = [
+  '''(?:^|/)docs/.*\.md$''',
+]
