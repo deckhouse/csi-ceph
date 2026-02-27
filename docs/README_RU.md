@@ -63,7 +63,7 @@ Ceph — это масштабируемая распределённая сис
    spec:
      # FSID/UUID Ceph-кластера.
      # Получить FSID/UUID Ceph-кластера можно с помощью команды `ceph fsid`.
-     clusterID: 2bf085fc-5119-404f-bb19-820ca6a1b07e
+     clusterID: 014df517-39d1-4453-b7b3-9930c563627c
      # Список IP-адресов ceph-mon в формате 10.0.0.10:6789.
      monitors:
        - 10.0.0.10:6789
@@ -72,7 +72,7 @@ Ceph — это масштабируемая распределённая сис
      userID: admin
      # Ключ авторизации, соответствующий userID.
      # Получить ключ авторизации можно с помощью команды `ceph auth get-key client.admin`.
-     userKey: AQDiVXVmBJVRLxAAg65PhODrtwbwSWrjJwssUg==
+     userKey: <your-ceph-auth-key>
    EOF
    ```
 
