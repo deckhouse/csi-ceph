@@ -90,7 +90,7 @@ jobs:
           dev_registry_user: ${{ env.DECKHOUSE_DEV_REGISTRY_USER }}
           dev_registry_password: ${{ env.DECKHOUSE_DEV_REGISTRY_PASSWORD }}
           deckhouse_private_repo: ${{ env.DECKHOUSE_PRIVATE_REPO }}
-          scan_several_latest_releases: ${{ github.event.inputs.scan_several_lastest_releases }}
+          scan_several_latest_releases: ${{ github.event.inputs.scan_several_latest_releases }}
           latest_releases_amount: ${{ github.event.inputs.latest_releases_amount || '3' }}
           codeowners_repo_token: ${{ env.CODEOWNERS_REPO_TOKEN }}
           cve_test_repo_git: ${{ env.CVE_TEST_REPO_GIT }}
