@@ -35,14 +35,13 @@ jobs:
     secrets: inherit
     with:
       svace_enabled: ${{ github.event.inputs.svace_enabled && true || false }}
-  import_secrets:
-    permissions:
-      contents: read
-      id-token: write
+  cve_scan_on_pr:
+    if: github.event_name == 'pull_request'
     name: CVE scan for PR
     runs-on: [self-hosted, regular]
     needs: [build_dev]
     steps:
+      - uses: actions/checkout@v4
       - name: Split repository name
         id: split
         env:
@@ -71,62 +70,77 @@ jobs:
             projects/data/24cb1d7c-717a-4f92-8547-26f632916a7a/Trivy_CVE_Scan_CI_Secrets CVE_TEST_REPO_GIT | CVE_TEST_REPO_GIT ;
             projects/data/24cb1d7c-717a-4f92-8547-26f632916a7a/Trivy_CVE_Scan_CI_Secrets DECKHOUSE_PRIVATE_REPO | DECKHOUSE_PRIVATE_REPO ;
             projects/data/b050f3bd-733f-4746-9640-9df80d484074/CODEOWNERS_REPO_TOKEN CODEOWNERS_REPO_TOKEN | CODEOWNERS_REPO_TOKEN ;
-
-  cve_scan_on_pr:
-    if: github.event_name == 'pull_request'
-    name: CVE scan for PR
-    runs-on: [self-hosted, regular]
-    needs: [import_secrets]
-    steps:
-      - uses: actions/checkout@v4
-      - name: debug
-        run: |
-          echo "CVE_TEST_REPO_GIT: ${CVE_TEST_REPO_GIT}"
-          echo "CVE_TEST_SSH_PRIVATE_KEY: ${#CVE_TEST_SSH_PRIVATE_KEY}"
-          echo "DECKHOUSE_DEV_REGISTRY_HOST: ${DECKHOUSE_DEV_REGISTRY_HOST}"
       - uses: deckhouse/modules-actions/cve_scan@new_cve_scan
         with:
           source_tag: ${{ github.event.number }}
           case: "External Modules"
           external_module_name: ${{ vars.MODULE_NAME }}
-          dd_url: ${{ env.DEFECTDOJO_URL }}
-          dd_token: ${{ env.DEFECTDOJO_API_TOKEN }}
-          prod_registry: ${{ env.PROD_READ_REGISTRY }}
-          prod_registry_user: ${{ env.PROD_READ_REGISTRY_USER }}
-          prod_registry_password: ${{ env.PROD_READ_REGISTRY_PASSWORD }}
-          dev_registry: ${{ env.DECKHOUSE_DEV_REGISTRY_HOST }}
-          dev_registry_user: ${{ env.DECKHOUSE_DEV_REGISTRY_USER }}
-          dev_registry_password: ${{ env.DECKHOUSE_DEV_REGISTRY_PASSWORD }}
-          deckhouse_private_repo: ${{ env.DECKHOUSE_PRIVATE_REPO }}
-          codeowners_repo_token: ${{ env.CODEOWNERS_REPO_TOKEN }}
-          cve_test_repo_git: ${{ env.CVE_TEST_REPO_GIT }}
-          cve_ssh_private_key: ${{ env.CVE_TEST_SSH_PRIVATE_KEY }}
+          dd_url: ${{ steps.secrets.outputs.DEFECTDOJO_URL }}
+          dd_token: ${{ steps.secrets.outputs.DEFECTDOJO_API_TOKEN }}
+          prod_registry: ${{ steps.secrets.outputs.PROD_READ_REGISTRY }}
+          prod_registry_user: ${{ steps.secrets.outputs.PROD_READ_REGISTRY_USER }}
+          prod_registry_password: ${{ steps.secrets.outputs.PROD_READ_REGISTRY_PASSWORD }}
+          dev_registry: ${{ steps.secrets.outputs.DECKHOUSE_DEV_REGISTRY_HOST }}
+          dev_registry_user: ${{ steps.secrets.outputs.DECKHOUSE_DEV_REGISTRY_USER }}
+          dev_registry_password: ${{ steps.secrets.outputs.DECKHOUSE_DEV_REGISTRY_PASSWORD }}
+          deckhouse_private_repo: ${{ steps.secrets.outputs.DECKHOUSE_PRIVATE_REPO }}
+          codeowners_repo_token: ${{ steps.secrets.outputs.CODEOWNERS_REPO_TOKEN }}
+          cve_test_repo_git: ${{ steps.secrets.outputs.CVE_TEST_REPO_GIT }}
+          cve_ssh_private_key: ${{ steps.secrets.outputs.CVE_TEST_SSH_PRIVATE_KEY }}
           trivy_reports_log_output: "1"
   cve_scan:
     if: github.event_name != 'pull_request'
     name: Regular CVE scan
     runs-on: [self-hosted, regular]
-    needs: [import_secrets]
+    needs: [build_dev]
     steps:
       - uses: actions/checkout@v4
+      - name: Split repository name
+        id: split
+        env:
+          REPO: ${{ github.repository }}
+        run: echo "name=${REPO##*/}" >> $GITHUB_OUTPUT
+
+      - name: Import secrets
+        id: secrets
+        uses: hashicorp/vault-action@v2
+        with:
+          url: https://seguro.flant.com
+          path: github
+          role: "${{ steps.split.outputs.name }}"
+          method: jwt
+          jwtGithubAudience: github-access-aud
+          secrets: |
+            projects/data/101ceaca-97cd-462f-aed5-070d9b9de175/registry_host DECKHOUSE_DEV_REGISTRY_HOST | DECKHOUSE_DEV_REGISTRY_HOST ;
+            projects/data/101ceaca-97cd-462f-aed5-070d9b9de175/dev-registry/writetoken login | DECKHOUSE_DEV_REGISTRY_USER ;
+            projects/data/101ceaca-97cd-462f-aed5-070d9b9de175/dev-registry/writetoken password | DECKHOUSE_DEV_REGISTRY_PASSWORD ;
+            projects/data/101ceaca-97cd-462f-aed5-070d9b9de175/registry_host DECKHOUSE_READ_REGISTRY_HOST | PROD_READ_REGISTRY ;
+            projects/data/101ceaca-97cd-462f-aed5-070d9b9de175/ssdlc-registry-read-license login | PROD_READ_REGISTRY_USER ;
+            projects/data/101ceaca-97cd-462f-aed5-070d9b9de175/ssdlc-registry-read-license password | PROD_READ_REGISTRY_PASSWORD ;
+            projects/data/b050f3bd-733f-4746-9640-9df80d484074/DefectDojo/Prod/TrivyReporter token | DEFECTDOJO_API_TOKEN ;
+            projects/data/b050f3bd-733f-4746-9640-9df80d484074/DefectDojo/Prod/URL DD_DEV_URL | DEFECTDOJO_URL ;
+            projects/data/24cb1d7c-717a-4f92-8547-26f632916a7a/Trivy_CVE_Scan_CI_Secrets CVE_TEST_SSH_PRIVATE_KEY | CVE_TEST_SSH_PRIVATE_KEY ;
+            projects/data/24cb1d7c-717a-4f92-8547-26f632916a7a/Trivy_CVE_Scan_CI_Secrets CVE_TEST_REPO_GIT | CVE_TEST_REPO_GIT ;
+            projects/data/24cb1d7c-717a-4f92-8547-26f632916a7a/Trivy_CVE_Scan_CI_Secrets DECKHOUSE_PRIVATE_REPO | DECKHOUSE_PRIVATE_REPO ;
+            projects/data/b050f3bd-733f-4746-9640-9df80d484074/CODEOWNERS_REPO_TOKEN CODEOWNERS_REPO_TOKEN | CODEOWNERS_REPO_TOKEN ;
       - uses: deckhouse/modules-actions/cve_scan@new_cve_scan
         with:
           source_tag: ${{ github.event.inputs.release_branch || github.event.repository.default_branch }}
           case: "External Modules"
           external_module_name: ${{ vars.MODULE_NAME }}
-          dd_url: ${{ env.DEFECTDOJO_URL }}
-          dd_token: ${{ env.DEFECTDOJO_API_TOKEN }}
-          prod_registry: ${{ env.PROD_READ_REGISTRY }}
-          prod_registry_user: ${{ env.PROD_READ_REGISTRY_USER }}
-          prod_registry_password: ${{ env.PROD_READ_REGISTRY_PASSWORD }}
-          dev_registry: ${{ env.DECKHOUSE_DEV_REGISTRY_HOST }}
-          dev_registry_user: ${{ env.DECKHOUSE_DEV_REGISTRY_USER }}
-          dev_registry_password: ${{ env.DECKHOUSE_DEV_REGISTRY_PASSWORD }}
-          deckhouse_private_repo: ${{ env.DECKHOUSE_PRIVATE_REPO }}
+          dd_url: ${{ steps.secrets.outputs.DEFECTDOJO_URL }}
+          dd_token: ${{ steps.secrets.outputs.DEFECTDOJO_API_TOKEN }}
+          prod_registry: ${{ steps.secrets.outputs.PROD_READ_REGISTRY }}
+          prod_registry_user: ${{ steps.secrets.outputs.PROD_READ_REGISTRY_USER }}
+          prod_registry_password: ${{ steps.secrets.outputs.PROD_READ_REGISTRY_PASSWORD }}
+          dev_registry: ${{ steps.secrets.outputs.DECKHOUSE_DEV_REGISTRY_HOST }}
+          dev_registry_user: ${{ steps.secrets.outputs.DECKHOUSE_DEV_REGISTRY_USER }}
+          dev_registry_password: ${{ steps.secrets.outputs.DECKHOUSE_DEV_REGISTRY_PASSWORD }}
+          deckhouse_private_repo: ${{ steps.secrets.outputs.DECKHOUSE_PRIVATE_REPO }}
           scan_several_latest_releases: ${{ github.event.inputs.scan_several_latest_releases || 'True'}}
           latest_releases_amount: ${{ github.event.inputs.latest_releases_amount || '3' }}
-          codeowners_repo_token: ${{ env.CODEOWNERS_REPO_TOKEN }}
-          cve_test_repo_git: ${{ env.CVE_TEST_REPO_GIT }}
-          cve_ssh_private_key: ${{ env.CVE_TEST_SSH_PRIVATE_KEY }}
+          codeowners_repo_token: ${{ steps.secrets.outputs.CODEOWNERS_REPO_TOKEN }}
+          cve_test_repo_git: ${{ steps.secrets.outputs.CVE_TEST_REPO_GIT }}
+          cve_ssh_private_key: ${{ steps.secrets.outputs.CVE_TEST_SSH_PRIVATE_KEY }}
           release_in_dev: ${{ github.event.inputs.release_in_dev || 'False' }}
           trivy_reports_log_output: "1"
