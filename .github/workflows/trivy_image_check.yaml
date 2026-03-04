@@ -79,6 +79,11 @@ jobs:
     needs: [import_secrets]
     steps:
       - uses: actions/checkout@v4
+      - name: debug
+        run: |
+          echo "CVE_TEST_REPO_GIT: ${CVE_TEST_REPO_GIT}"
+          echo "CVE_TEST_SSH_PRIVATE_KEY: ${#CVE_TEST_SSH_PRIVATE_KEY}"
+          echo "DECKHOUSE_DEV_REGISTRY_HOST: ${DECKHOUSE_DEV_REGISTRY_HOST}"
       - uses: deckhouse/modules-actions/cve_scan@new_cve_scan
         with:
           source_tag: ${{ github.event.number }}
