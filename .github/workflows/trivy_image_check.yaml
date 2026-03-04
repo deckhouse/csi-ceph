@@ -75,7 +75,7 @@ jobs:
             projects/data/b050f3bd-733f-4746-9640-9df80d484074/CODEOWNERS_REPO_TOKEN CODEOWNERS_REPO_TOKEN | CODEOWNERS_REPO_TOKEN ;
       - uses: deckhouse/modules-actions/cve_scan@new_cve_scan
         with:
-          source_tag: ${{ github.event.number }}
+          source_tag: 'pr${{ github.event.number }}'
           case: "External Modules"
           external_module_name: ${{ vars.MODULE_NAME }}
           dd_url: ${{ steps.secrets.outputs.DEFECTDOJO_URL }}
