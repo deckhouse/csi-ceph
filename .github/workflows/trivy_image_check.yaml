@@ -36,6 +36,9 @@ jobs:
     with:
       svace_enabled: ${{ github.event.inputs.svace_enabled && true || false }}
   import_secrets:
+    permissions:
+      contents: read
+      id-token: write
     name: CVE scan for PR
     runs-on: [self-hosted, regular]
     needs: [build_dev]
