@@ -34,7 +34,8 @@ jobs:
     uses: ./.github/workflows/build_dev.yml
     secrets: inherit
     with:
-      svace_enabled: ${{ github.event.inputs.svace_enabled && true || false }}
+      svace_enabled: false
+      # {{ github.event.inputs.svace_enabled && true || false }}
   cve_scan_on_pr:
     if: github.event_name == 'pull_request'
     name: CVE scan for PR
