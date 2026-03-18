@@ -34,8 +34,7 @@ jobs:
     uses: ./.github/workflows/build_dev.yml
     secrets: inherit
     with:
-      svace_enabled: false
-      # {{ github.event.inputs.svace_enabled && true || false }}
+      svace_enabled: ${{ github.event.inputs.svace_enabled && true || false }}
   cve_scan_on_pr:
     if: github.event_name == 'pull_request'
     name: CVE scan for PR
@@ -74,7 +73,7 @@ jobs:
             projects/data/24cb1d7c-717a-4f92-8547-26f632916a7a/Trivy_CVE_Scan_CI_Secrets CVE_TEST_REPO_GIT | CVE_TEST_REPO_GIT ;
             projects/data/24cb1d7c-717a-4f92-8547-26f632916a7a/Trivy_CVE_Scan_CI_Secrets DECKHOUSE_PRIVATE_REPO | DECKHOUSE_PRIVATE_REPO ;
             projects/data/b050f3bd-733f-4746-9640-9df80d484074/CODEOWNERS_REPO_TOKEN CODEOWNERS_REPO_TOKEN | CODEOWNERS_REPO_TOKEN ;
-      - uses: deckhouse/modules-actions/cve_scan@new_cve_scan
+      - uses: deckhouse/modules-actions/cve_scan@main
         with:
           source_tag: 'pr${{ github.event.number }}'
           case: "External Modules"
@@ -130,7 +129,7 @@ jobs:
             projects/data/24cb1d7c-717a-4f92-8547-26f632916a7a/Trivy_CVE_Scan_CI_Secrets CVE_TEST_REPO_GIT | CVE_TEST_REPO_GIT ;
             projects/data/24cb1d7c-717a-4f92-8547-26f632916a7a/Trivy_CVE_Scan_CI_Secrets DECKHOUSE_PRIVATE_REPO | DECKHOUSE_PRIVATE_REPO ;
             projects/data/b050f3bd-733f-4746-9640-9df80d484074/CODEOWNERS_REPO_TOKEN CODEOWNERS_REPO_TOKEN | CODEOWNERS_REPO_TOKEN ;
-      - uses: deckhouse/modules-actions/cve_scan@new_cve_scan
+      - uses: deckhouse/modules-actions/cve_scan@main
         with:
           source_tag: ${{ github.event.inputs.release_branch || github.event.repository.default_branch }}
           case: "External Modules"
