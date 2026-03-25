@@ -1,9 +1,6 @@
 # Patches
 
-## 001-fix-cve.patch
+## 001-Fix-CVE-and-remove-go-mod-tidy.patch
 
-Fix CVE
+Fix CVE and remove go mod tidy command from build
 
-## 002-fix-cve.patch
-
-Fix CVE
