@@ -1,7 +1,6 @@
 module github.com/deckhouse/csi-ceph/images/controller
 
-go 1.25.7
-
+go 1.25.8
 require (
 	github.com/deckhouse/csi-ceph/api v0.0.0-20250314071238-6a7df30c52cc
 	github.com/go-logr/logr v1.4.2
