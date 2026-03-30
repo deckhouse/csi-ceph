@@ -1,0 +1,70 @@
+From 35dbd20f978e0eb955180b2217096687ed4652a1 Mon Sep 17 00:00:00 2001
+From: "v.oleynikov" <vasily.oleynikov@flant.com>
+Date: Mon, 30 Mar 2026 12:23:52 +0300
+Subject: [PATCH] Fix CVE
+
+Signed-off-by: v.oleynikov <vasily.oleynikov@flant.com>
+---
+ go.mod                                         | 2 +-
+ go.sum                                         | 4 ++--
+ vendor/k8s.io/kubernetes/pkg/volume/plugins.go | 2 +-
+ vendor/modules.txt                             | 2 +-
+ 4 files changed, 5 insertions(+), 5 deletions(-)
+
+diff --git a/go.mod b/go.mod
+index 9e5a15a3f..9cddcb891 100644
+--- a/go.mod
++++ b/go.mod
+@@ -37,7 +37,7 @@ require (
+ 	k8s.io/apimachinery v0.33.3
+ 	k8s.io/cloud-provider v0.33.0
+ 	k8s.io/klog/v2 v2.130.1
+-	k8s.io/kubernetes v1.33.4
++	k8s.io/kubernetes v1.33.6
+ 	k8s.io/mount-utils v0.33.3
+ 	k8s.io/utils v0.0.0-20241210054802-24370beab758
+ )
+diff --git a/go.sum b/go.sum
+index 5a53f34b7..9035f1abb 100644
+--- a/go.sum
++++ b/go.sum
+@@ -1391,8 +1391,8 @@ k8s.io/klog/v2 v2.130.1/go.mod h1:3Jpz1GvMt720eyJH1ckRHK1EDfpxISzJ7I9OYgaDtPE=
+ k8s.io/kube-openapi v0.0.0-20221012153701-172d655c2280/go.mod h1:+Axhij7bCpeqhklhUTe3xmOn6bWxolyZEeyaFpjGtl4=
+ k8s.io/kube-openapi v0.0.0-20250318190949-c8a335a9a2ff h1:/usPimJzUKKu+m+TE36gUyGcf03XZEP0ZIKgKj35LS4=
+ k8s.io/kube-openapi v0.0.0-20250318190949-c8a335a9a2ff/go.mod h1:5jIi+8yX4RIb8wk3XwBo5Pq2ccx4FP10ohkbSKCZoK8=
+-k8s.io/kubernetes v1.33.4 h1:T1d5FLUYm3/KyUeV7YJhKTR980zHCHb7K2xhCSo3lE8=
+-k8s.io/kubernetes v1.33.4/go.mod h1:nrt8sldmckKz2fCZhgRX3SKfS2e+CzXATPv6ITNkU00=
++k8s.io/kubernetes v1.33.6 h1:NOIZqkx8M4XfdyRKllzLSBiMgSilPzSvCembfzOMk6A=
++k8s.io/kubernetes v1.33.6/go.mod h1:eJiHC143tnNSvmDkCRwGNKA80yXqBvYC3U8L/i67nAY=
+ k8s.io/mount-utils v0.33.3 h1:Q1jsnqdS4LdtJSYSXgiQv/XNrRHQncLk3gMYjKNSZrE=
+ k8s.io/mount-utils v0.33.3/go.mod h1:1JR4rKymg8B8bCPo618hpSAdrpO6XLh0Acqok/xVwPE=
+ k8s.io/utils v0.0.0-20210802155522-efc7438f0176/go.mod h1:jPW/WVKK9YHAvNhRxK0md/EJ228hCsBRufyofKtW8HA=
+diff --git a/vendor/k8s.io/kubernetes/pkg/volume/plugins.go b/vendor/k8s.io/kubernetes/pkg/volume/plugins.go
+index c4e5fee28..acfff76d3 100644
+--- a/vendor/k8s.io/kubernetes/pkg/volume/plugins.go
++++ b/vendor/k8s.io/kubernetes/pkg/volume/plugins.go
+@@ -1003,7 +1003,7 @@ func NewPersistentVolumeRecyclerPodTemplate() *v1.Pod {
+ 			Containers: []v1.Container{
+ 				{
+ 					Name:    "pv-recycler",
+-					Image:   "registry.k8s.io/build-image/debian-base:bookworm-v1.0.4",
++					Image:   "registry.k8s.io/build-image/debian-base:bookworm-v1.0.6",
+ 					Command: []string{"/bin/sh"},
+ 					Args:    []string{"-c", "test -e /scrub && find /scrub -mindepth 1 -delete && test -z \"$(ls -A /scrub)\" || exit 1"},
+ 					VolumeMounts: []v1.VolumeMount{
+diff --git a/vendor/modules.txt b/vendor/modules.txt
+index 103d9ff40..5f9461fdb 100644
+--- a/vendor/modules.txt
++++ b/vendor/modules.txt
+@@ -1166,7 +1166,7 @@ k8s.io/kube-openapi/pkg/schemaconv
+ k8s.io/kube-openapi/pkg/spec3
+ k8s.io/kube-openapi/pkg/util/proto
+ k8s.io/kube-openapi/pkg/validation/spec
+-# k8s.io/kubernetes v1.33.4
++# k8s.io/kubernetes v1.33.6
+ ## explicit; go 1.24.0
+ k8s.io/kubernetes/pkg/features
+ k8s.io/kubernetes/pkg/kubelet/events
+-- 
+2.43.0
+
