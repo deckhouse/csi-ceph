@@ -5,7 +5,7 @@ title: "The csi-ceph module"
 Ceph is a scalable distributed storage system that ensures high availability and fault tolerance of data. Deckhouse Kubernetes Platform (DKP) provides Ceph cluster integration using the `csi-ceph` module. This enables dynamic storage management and the use of StorageClass based on RADOS Block Device (RBD) or CephFS.
 
 {{< alert level="info" >}}
-The [snapshot-controller](/modules/snapshot-controller/) module is required for working with snapshots.
+The [snapshot-controller](/modules/snapshot-controller/) module must be connected for this module to operate.
 {{< /alert >}}
 
 This page provides instructions on connecting Ceph to Deckhouse, configuring authentication, creating StorageClass objects, and verifying storage functionality.
