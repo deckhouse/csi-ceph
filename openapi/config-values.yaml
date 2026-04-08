@@ -29,3 +29,9 @@ properties:
     type: integer
     default: 10
     description: Settings for RBD provisioner workers (default 10). Please do not set this value if you are not sure what you are doing.
+  msCrcData:
+    type: boolean
+    default: true
+    description: |
+      Enable or disable CRC32C checksum verification on Ceph messenger data frames.
+      When set to false, the `ms_crc_data` option in ceph.conf is disabled, which may improve performance at the cost of reduced data integrity checks.
