@@ -59,8 +59,9 @@
   mountPath: /etc/ceph-csi-config/
 - name: etc-ceph-dir
   mountPath: /etc/ceph/
-# - name: ceph-config
-#   mountPath: /etc/ceph/
+- name: ceph-config
+  mountPath: /etc/ceph/ceph.conf
+  subPath: ceph.conf
 - name: keys-tmp-dir
   mountPath: /tmp/csi/keys
 - name: tmp
@@ -159,8 +160,9 @@
   readOnly: true
 - name: etc-ceph-dir
   mountPath: /etc/ceph/
-# - name: ceph-config
-#   mountPath: /etc/ceph/
+- name: ceph-config
+  mountPath: /etc/ceph/ceph.conf
+  subPath: ceph.conf
 - name: ceph-csi-config
   mountPath: /etc/ceph-csi-config/
 - name: keys-tmp-dir

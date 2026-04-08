@@ -19,4 +19,6 @@ data:
       # adding 'fuse_big_writes = true' option by default to override this limit
       # see https://github.com/ceph/ceph-csi/issues/1928
       fuse_big_writes = true
+
+      ms_crc_data = {{ .Values.csiCeph.msCrcData }}
   keyring: ""
