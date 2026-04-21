@@ -1,0 +1,3 @@
+Изменения:
+- Added missing mount points in csi-ceph distroless image
+- Updating base images and lib-helm
