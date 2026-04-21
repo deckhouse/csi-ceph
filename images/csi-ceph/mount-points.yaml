@@ -7,7 +7,5 @@ dirs:
   - /etc/selinux
   - /lib/modules
   - /run/mount
-  - /sys
-  - /sys/fs/cgroup
   - /tmp
   - /tmp/csi/keys
