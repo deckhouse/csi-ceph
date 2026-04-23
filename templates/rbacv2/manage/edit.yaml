@@ -1,0 +1,25 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    heritage: deckhouse
+    module: csi-ceph
+    rbac.deckhouse.io/aggregate-to-storage-as: manager
+    rbac.deckhouse.io/kind: manage
+    rbac.deckhouse.io/level: module
+    rbac.deckhouse.io/namespace: d8-csi-ceph
+  name: d8:manage:permission:module:csi-ceph:edit
+rules:
+  - apiGroups:
+      - storage.deckhouse.io
+    resources:
+      - cephstorageclasses
+      - cephclusterconnections
+      - cephclusterauthentications
+      - cephmetadatabackups
+    verbs:
+      - create
+      - update
+      - patch
+      - delete
+      - deletecollection
