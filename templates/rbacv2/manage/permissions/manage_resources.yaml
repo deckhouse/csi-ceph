@@ -4,11 +4,11 @@ metadata:
   labels:
     heritage: deckhouse
     module: csi-ceph
-    rbac.deckhouse.io/aggregate-to-csi-ceph-as: manager
+    rbac.deckhouse.io/aggregate-to-storage-as: manager
     rbac.deckhouse.io/kind: manage
     rbac.deckhouse.io/level: module
     rbac.deckhouse.io/namespace: d8-csi-ceph
-  name: d8:manage:permission:subsystem:csi-ceph:manage_resources
+  name: d8:manage:permission:module:csi-ceph:manage_resources
 rules:
   - apiGroups:
       - storage.deckhouse.io
