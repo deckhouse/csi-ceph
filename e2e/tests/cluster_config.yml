@@ -2,7 +2,7 @@
 #
 # 1 master + 3 workers — a realistic Rook layout (1 mon/mgr, 3 OSDs with
 # failureDomain=osd or host). Workers are sized to host Rook daemons + the
-# PVC pods we spawn in the 2×2 matrix without risking OOMKills on OSDs.
+# PVC pods we spawn in the targeted CRC matrix without risking OOMKills on OSDs.
 #
 # Modules enabled here are the minimum the e2e harness needs on top of
 # a freshly bootstrapped Deckhouse:

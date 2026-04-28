@@ -20,6 +20,10 @@
 | `false`              | `true`             | `NotBound` |
 | `true`               | `true`             | `Bound` + Pod read/write |
 
+Кейс `server=true, client=false` пропущен осознанно: регрессия находится в
+асимметричном сценарии `server=false, client=true`, а два совпадающих состояния
+проверяют, что явное включение и выключение CRC не ломают provisioning.
+
 Каждый кейс делает одно и то же:
 
 1. меняет server-side CRC через `rook-config-override`
@@ -72,7 +76,7 @@ External mode и in-cluster Job больше не поддерживаются.
 - `E2E_ROOK_OSD_COUNT`:
   по умолчанию `1`
 - `E2E_ROOK_OSD_SIZE`:
-  по умолчанию `20Gi`
+  по умолчанию `10Gi`
 - `E2E_ROOK_CEPH_IMAGE`
 - `E2E_ROOK_CLUSTER_READY_TIMEOUT`
 

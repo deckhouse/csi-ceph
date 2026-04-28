@@ -41,6 +41,9 @@ const (
 )
 
 var _ = Describe("msCrcData matrix", Ordered, func() {
+	// The server=on/client=off quadrant is intentionally omitted: the regression
+	// under test is the asymmetric default-client-on/server-off mismatch. The
+	// remaining two cells prove both explicitly-matching states still provision.
 	matrix := []struct {
 		name      string
 		serverCRC bool

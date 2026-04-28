@@ -19,6 +19,7 @@ package tests
 import (
 	"context"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -99,12 +100,25 @@ func cleanupSuite() {
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Minute)
 	defer cancel()
 
+	var cleanupErrors []string
+	defer func() {
+		cleanupNestedTestCluster()
+		if len(cleanupErrors) > 0 {
+			Fail("suite cleanup failed:\n- " + strings.Join(cleanupErrors, "\n- "))
+		}
+	}()
+
 	if suiteDyn != nil {
 		By("Restoring ModuleConfig msCrcData")
+		var err error
 		if originalMsCrcDataFound {
-			Expect(setModuleConfigSetting(ctx, suiteDyn, moduleConfigName, "msCrcData", originalMsCrcData, false)).To(Succeed())
+			err = setModuleConfigSetting(ctx, suiteDyn, moduleConfigName, "msCrcData", originalMsCrcData, false)
 		} else {
-			Expect(setModuleConfigSetting(ctx, suiteDyn, moduleConfigName, "msCrcData", nil, true)).To(Succeed())
+			err = setModuleConfigSetting(ctx, suiteDyn, moduleConfigName, "msCrcData", nil, true)
+		}
+		if err != nil {
+			GinkgoWriter.Printf("    warning: restore ModuleConfig msCrcData failed: %v\n", err)
+			cleanupErrors = append(cleanupErrors, "restore ModuleConfig msCrcData: "+err.Error())
 		}
 	}
 
@@ -112,11 +126,13 @@ func cleanupSuite() {
 		By("Resetting server-side CRC override to the Ceph default")
 		if err := testkit.ResetServerCRCToDefault(ctx, suiteRestCfg, suiteCfg.rook.Namespace); err != nil {
 			GinkgoWriter.Printf("    warning: ResetServerCRCToDefault failed: %v\n", err)
+			cleanupErrors = append(cleanupErrors, "reset server-side CRC: "+err.Error())
 		}
 
 		By("Deleting the Ceph stack created for the suite")
-		Expect(testkit.TeardownCephStorageClass(ctx, suiteRestCfg, resolveCephSCConfig(suiteCfg))).To(Succeed())
+		if err := testkit.TeardownCephStorageClass(ctx, suiteRestCfg, resolveCephSCConfig(suiteCfg)); err != nil {
+			GinkgoWriter.Printf("    warning: TeardownCephStorageClass failed: %v\n", err)
+			cleanupErrors = append(cleanupErrors, "delete Ceph stack: "+err.Error())
+		}
 	}
-
-	cleanupNestedTestCluster()
 }
