@@ -4,7 +4,7 @@ go 1.26.0
 
 require (
 	github.com/deckhouse/csi-ceph/api v0.0.0-00010101000000-000000000000
-	github.com/deckhouse/storage-e2e v0.0.0-20260428070344-af5b794cbf3e
+	github.com/deckhouse/storage-e2e v0.0.0-20260428074330-fca3bf9a0c1c
 	github.com/onsi/ginkgo/v2 v2.23.3
 	github.com/onsi/gomega v1.37.0
 	k8s.io/api v0.34.1
