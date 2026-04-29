@@ -34,6 +34,9 @@ properties:
     default: true
     description: |
       Enable or disable CRC32C checksum verification on Ceph messenger data frames.
+
       WARNING: Do not disable this option unless you fully understand the consequences. When set to false, the `ms_crc_data` option in ceph.conf is disabled. This reduces Ceph's ability to detect corrupted messenger data frames and may result in silent data corruption, data inconsistency, or data loss.
+
       The recommended and safe value is `true`.
 
+      NOTE: Changing this value only affects new Ceph client operations performed by the CSI driver: new volume provisioning, as well as new attach/mount operations. Already mounted volumes keep using the previous `ms_crc_data` value until they are physically unmounted from the node and mounted again.

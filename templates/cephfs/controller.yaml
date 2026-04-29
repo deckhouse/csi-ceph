@@ -224,6 +224,8 @@
 {{- $csiDriverName := "cephfs.csi.ceph.com" }}
 {{- $csiControllerImage := include "helm_lib_module_image" (list . "csiCeph") }}
 
+{{- $cephConfigChecksum := include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+
 {{- $csiControllerConfig := dict }}
 {{- $_ := set $csiControllerConfig "fullname" "csi-controller-cephfs" }}
 {{- $_ := set $csiControllerConfig "topologyEnabled" false }}
@@ -236,6 +238,7 @@
 {{- $_ := set $csiControllerConfig "additionalControllerVolumeMounts" (include "cephfs_csi_controller_volume_mounts" . | fromYamlArray) }}
 {{- $_ := set $csiControllerConfig "additionalPullSecrets" (include "additional_pull_secrets" . | fromYamlArray) }}
 {{- $_ := set $csiControllerConfig "provisionerWorkers" $cephfsProvisionerWorkers }}
+{{- $_ := set $csiControllerConfig "additionalCsiControllerPodAnnotations" (dict "checksum/ceph-config" $cephConfigChecksum) }}
 
 {{- $_ := set $csiControllerConfig "livenessProbePort" 4246 }}
 
@@ -255,6 +258,7 @@
 {{- $_ := set $csiNodeConfig "additionalNodeVolumeMounts" (include "cephfs_csi_node_volume_mounts" . | fromYamlArray) }}
 {{- $_ := set $csiNodeConfig "additionalPullSecrets" (include "additional_pull_secrets" . | fromYamlArray) }}
 {{- $_ := set $csiNodeConfig "forceCsiNodeAndStaticNodesDepoloy" true }}
+{{- $_ := set $csiNodeConfig "additionalCsiNodePodAnnotations" (dict "checksum/ceph-config" $cephConfigChecksum) }}
 
 {{- include "helm_lib_csi_node_manifests" (list . $csiNodeConfig) }}
 
