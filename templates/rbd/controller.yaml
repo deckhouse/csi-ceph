@@ -292,6 +292,8 @@ memory: 50Mi
 {{- $csiDriverName := "rbd.csi.ceph.com" }}
 {{- $csiControllerImage := include "helm_lib_module_image" (list . "csiCeph") }}
 
+{{- $cephConfigChecksum := include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+
 {{- $csiControllerConfig := dict }}
 {{- $_ := set $csiControllerConfig "fullname" "csi-controller-rbd" }}
 {{- $_ := set $csiControllerConfig "topologyEnabled" false }}
@@ -307,6 +309,7 @@ memory: 50Mi
 {{- $_ := set $csiControllerConfig "runAsRootUser" false }}
 {{- $_ := set $csiControllerConfig "additionalPullSecrets" (include "additional_pull_secrets" . | fromYamlArray) }}
 {{- $_ := set $csiControllerConfig "provisionerWorkers" $rbdProvisionerWorkers }}
+{{- $_ := set $csiControllerConfig "additionalCsiControllerPodAnnotations" (dict "checksum/ceph-config" $cephConfigChecksum) }}
 
 {{- $_ := set $csiControllerConfig "livenessProbePort" 4247 }}
 
@@ -333,6 +336,7 @@ memory: 50Mi
 {{- $_ := set $csiNodeConfig "additionalNodeVolumeMounts" (include "rbd_csi_node_volume_mounts" . | fromYamlArray) }}
 {{- $_ := set $csiNodeConfig "additionalPullSecrets" (include "additional_pull_secrets" . | fromYamlArray) }}
 {{- $_ := set $csiNodeConfig "forceCsiNodeAndStaticNodesDepoloy" true }}
+{{- $_ := set $csiNodeConfig "additionalCsiNodePodAnnotations" (dict "checksum/ceph-config" $cephConfigChecksum) }}
 
 {{- include "helm_lib_csi_node_manifests" (list . $csiNodeConfig) }}
 
