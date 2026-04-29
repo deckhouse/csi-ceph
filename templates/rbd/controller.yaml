@@ -89,9 +89,8 @@ memory: 50Mi
   mountPath: /etc/ceph-csi-config/
 - name: etc-ceph-dir
   mountPath: /etc/ceph/
-- name: ceph-config
-  mountPath: /etc/ceph/ceph.conf
-  subPath: ceph.conf
+  # - name: ceph-config
+  #   mountPath: /etc/ceph/
 - name: keys-tmp-dir
   mountPath: /tmp/csi/keys
 - name: tmp
@@ -167,9 +166,8 @@ memory: 50Mi
       mountPath: /etc/ceph-csi-config/
     - name: etc-ceph-dir
       mountPath: /etc/ceph/
-    - name: ceph-config
-      mountPath: /etc/ceph/ceph.conf
-      subPath: ceph.conf
+    # - name: ceph-config
+    #   mountPath: /etc/ceph/
     - name: keys-tmp-dir
       mountPath: /tmp/csi/keys
     - name: tmp
@@ -234,9 +232,6 @@ memory: 50Mi
   mountPath: /tmp
 - name: etc-ceph-dir
   mountPath: /etc/ceph/
-- name: ceph-config
-  mountPath: /etc/ceph/ceph.conf
-  subPath: ceph.conf
 {{- end }}
 
 
@@ -264,9 +259,6 @@ memory: 50Mi
     items:
       - key: config.json
         path: config.json
-- name: ceph-config
-  configMap:
-    name: ceph-config
 - name: keys-tmp-dir
   emptyDir: {
     medium: "Memory"
