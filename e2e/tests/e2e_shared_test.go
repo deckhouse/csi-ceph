@@ -17,7 +17,6 @@ limitations under the License.
 package tests
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -34,10 +33,8 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/dynamic"
-	kubernetes "k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
-	"k8s.io/client-go/tools/remotecommand"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -48,19 +45,21 @@ import (
 )
 
 const (
-	envTestNamespace        = "E2E_NAMESPACE"
-	envCephStorageClassName = "E2E_CEPH_STORAGE_CLASS"
-	envPVCSize              = "E2E_PVC_SIZE"
-	envRookNamespace        = "E2E_ROOK_NAMESPACE"
-	envRookOSDStorageClass  = "E2E_ROOK_OSD_STORAGE_CLASS"
-	envRookOSDCount         = "E2E_ROOK_OSD_COUNT"
-	envRookOSDSize          = "E2E_ROOK_OSD_SIZE"
-	envRookCephImage        = "E2E_ROOK_CEPH_IMAGE"
-	envRookClusterReadyTO   = "E2E_ROOK_CLUSTER_READY_TIMEOUT"
+	envTestNamespace          = "E2E_NAMESPACE"
+	envCephStorageClassName   = "E2E_CEPH_STORAGE_CLASS"
+	envCephFSStorageClassName = "E2E_CEPHFS_STORAGE_CLASS"
+	envPVCSize                = "E2E_PVC_SIZE"
+	envRookNamespace          = "E2E_ROOK_NAMESPACE"
+	envRookOSDStorageClass    = "E2E_ROOK_OSD_STORAGE_CLASS"
+	envRookOSDCount           = "E2E_ROOK_OSD_COUNT"
+	envRookOSDSize            = "E2E_ROOK_OSD_SIZE"
+	envRookCephImage          = "E2E_ROOK_CEPH_IMAGE"
+	envRookClusterReadyTO     = "E2E_ROOK_CLUSTER_READY_TIMEOUT"
 )
 
 const (
 	defaultTestNamespace       = "csi-ceph-e2e"
+	defaultCephFSSCName        = "ceph-fs"
 	defaultPVCSize             = "1Gi"
 	defaultRookNamespace       = "d8-sds-elastic"
 	defaultOSDBackingClassName = "sds-local-volume-thick"
@@ -71,18 +70,45 @@ const (
 	cephConfigMap    = "ceph-config"
 	cephConfKey      = "ceph.conf"
 
-	rbdControllerDeployment = "csi-controller-rbd"
-	rbdNodeDaemonSet        = "csi-node-rbd"
+	// cephConfigMountDir is the mountPath at which the chart projects
+	// the ceph-config ConfigMap inside the csi-controller-{rbd,cephfs}
+	// pods. Used as the discovery key by findContainerMountingPath when
+	// we don't know the exact container name (chart may have multiple
+	// sidecars; only the driver container actually mounts /etc/ceph).
+	cephConfigMountDir = "/etc/ceph/"
+	// cephConfigPodPath is the path read by the FS-level msCrcData
+	// verification — the same file the running csi driver reads.
+	cephConfigPodPath = "/etc/ceph/ceph.conf"
+
+	rbdControllerDeployment    = "csi-controller-rbd"
+	rbdNodeDaemonSet           = "csi-node-rbd"
+	cephfsControllerDeployment = "csi-controller-cephfs"
+	cephfsNodeDaemonSet        = "csi-node-cephfs"
+
+	cephConfigChecksumAnnotation = "checksum/ceph-config"
 
 	moduleConfigName = "csi-ceph"
 
 	moduleReconcileTimeout        = 3 * time.Minute
-	deploymentReadyTimeout        = 3 * time.Minute
+	autoRolloutTimeout            = 5 * time.Minute
 	pvcBindTimeout                = 5 * time.Minute
 	podReadyTimeout               = 5 * time.Minute
 	pollInterval                  = 5 * time.Second
 	osdBackingStorageClassTimeout = 25 * time.Minute
 	nestedClusterCleanupTimeout   = 10 * time.Minute
+
+	// kubeletSyncTimeout caps the wait for kubelet to project an updated
+	// ConfigMap into a pod's mounted volume after the ConfigMap data
+	// changes. Default kubelet --sync-frequency is 1m; tripled here to
+	// absorb operator restarts and slow apiserver round-trips.
+	kubeletSyncTimeout = 3 * time.Minute
+
+	// steadyWindow is the observation window used by
+	// assertDeploymentSteadyAtAnnotation / assertDaemonSetSteadyAtAnnotation.
+	// We're asserting a NON-event (no rollout, no annotation flip): a
+	// short Consistently window is enough to catch an in-flight rollout
+	// that's about to start, without artificially slowing the matrix.
+	steadyWindow = 15 * time.Second
 )
 
 var moduleConfigGVR = schema.GroupVersionResource{
@@ -92,10 +118,11 @@ var moduleConfigGVR = schema.GroupVersionResource{
 }
 
 type e2eConfig struct {
-	namespace        string
-	cephStorageClass string
-	pvcSize          string
-	rook             rookConfig
+	namespace          string
+	cephStorageClass   string
+	cephFSStorageClass string
+	pvcSize            string
+	rook               rookConfig
 }
 
 type rookConfig struct {
@@ -119,9 +146,10 @@ var (
 
 func loadConfig() e2eConfig {
 	cfg := e2eConfig{
-		namespace:        os.Getenv(envTestNamespace),
-		cephStorageClass: os.Getenv(envCephStorageClassName),
-		pvcSize:          os.Getenv(envPVCSize),
+		namespace:          os.Getenv(envTestNamespace),
+		cephStorageClass:   os.Getenv(envCephStorageClassName),
+		cephFSStorageClass: os.Getenv(envCephFSStorageClassName),
+		pvcSize:            os.Getenv(envPVCSize),
 		rook: rookConfig{
 			Namespace:       os.Getenv(envRookNamespace),
 			OSDStorageClass: os.Getenv(envRookOSDStorageClass),
@@ -132,6 +160,9 @@ func loadConfig() e2eConfig {
 
 	if cfg.namespace == "" {
 		cfg.namespace = defaultTestNamespace
+	}
+	if cfg.cephFSStorageClass == "" {
+		cfg.cephFSStorageClass = defaultCephFSSCName
 	}
 	if cfg.pvcSize == "" {
 		cfg.pvcSize = defaultPVCSize
@@ -263,48 +294,6 @@ func ensureNamespace(ctx context.Context, c client.Client, name string) error {
 	return client.IgnoreAlreadyExists(c.Create(ctx, ns))
 }
 
-func execInPod(
-	ctx context.Context,
-	restCfg *rest.Config,
-	namespace, pod, container string,
-	cmd []string,
-) (string, error) {
-	clientset, err := kubernetes.NewForConfig(restCfg)
-	if err != nil {
-		return "", fmt.Errorf("create clientset: %w", err)
-	}
-
-	req := clientset.CoreV1().RESTClient().Post().
-		Resource("pods").
-		Name(pod).
-		Namespace(namespace).
-		SubResource("exec")
-
-	opts := &corev1.PodExecOptions{
-		Container: container,
-		Command:   cmd,
-		Stdout:    true,
-		Stderr:    true,
-	}
-	req.VersionedParams(opts, scheme.ParameterCodec)
-
-	exec, err := remotecommand.NewSPDYExecutor(restCfg, "POST", req.URL())
-	if err != nil {
-		return "", fmt.Errorf("create SPDY executor: %w", err)
-	}
-
-	var stdout, stderr bytes.Buffer
-	err = exec.StreamWithContext(ctx, remotecommand.StreamOptions{
-		Stdout: &stdout,
-		Stderr: &stderr,
-	})
-	combined := stdout.String() + stderr.String()
-	if err != nil {
-		return combined, fmt.Errorf("exec %v in %s/%s[%s]: %w", cmd, namespace, pod, container, err)
-	}
-	return combined, nil
-}
-
 func getModuleConfigSetting(ctx context.Context, dyn dynamic.Interface, name, key string) (interface{}, bool, error) {
 	mc, err := dyn.Resource(moduleConfigGVR).Get(ctx, name, metav1.GetOptions{})
 	if err != nil {
@@ -412,46 +401,71 @@ func waitCephConfigExcludes(ctx context.Context, c client.Client, needle string,
 	}
 }
 
-func rolloutRestartDeployment(ctx context.Context, c client.Client, namespace, name string) error {
-	patch := []byte(fmt.Sprintf(
-		`{"spec":{"template":{"metadata":{"annotations":{"kubectl.kubernetes.io/restartedAt":%q}}}}}`,
-		time.Now().UTC().Format(time.RFC3339),
-	))
-	return c.Patch(ctx, &appsv1.Deployment{
-		ObjectMeta: metav1.ObjectMeta{Namespace: namespace, Name: name},
-	}, client.RawPatch(types.StrategicMergePatchType, patch))
+// getDeploymentPodTemplateAnnotation reads spec.template.metadata.annotations[key]
+// of a Deployment. Returns "" (no error) when the annotation is not present.
+func getDeploymentPodTemplateAnnotation(ctx context.Context, c client.Client, namespace, name, key string) (string, error) {
+	var d appsv1.Deployment
+	if err := c.Get(ctx, client.ObjectKey{Namespace: namespace, Name: name}, &d); err != nil {
+		return "", fmt.Errorf("get Deployment %s/%s: %w", namespace, name, err)
+	}
+	if d.Spec.Template.Annotations == nil {
+		return "", nil
+	}
+	return d.Spec.Template.Annotations[key], nil
 }
 
-func rolloutRestartDaemonSet(ctx context.Context, c client.Client, namespace, name string) error {
-	patch := []byte(fmt.Sprintf(
-		`{"spec":{"template":{"metadata":{"annotations":{"kubectl.kubernetes.io/restartedAt":%q}}}}}`,
-		time.Now().UTC().Format(time.RFC3339),
-	))
-	return c.Patch(ctx, &appsv1.DaemonSet{
-		ObjectMeta: metav1.ObjectMeta{Namespace: namespace, Name: name},
-	}, client.RawPatch(types.StrategicMergePatchType, patch))
+// getDaemonSetPodTemplateAnnotation reads spec.template.metadata.annotations[key]
+// of a DaemonSet. Returns "" (no error) when the annotation is not present.
+func getDaemonSetPodTemplateAnnotation(ctx context.Context, c client.Client, namespace, name, key string) (string, error) {
+	var ds appsv1.DaemonSet
+	if err := c.Get(ctx, client.ObjectKey{Namespace: namespace, Name: name}, &ds); err != nil {
+		return "", fmt.Errorf("get DaemonSet %s/%s: %w", namespace, name, err)
+	}
+	if ds.Spec.Template.Annotations == nil {
+		return "", nil
+	}
+	return ds.Spec.Template.Annotations[key], nil
 }
 
-func waitDeploymentReady(ctx context.Context, c client.Client, namespace, name string, timeout time.Duration) error {
+// waitDeploymentAutoRollout asserts that the Helm-templated `checksum/ceph-config`
+// annotation on the Deployment's pod template differs from `snapshot` (proving
+// that the chart re-rendered ceph-config and bumped the hash) AND that the
+// Deployment has rolled out: ObservedGeneration >= Generation and the spec'd
+// replica count is fully Updated/Ready/Available. This is the assertion that
+// kubernetes is doing the work — we deliberately do NOT trigger any restart
+// ourselves.
+func waitDeploymentAutoRollout(
+	ctx context.Context,
+	c client.Client,
+	namespace, name, snapshot string,
+	timeout time.Duration,
+) error {
 	deadline := time.Now().Add(timeout)
 	for {
 		var d appsv1.Deployment
 		if err := c.Get(ctx, client.ObjectKey{Namespace: namespace, Name: name}, &d); err != nil {
 			return fmt.Errorf("get Deployment %s/%s: %w", namespace, name, err)
 		}
+		current := ""
+		if d.Spec.Template.Annotations != nil {
+			current = d.Spec.Template.Annotations[cephConfigChecksumAnnotation]
+		}
 		specRepl := int32(1)
 		if d.Spec.Replicas != nil {
 			specRepl = *d.Spec.Replicas
 		}
-		if d.Status.ObservedGeneration >= d.Generation &&
+		if current != snapshot && current != "" &&
+			d.Status.ObservedGeneration >= d.Generation &&
 			d.Status.UpdatedReplicas == specRepl &&
 			d.Status.ReadyReplicas == specRepl &&
 			d.Status.AvailableReplicas == specRepl {
 			return nil
 		}
 		if time.Now().After(deadline) {
-			return fmt.Errorf("timeout waiting for Deployment %s/%s: gen=%d obs=%d updated=%d ready=%d avail=%d (want %d)",
-				namespace, name, d.Generation, d.Status.ObservedGeneration,
+			return fmt.Errorf(
+				"timeout waiting for Deployment %s/%s auto-rollout: %s annotation snapshot=%q current=%q; gen=%d obs=%d updated=%d ready=%d avail=%d (want %d)",
+				namespace, name, cephConfigChecksumAnnotation, snapshot, current,
+				d.Generation, d.Status.ObservedGeneration,
 				d.Status.UpdatedReplicas, d.Status.ReadyReplicas, d.Status.AvailableReplicas, specRepl)
 		}
 		select {
@@ -462,23 +476,142 @@ func waitDeploymentReady(ctx context.Context, c client.Client, namespace, name s
 	}
 }
 
-func waitDaemonSetReady(ctx context.Context, c client.Client, namespace, name string, timeout time.Duration) error {
+// waitDaemonSetAutoRollout is the DaemonSet counterpart of
+// waitDeploymentAutoRollout. Same contract: annotation must flip away from
+// `snapshot` to a non-empty value AND every desired replica must be updated
+// and ready.
+func waitDaemonSetAutoRollout(
+	ctx context.Context,
+	c client.Client,
+	namespace, name, snapshot string,
+	timeout time.Duration,
+) error {
 	deadline := time.Now().Add(timeout)
 	for {
 		var ds appsv1.DaemonSet
 		if err := c.Get(ctx, client.ObjectKey{Namespace: namespace, Name: name}, &ds); err != nil {
 			return fmt.Errorf("get DaemonSet %s/%s: %w", namespace, name, err)
 		}
-		if ds.Status.ObservedGeneration >= ds.Generation &&
+		current := ""
+		if ds.Spec.Template.Annotations != nil {
+			current = ds.Spec.Template.Annotations[cephConfigChecksumAnnotation]
+		}
+		if current != snapshot && current != "" &&
+			ds.Status.ObservedGeneration >= ds.Generation &&
+			ds.Status.DesiredNumberScheduled > 0 &&
 			ds.Status.UpdatedNumberScheduled == ds.Status.DesiredNumberScheduled &&
-			ds.Status.NumberReady == ds.Status.DesiredNumberScheduled &&
-			ds.Status.DesiredNumberScheduled > 0 {
+			ds.Status.NumberReady == ds.Status.DesiredNumberScheduled {
 			return nil
 		}
 		if time.Now().After(deadline) {
-			return fmt.Errorf("timeout waiting for DaemonSet %s/%s: gen=%d obs=%d desired=%d updated=%d ready=%d",
-				namespace, name, ds.Generation, ds.Status.ObservedGeneration,
+			return fmt.Errorf(
+				"timeout waiting for DaemonSet %s/%s auto-rollout: %s annotation snapshot=%q current=%q; gen=%d obs=%d desired=%d updated=%d ready=%d",
+				namespace, name, cephConfigChecksumAnnotation, snapshot, current,
+				ds.Generation, ds.Status.ObservedGeneration,
 				ds.Status.DesiredNumberScheduled, ds.Status.UpdatedNumberScheduled, ds.Status.NumberReady)
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(pollInterval):
+		}
+	}
+}
+
+// assertDeploymentSteadyAtAnnotation is the symmetric counterpart of
+// waitDeploymentAutoRollout: it asserts that during a `settle` window
+// the Deployment's `checksum/ceph-config` pod-template annotation stays
+// equal to `expected` AND the workload remains fully Ready. Used by the
+// msCrcData matrix on the no-op branch — when a cell does not actually
+// change ceph.conf, the chart MUST NOT bump the checksum or trigger a
+// rollout, and that NON-event needs an explicit assertion.
+//
+// Returns an error on the first violating sample (annotation drifted
+// from expected, replicas not ready, generation lag, etc.), so the
+// caller doesn't need to wrap with Eventually/Consistently.
+func assertDeploymentSteadyAtAnnotation(
+	ctx context.Context,
+	c client.Client,
+	namespace, name, expected string,
+	settle time.Duration,
+) error {
+	deadline := time.Now().Add(settle)
+	for {
+		var d appsv1.Deployment
+		if err := c.Get(ctx, client.ObjectKey{Namespace: namespace, Name: name}, &d); err != nil {
+			return fmt.Errorf("get Deployment %s/%s: %w", namespace, name, err)
+		}
+		current := ""
+		if d.Spec.Template.Annotations != nil {
+			current = d.Spec.Template.Annotations[cephConfigChecksumAnnotation]
+		}
+		if current != expected {
+			return fmt.Errorf(
+				"Deployment %s/%s drifted from steady state: %s annotation expected=%q got=%q (after %s of observation)",
+				namespace, name, cephConfigChecksumAnnotation, expected, current, settle-time.Until(deadline))
+		}
+		specRepl := int32(1)
+		if d.Spec.Replicas != nil {
+			specRepl = *d.Spec.Replicas
+		}
+		if d.Status.ObservedGeneration < d.Generation ||
+			d.Status.UpdatedReplicas != specRepl ||
+			d.Status.ReadyReplicas != specRepl ||
+			d.Status.AvailableReplicas != specRepl {
+			return fmt.Errorf(
+				"Deployment %s/%s not at steady ready state: gen=%d obs=%d updated=%d ready=%d avail=%d (want %d)",
+				namespace, name,
+				d.Generation, d.Status.ObservedGeneration,
+				d.Status.UpdatedReplicas, d.Status.ReadyReplicas, d.Status.AvailableReplicas, specRepl)
+		}
+		if time.Now().After(deadline) {
+			return nil
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(pollInterval):
+		}
+	}
+}
+
+// assertDaemonSetSteadyAtAnnotation is the DaemonSet counterpart of
+// assertDeploymentSteadyAtAnnotation. Same contract: the annotation must
+// stay equal to `expected` AND every desired replica must remain
+// updated/ready for the full `settle` window.
+func assertDaemonSetSteadyAtAnnotation(
+	ctx context.Context,
+	c client.Client,
+	namespace, name, expected string,
+	settle time.Duration,
+) error {
+	deadline := time.Now().Add(settle)
+	for {
+		var ds appsv1.DaemonSet
+		if err := c.Get(ctx, client.ObjectKey{Namespace: namespace, Name: name}, &ds); err != nil {
+			return fmt.Errorf("get DaemonSet %s/%s: %w", namespace, name, err)
+		}
+		current := ""
+		if ds.Spec.Template.Annotations != nil {
+			current = ds.Spec.Template.Annotations[cephConfigChecksumAnnotation]
+		}
+		if current != expected {
+			return fmt.Errorf(
+				"DaemonSet %s/%s drifted from steady state: %s annotation expected=%q got=%q (after %s of observation)",
+				namespace, name, cephConfigChecksumAnnotation, expected, current, settle-time.Until(deadline))
+		}
+		if ds.Status.ObservedGeneration < ds.Generation ||
+			ds.Status.DesiredNumberScheduled <= 0 ||
+			ds.Status.UpdatedNumberScheduled != ds.Status.DesiredNumberScheduled ||
+			ds.Status.NumberReady != ds.Status.DesiredNumberScheduled {
+			return fmt.Errorf(
+				"DaemonSet %s/%s not at steady ready state: gen=%d obs=%d desired=%d updated=%d ready=%d",
+				namespace, name,
+				ds.Generation, ds.Status.ObservedGeneration,
+				ds.Status.DesiredNumberScheduled, ds.Status.UpdatedNumberScheduled, ds.Status.NumberReady)
+		}
+		if time.Now().After(deadline) {
+			return nil
 		}
 		select {
 		case <-ctx.Done():
@@ -517,4 +650,41 @@ func resolveCephSCConfig(cfg e2eConfig) testkit.CephStorageClassConfig {
 
 func bootstrapCeph(ctx context.Context, restCfg *rest.Config, cfg e2eConfig) (string, error) {
 	return testkit.EnsureCephStorageClass(ctx, restCfg, resolveCephSCConfig(cfg))
+}
+
+// resolveCephFSSCConfig is the CephFS counterpart of resolveCephSCConfig. It
+// shares the same Rook CephCluster (Namespace / OSDStorageClass / OSDCount)
+// and toggles testkit into the CephFS branch, which provisions a Rook
+// CephFilesystem instead of a CephBlockPool. The CephFS-only knobs
+// (CephFSName, CephFSDataPoolName, ClusterConnectionName /
+// ClusterAuthenticationName) are left unset on purpose: testkit derives them
+// from StorageClassName.
+//
+// SkipClusterTeardown=true ensures TeardownCephStorageClass for the CephFS
+// stack does NOT delete the shared CephCluster / rook-config-override — that
+// teardown is owned by the RBD invocation in cleanupSuite().
+func resolveCephFSSCConfig(cfg e2eConfig) testkit.CephStorageClassConfig {
+	scName := strings.TrimSpace(cfg.cephFSStorageClass)
+	if scName == "" {
+		scName = defaultCephFSSCName
+	}
+	scCfg := testkit.CephStorageClassConfig{
+		StorageClassName:     scName,
+		Namespace:            cfg.rook.Namespace,
+		OSDStorageClass:      cfg.rook.OSDStorageClass,
+		OSDCount:             cfg.rook.OSDCount,
+		OSDSize:              cfg.rook.OSDSize,
+		CephImage:            cfg.rook.CephImage,
+		SkipModuleEnablement: true,
+		SkipClusterTeardown:  true,
+		Type:                 testkit.CephStorageClassTypeCephFS,
+	}
+	if cfg.rook.ClusterReadyTO > 0 {
+		scCfg.CephClusterReadyTimeout = cfg.rook.ClusterReadyTO
+	}
+	return scCfg
+}
+
+func bootstrapCephFS(ctx context.Context, restCfg *rest.Config, cfg e2eConfig) (string, error) {
+	return testkit.EnsureCephStorageClass(ctx, restCfg, resolveCephFSSCConfig(cfg))
 }

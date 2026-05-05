@@ -30,6 +30,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	storagekube "github.com/deckhouse/storage-e2e/pkg/kubernetes"
 	"github.com/deckhouse/storage-e2e/pkg/testkit"
 )
 
@@ -40,7 +41,14 @@ const (
 	expectNoBind
 )
 
-var _ = Describe("msCrcData matrix", Ordered, func() {
+type cephProtocol string
+
+const (
+	protocolRBD    cephProtocol = "rbd"
+	protocolCephFS cephProtocol = "cephfs"
+)
+
+var _ = Describe("msCrcData matrix", func() {
 	// The server=on/client=off quadrant is intentionally omitted: the regression
 	// under test is the asymmetric default-client-on/server-off mismatch. The
 	// remaining two cells prove both explicitly-matching states still provision.
@@ -70,25 +78,86 @@ var _ = Describe("msCrcData matrix", Ordered, func() {
 		},
 	}
 
-	for i := range matrix {
-		tc := matrix[i]
-		It(tc.name, func() {
-			ctx, cancel := context.WithTimeout(context.Background(), 20*time.Minute)
-			defer cancel()
+	for _, p := range []cephProtocol{protocolRBD, protocolCephFS} {
+		proto := p
+		Context("protocol="+string(proto), Ordered, func() {
+			for i := range matrix {
+				tc := matrix[i]
+				It(tc.name, func() {
+					ctx, cancel := context.WithTimeout(context.Background(), 20*time.Minute)
+					defer cancel()
 
-			runMatrixCase(ctx, tc.serverCRC, tc.clientCRC, tc.expect)
+					runMatrixCase(ctx, proto, tc.serverCRC, tc.clientCRC, tc.expect)
+				})
+			}
 		})
 	}
 })
 
-func runMatrixCase(ctx context.Context, serverCRC, clientCRC bool, expect matrixExpectation) {
+func runMatrixCase(ctx context.Context, proto cephProtocol, serverCRC, clientCRC bool, expect matrixExpectation) {
 	GinkgoHelper()
 	applyMatrixCell(ctx, serverCRC, clientCRC)
-	runPVCScenario(ctx, serverCRC, clientCRC, expect)
+	runPVCScenario(ctx, proto, serverCRC, clientCRC, expect)
 }
 
+// applyMatrixCell flips server- and client-side CRC settings and asserts
+// that csi-ceph reacts correctly. The reaction depends on whether the
+// flip actually changes the rendered ceph.conf body (it doesn't if a
+// previous cell already left the same target value behind):
+//
+//   - changed: all four CSI workloads must auto-rollout — checksum/ceph-config
+//     pod-template annotation flips and the rolling update completes.
+//   - unchanged: all four CSI workloads must stay steady — no spurious
+//     checksum bump, no spurious rollout.
+//
+// The "did the body change?" signal is taken directly from the pod
+// filesystem (/etc/ceph/ceph.conf inside the csi-controller container)
+// via an injected ephemeral container — the previous annotation-only
+// signal was unreliable both ways: it lied about no-op flips when the
+// chart re-rendered identical bytes, and it never proved the new value
+// actually reached the running pod's filesystem.
 func applyMatrixCell(ctx context.Context, serverCRC, clientCRC bool) {
 	GinkgoHelper()
+
+	By("Snapshotting checksum/ceph-config on all four CSI workloads before the flip")
+	rbdCtrlSnap, err := getDeploymentPodTemplateAnnotation(ctx, suiteK8s, csiCephNamespace, rbdControllerDeployment, cephConfigChecksumAnnotation)
+	Expect(err).NotTo(HaveOccurred(), "snapshot checksum on %s", rbdControllerDeployment)
+	rbdNodeSnap, err := getDaemonSetPodTemplateAnnotation(ctx, suiteK8s, csiCephNamespace, rbdNodeDaemonSet, cephConfigChecksumAnnotation)
+	Expect(err).NotTo(HaveOccurred(), "snapshot checksum on %s", rbdNodeDaemonSet)
+	fsCtrlSnap, err := getDeploymentPodTemplateAnnotation(ctx, suiteK8s, csiCephNamespace, cephfsControllerDeployment, cephConfigChecksumAnnotation)
+	Expect(err).NotTo(HaveOccurred(), "snapshot checksum on %s", cephfsControllerDeployment)
+	fsNodeSnap, err := getDaemonSetPodTemplateAnnotation(ctx, suiteK8s, csiCephNamespace, cephfsNodeDaemonSet, cephConfigChecksumAnnotation)
+	Expect(err).NotTo(HaveOccurred(), "snapshot checksum on %s", cephfsNodeDaemonSet)
+
+	By("Snapshotting /etc/ceph/ceph.conf inside the csi-controller-{rbd,cephfs} pods before the flip")
+	rbdCtrlPod, err := latestReadyPod(ctx, suiteK8s, csiCephNamespace, rbdControllerDeployment)
+	Expect(err).NotTo(HaveOccurred(), "find Ready pod for %s", rbdControllerDeployment)
+	rbdCtrlContainer := findContainerMountingPath(rbdCtrlPod, cephConfigMountDir)
+	Expect(rbdCtrlContainer).NotTo(BeEmpty(),
+		"no container in %s/%s mounts %s", csiCephNamespace, rbdCtrlPod.Name, cephConfigMountDir)
+
+	fsCtrlPod, err := latestReadyPod(ctx, suiteK8s, csiCephNamespace, cephfsControllerDeployment)
+	Expect(err).NotTo(HaveOccurred(), "find Ready pod for %s", cephfsControllerDeployment)
+	fsCtrlContainer := findContainerMountingPath(fsCtrlPod, cephConfigMountDir)
+	Expect(fsCtrlContainer).NotTo(BeEmpty(),
+		"no container in %s/%s mounts %s", csiCephNamespace, fsCtrlPod.Name, cephConfigMountDir)
+
+	snapshotCtx, snapshotCancel := context.WithTimeout(ctx, 90*time.Second)
+	defer snapshotCancel()
+
+	rbdCtrlOldBody, err := storagekube.ReadFileFromDistrolessPod(
+		snapshotCtx, suiteRestCfg, csiCephNamespace, rbdCtrlPod.Name, rbdCtrlContainer,
+		cephConfigPodPath, storagekube.ReadFileOptions{},
+	)
+	Expect(err).NotTo(HaveOccurred(), "snapshot %s in %s/%s[%s]",
+		cephConfigPodPath, csiCephNamespace, rbdCtrlPod.Name, rbdCtrlContainer)
+
+	fsCtrlOldBody, err := storagekube.ReadFileFromDistrolessPod(
+		snapshotCtx, suiteRestCfg, csiCephNamespace, fsCtrlPod.Name, fsCtrlContainer,
+		cephConfigPodPath, storagekube.ReadFileOptions{},
+	)
+	Expect(err).NotTo(HaveOccurred(), "snapshot %s in %s/%s[%s]",
+		cephConfigPodPath, csiCephNamespace, fsCtrlPod.Name, fsCtrlContainer)
 
 	if serverCRC {
 		By("Enabling server-side CRC on the Ceph cluster")
@@ -107,31 +176,69 @@ func applyMatrixCell(ctx context.Context, serverCRC, clientCRC bool) {
 		Expect(waitCephConfigContains(ctx, suiteK8s, "ms_crc_data = false", moduleReconcileTimeout)).To(Succeed())
 	}
 
-	By("Restarting csi-controller-rbd and csi-node-rbd")
-	Expect(rolloutRestartDeployment(ctx, suiteK8s, csiCephNamespace, rbdControllerDeployment)).To(Succeed())
-	Expect(rolloutRestartDaemonSet(ctx, suiteK8s, csiCephNamespace, rbdNodeDaemonSet)).To(Succeed())
-	Expect(waitDeploymentReady(ctx, suiteK8s, csiCephNamespace, rbdControllerDeployment, deploymentReadyTimeout)).To(Succeed())
-	Expect(waitDaemonSetReady(ctx, suiteK8s, csiCephNamespace, rbdNodeDaemonSet, deploymentReadyTimeout)).To(Succeed())
+	predicate := func(body string) bool {
+		if clientCRC {
+			return !strings.Contains(body, "ms_crc_data = false")
+		}
+		return strings.Contains(body, "ms_crc_data = false")
+	}
+
+	By("Waiting for /etc/ceph/ceph.conf in csi-controller-rbd to reflect the target ms_crc_data value")
+	rbdCtrlNewBody, err := eventuallyPodFileMatches(
+		ctx, suiteRestCfg, suiteK8s, csiCephNamespace, rbdControllerDeployment,
+		rbdCtrlContainer, cephConfigPodPath, predicate, kubeletSyncTimeout,
+	)
+	Expect(err).NotTo(HaveOccurred(),
+		"FS-level verification on csi-controller-rbd; last body=%q", rbdCtrlNewBody)
+
+	By("Waiting for /etc/ceph/ceph.conf in csi-controller-cephfs to reflect the target ms_crc_data value")
+	fsCtrlNewBody, err := eventuallyPodFileMatches(
+		ctx, suiteRestCfg, suiteK8s, csiCephNamespace, cephfsControllerDeployment,
+		fsCtrlContainer, cephConfigPodPath, predicate, kubeletSyncTimeout,
+	)
+	Expect(err).NotTo(HaveOccurred(),
+		"FS-level verification on csi-controller-cephfs; last body=%q", fsCtrlNewBody)
+
+	configChanged := rbdCtrlOldBody != rbdCtrlNewBody || fsCtrlOldBody != fsCtrlNewBody
+
+	if configChanged {
+		By("ceph.conf body changed → asserting auto-rollout on all four CSI workloads")
+		Expect(waitDeploymentAutoRollout(ctx, suiteK8s, csiCephNamespace, rbdControllerDeployment, rbdCtrlSnap, autoRolloutTimeout)).To(Succeed())
+		Expect(waitDaemonSetAutoRollout(ctx, suiteK8s, csiCephNamespace, rbdNodeDaemonSet, rbdNodeSnap, autoRolloutTimeout)).To(Succeed())
+		Expect(waitDeploymentAutoRollout(ctx, suiteK8s, csiCephNamespace, cephfsControllerDeployment, fsCtrlSnap, autoRolloutTimeout)).To(Succeed())
+		Expect(waitDaemonSetAutoRollout(ctx, suiteK8s, csiCephNamespace, cephfsNodeDaemonSet, fsNodeSnap, autoRolloutTimeout)).To(Succeed())
+		return
+	}
+
+	By("ceph.conf body unchanged → asserting all four CSI workloads stay steady at the snapshot annotation (no spurious rollout)")
+	Expect(assertDeploymentSteadyAtAnnotation(ctx, suiteK8s, csiCephNamespace, rbdControllerDeployment, rbdCtrlSnap, steadyWindow)).To(Succeed())
+	Expect(assertDaemonSetSteadyAtAnnotation(ctx, suiteK8s, csiCephNamespace, rbdNodeDaemonSet, rbdNodeSnap, steadyWindow)).To(Succeed())
+	Expect(assertDeploymentSteadyAtAnnotation(ctx, suiteK8s, csiCephNamespace, cephfsControllerDeployment, fsCtrlSnap, steadyWindow)).To(Succeed())
+	Expect(assertDaemonSetSteadyAtAnnotation(ctx, suiteK8s, csiCephNamespace, cephfsNodeDaemonSet, fsNodeSnap, steadyWindow)).To(Succeed())
 }
 
-func runPVCScenario(ctx context.Context, serverCRC, clientCRC bool, expect matrixExpectation) {
+func runPVCScenario(ctx context.Context, proto cephProtocol, serverCRC, clientCRC bool, expect matrixExpectation) {
 	GinkgoHelper()
 
 	stamp := time.Now().UnixNano()
-	pvcName := fmt.Sprintf("pvc-matrix-s%v-c%v-%d", serverCRC, clientCRC, stamp)
-	podName := fmt.Sprintf("pod-matrix-s%v-c%v-%d", serverCRC, clientCRC, stamp)
-	testContent := fmt.Sprintf("ceph-matrix server=%v client=%v ts=%d", serverCRC, clientCRC, stamp)
+	pvcName := fmt.Sprintf("pvc-matrix-%s-s%v-c%v-%d", proto, serverCRC, clientCRC, stamp)
+	podName := fmt.Sprintf("pod-matrix-%s-s%v-c%v-%d", proto, serverCRC, clientCRC, stamp)
+	testContent := fmt.Sprintf("ceph-matrix protocol=%s server=%v client=%v ts=%d", proto, serverCRC, clientCRC, stamp)
 
 	size, err := resource.ParseQuantity(suiteCfg.pvcSize)
 	Expect(err).NotTo(HaveOccurred(), "parse E2E_PVC_SIZE=%q", suiteCfg.pvcSize)
 
 	sc := suiteCfg.cephStorageClass
+	if proto == protocolCephFS {
+		sc = suiteCfg.cephFSStorageClass
+	}
 	pvc := &corev1.PersistentVolumeClaim{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      pvcName,
 			Namespace: suiteCfg.namespace,
 			Labels: map[string]string{
 				"app.kubernetes.io/managed-by": "csi-ceph-e2e",
+				"ceph.matrix.protocol":         string(proto),
 				"ceph.matrix.server-crc":       fmt.Sprintf("%v", serverCRC),
 				"ceph.matrix.client-crc":       fmt.Sprintf("%v", clientCRC),
 			},
@@ -145,15 +252,39 @@ func runPVCScenario(ctx context.Context, serverCRC, clientCRC bool, expect matri
 		},
 	}
 
-	By(fmt.Sprintf("Creating PVC %s/%s", pvc.Namespace, pvc.Name))
+	By(fmt.Sprintf("Creating PVC %s/%s on StorageClass %s", pvc.Namespace, pvc.Name, sc))
 	Expect(suiteK8s.Create(ctx, pvc)).To(Succeed())
 
-	defer func() {
-		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 2*time.Minute)
-		defer cleanupCancel()
+	// Cleanup runs in Ginkgo's cleanup phase (LIFO). Registered FIRST so
+	// it runs LAST — the diagnostics dump below needs to see the PVC and
+	// Pod still alive in the cluster.
+	DeferCleanup(func(cleanupCtx SpecContext) {
 		_ = suiteK8s.Delete(cleanupCtx, &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Name: podName, Namespace: suiteCfg.namespace}})
 		_ = suiteK8s.Delete(cleanupCtx, &corev1.PersistentVolumeClaim{ObjectMeta: metav1.ObjectMeta{Name: pvcName, Namespace: suiteCfg.namespace}})
-	}()
+	}, NodeTimeout(2*time.Minute))
+
+	// Diagnostics on failure. We use DeferCleanup (not a raw `defer`) on
+	// purpose: CurrentSpecReport().Failed() is only guaranteed to reflect
+	// the final spec state in Ginkgo's cleanup phase; inside a raw defer
+	// running during runtime.Goexit unwinding it can return false, which
+	// would silently skip the dump (this is exactly what bit us before —
+	// the test was failing without ever printing diagnostics).
+	//
+	// Registered AFTER the cleanup callback, so by Ginkgo's LIFO ordering
+	// this runs FIRST — i.e. while the PVC / Pod are still alive in the
+	// cluster — and emits its own header line as soon as it enters, so a
+	// passing-but-still-running spec produces zero noise but a failed spec
+	// makes the diagnostic block immediately greppable.
+	DeferCleanup(func(diagCtx SpecContext) {
+		report := CurrentSpecReport()
+		fmt.Fprintf(GinkgoWriter,
+			"\ndiag: cleanup entered (spec=%q, failed=%v, state=%s)\n",
+			report.LeafNodeText, report.Failed(), report.State)
+		if !report.Failed() {
+			return
+		}
+		dumpFailedSpecDiagnostics(diagCtx, proto, pvcName)
+	}, NodeTimeout(2*time.Minute))
 
 	switch expect {
 	case expectBind:
@@ -236,7 +367,7 @@ func verifyProbeFile(ctx context.Context, namespace, podName, expected string) {
 	execCtx, execCancel := context.WithTimeout(ctx, 30*time.Second)
 	defer execCancel()
 
-	out, err := execInPod(execCtx, suiteRestCfg, namespace, podName, "writer", []string{"cat", "/data/probe.txt"})
-	Expect(err).NotTo(HaveOccurred(), "exec cat /data/probe.txt: %s", out)
+	out, err := storagekube.ReadFileFromPod(execCtx, suiteRestCfg, namespace, podName, "writer", "/data/probe.txt")
+	Expect(err).NotTo(HaveOccurred(), "read /data/probe.txt: %s", out)
 	Expect(strings.TrimSpace(out)).To(Equal(expected))
 }
