@@ -18,8 +18,10 @@ package tests
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -226,19 +228,61 @@ func applyMatrixCell(ctx context.Context, serverCRC, clientCRC bool) {
 	configChanged := rbdCtrlOldBody != rbdCtrlNewBody || fsCtrlOldBody != fsCtrlNewBody
 
 	if configChanged {
-		By("ceph.conf body changed → asserting auto-rollout on all four CSI workloads")
-		Expect(waitDeploymentAutoRollout(ctx, suiteK8s, csiCephNamespace, rbdControllerDeployment, rbdCtrlSnap, autoRolloutTimeout)).To(Succeed())
-		Expect(waitDaemonSetAutoRollout(ctx, suiteK8s, csiCephNamespace, rbdNodeDaemonSet, rbdNodeSnap, autoRolloutTimeout)).To(Succeed())
-		Expect(waitDeploymentAutoRollout(ctx, suiteK8s, csiCephNamespace, cephfsControllerDeployment, fsCtrlSnap, autoRolloutTimeout)).To(Succeed())
-		Expect(waitDaemonSetAutoRollout(ctx, suiteK8s, csiCephNamespace, cephfsNodeDaemonSet, fsNodeSnap, autoRolloutTimeout)).To(Succeed())
+		By("ceph.conf body changed → asserting auto-rollout on all four CSI workloads (in parallel)")
+		Expect(runInParallel(
+			func() error {
+				return waitDeploymentAutoRollout(ctx, suiteK8s, csiCephNamespace, rbdControllerDeployment, rbdCtrlSnap, autoRolloutTimeout)
+			},
+			func() error {
+				return waitDaemonSetAutoRollout(ctx, suiteK8s, csiCephNamespace, rbdNodeDaemonSet, rbdNodeSnap, autoRolloutTimeout)
+			},
+			func() error {
+				return waitDeploymentAutoRollout(ctx, suiteK8s, csiCephNamespace, cephfsControllerDeployment, fsCtrlSnap, autoRolloutTimeout)
+			},
+			func() error {
+				return waitDaemonSetAutoRollout(ctx, suiteK8s, csiCephNamespace, cephfsNodeDaemonSet, fsNodeSnap, autoRolloutTimeout)
+			},
+		)).To(Succeed())
 		return
 	}
 
-	By("ceph.conf body unchanged → asserting all four CSI workloads stay steady at the snapshot annotation (no spurious rollout)")
-	Expect(assertDeploymentSteadyAtAnnotation(ctx, suiteK8s, csiCephNamespace, rbdControllerDeployment, rbdCtrlSnap, steadyWindow)).To(Succeed())
-	Expect(assertDaemonSetSteadyAtAnnotation(ctx, suiteK8s, csiCephNamespace, rbdNodeDaemonSet, rbdNodeSnap, steadyWindow)).To(Succeed())
-	Expect(assertDeploymentSteadyAtAnnotation(ctx, suiteK8s, csiCephNamespace, cephfsControllerDeployment, fsCtrlSnap, steadyWindow)).To(Succeed())
-	Expect(assertDaemonSetSteadyAtAnnotation(ctx, suiteK8s, csiCephNamespace, cephfsNodeDaemonSet, fsNodeSnap, steadyWindow)).To(Succeed())
+	By("ceph.conf body unchanged → asserting all four CSI workloads stay steady at the snapshot annotation (no spurious rollout) — 4×steadyWindow observed in parallel")
+	Expect(runInParallel(
+		func() error {
+			return assertDeploymentSteadyAtAnnotation(ctx, suiteK8s, csiCephNamespace, rbdControllerDeployment, rbdCtrlSnap, steadyWindow)
+		},
+		func() error {
+			return assertDaemonSetSteadyAtAnnotation(ctx, suiteK8s, csiCephNamespace, rbdNodeDaemonSet, rbdNodeSnap, steadyWindow)
+		},
+		func() error {
+			return assertDeploymentSteadyAtAnnotation(ctx, suiteK8s, csiCephNamespace, cephfsControllerDeployment, fsCtrlSnap, steadyWindow)
+		},
+		func() error {
+			return assertDaemonSetSteadyAtAnnotation(ctx, suiteK8s, csiCephNamespace, cephfsNodeDaemonSet, fsNodeSnap, steadyWindow)
+		},
+	)).To(Succeed())
+}
+
+// runInParallel runs each fn in its own goroutine and returns the
+// joined error after all have finished. Used to fan out the four
+// per-workload steady/rollout assertions inside applyMatrixCell so
+// that the four 15s observation windows (or four rollout waits)
+// elapse concurrently instead of summing up. Joined error preserves
+// every failure verbatim — handy for diagnosing which workload
+// drifted.
+func runInParallel(fns ...func() error) error {
+	errs := make([]error, len(fns))
+	var wg sync.WaitGroup
+	wg.Add(len(fns))
+	for i, fn := range fns {
+		i, fn := i, fn
+		go func() {
+			defer wg.Done()
+			errs[i] = fn()
+		}()
+	}
+	wg.Wait()
+	return errors.Join(errs...)
 }
 
 func runPVCScenario(ctx context.Context, proto cephProtocol, serverCRC, clientCRC bool, expect matrixExpectation) {
