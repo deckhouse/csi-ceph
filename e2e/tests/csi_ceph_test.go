@@ -376,7 +376,7 @@ func runPVCScenario(ctx context.Context, proto cephProtocol, serverCRC, clientCR
 			g.Expect(suiteK8s.Get(ctx, client.ObjectKeyFromObject(pvc), &current)).To(Succeed())
 			lastPhase = current.Status.Phase
 			g.Expect(current.Status.Phase).NotTo(Equal(corev1.ClaimBound))
-		}, pvcBindTimeout, 15*time.Second).Should(Succeed())
+		}, pvcNotBoundWindow, 15*time.Second).Should(Succeed())
 		GinkgoWriter.Printf("PVC stayed in phase=%s for the full observation window\n", lastPhase)
 	}
 }

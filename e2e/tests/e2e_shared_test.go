@@ -92,6 +92,7 @@ const (
 	moduleReconcileTimeout        = 3 * time.Minute
 	autoRolloutTimeout            = 5 * time.Minute
 	pvcBindTimeout                = 5 * time.Minute
+	pvcNotBoundWindow             = 1 * time.Minute
 	podReadyTimeout               = 5 * time.Minute
 	pollInterval                  = 5 * time.Second
 	osdBackingStorageClassTimeout = 25 * time.Minute
