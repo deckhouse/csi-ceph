@@ -80,7 +80,14 @@ var _ = Describe("msCrcData matrix", func() {
 
 	for _, p := range []cephProtocol{protocolRBD, protocolCephFS} {
 		proto := p
-		Context("protocol="+string(proto), Ordered, func() {
+		// No Ordered: after the FS-snapshot rework applyMatrixCell is
+		// idempotent (sets server/client to the cell target unconditionally,
+		// then asserts via real ceph.conf delta — not via residual state),
+		// so cells and protocols are safe to interleave. Combined with
+		// RandomizeAllSpecs in TestCsiCeph this gives a fully randomized
+		// matrix per run; the seed is logged at suite start and can be
+		// pinned with -ginkgo.seed=<N> for reproduction.
+		Context("protocol="+string(proto), func() {
 			for i := range matrix {
 				tc := matrix[i]
 				It(tc.name, func() {
@@ -129,7 +136,7 @@ func applyMatrixCell(ctx context.Context, serverCRC, clientCRC bool) {
 	fsNodeSnap, err := getDaemonSetPodTemplateAnnotation(ctx, suiteK8s, csiCephNamespace, cephfsNodeDaemonSet, cephConfigChecksumAnnotation)
 	Expect(err).NotTo(HaveOccurred(), "snapshot checksum on %s", cephfsNodeDaemonSet)
 
-	By("Snapshotting /etc/ceph/ceph.conf inside the csi-controller-{rbd,cephfs} pods before the flip")
+	By("Opening distroless readers and snapshotting /etc/ceph/ceph.conf inside the csi-controller-{rbd,cephfs} pods")
 	rbdCtrlPod, err := latestReadyPod(ctx, suiteK8s, csiCephNamespace, rbdControllerDeployment)
 	Expect(err).NotTo(HaveOccurred(), "find Ready pod for %s", rbdControllerDeployment)
 	rbdCtrlContainer := findContainerMountingPath(rbdCtrlPod, cephConfigMountDir)
@@ -142,20 +149,33 @@ func applyMatrixCell(ctx context.Context, serverCRC, clientCRC bool) {
 	Expect(fsCtrlContainer).NotTo(BeEmpty(),
 		"no container in %s/%s mounts %s", csiCephNamespace, fsCtrlPod.Name, cephConfigMountDir)
 
-	snapshotCtx, snapshotCancel := context.WithTimeout(ctx, 90*time.Second)
-	defer snapshotCancel()
+	// One ephemeral container per pod for the whole cell. Open them
+	// before the flip and reuse for both the pre-flip snapshot and the
+	// post-flip eventually-poll: re-injecting per poll burned ~20s of
+	// kubelet container-start latency per iteration, which dominated
+	// matrix runtime. See storagekube.DistrolessReader.
+	openCtx, openCancel := context.WithTimeout(ctx, 2*time.Minute)
+	defer openCancel()
 
-	rbdCtrlOldBody, err := storagekube.ReadFileFromDistrolessPod(
-		snapshotCtx, suiteRestCfg, csiCephNamespace, rbdCtrlPod.Name, rbdCtrlContainer,
-		cephConfigPodPath, storagekube.ReadFileOptions{},
+	rbdReader, err := storagekube.OpenDistrolessReader(
+		openCtx, suiteRestCfg, csiCephNamespace, rbdCtrlPod.Name, rbdCtrlContainer,
+		storagekube.ReadFileOptions{},
 	)
+	Expect(err).NotTo(HaveOccurred(), "open distroless reader on %s/%s[%s]",
+		csiCephNamespace, rbdCtrlPod.Name, rbdCtrlContainer)
+
+	fsReader, err := storagekube.OpenDistrolessReader(
+		openCtx, suiteRestCfg, csiCephNamespace, fsCtrlPod.Name, fsCtrlContainer,
+		storagekube.ReadFileOptions{},
+	)
+	Expect(err).NotTo(HaveOccurred(), "open distroless reader on %s/%s[%s]",
+		csiCephNamespace, fsCtrlPod.Name, fsCtrlContainer)
+
+	rbdCtrlOldBody, err := rbdReader.ReadFile(openCtx, cephConfigPodPath)
 	Expect(err).NotTo(HaveOccurred(), "snapshot %s in %s/%s[%s]",
 		cephConfigPodPath, csiCephNamespace, rbdCtrlPod.Name, rbdCtrlContainer)
 
-	fsCtrlOldBody, err := storagekube.ReadFileFromDistrolessPod(
-		snapshotCtx, suiteRestCfg, csiCephNamespace, fsCtrlPod.Name, fsCtrlContainer,
-		cephConfigPodPath, storagekube.ReadFileOptions{},
-	)
+	fsCtrlOldBody, err := fsReader.ReadFile(openCtx, cephConfigPodPath)
 	Expect(err).NotTo(HaveOccurred(), "snapshot %s in %s/%s[%s]",
 		cephConfigPodPath, csiCephNamespace, fsCtrlPod.Name, fsCtrlContainer)
 
@@ -184,17 +204,15 @@ func applyMatrixCell(ctx context.Context, serverCRC, clientCRC bool) {
 	}
 
 	By("Waiting for /etc/ceph/ceph.conf in csi-controller-rbd to reflect the target ms_crc_data value")
-	rbdCtrlNewBody, err := eventuallyPodFileMatches(
-		ctx, suiteRestCfg, suiteK8s, csiCephNamespace, rbdControllerDeployment,
-		rbdCtrlContainer, cephConfigPodPath, predicate, kubeletSyncTimeout,
+	rbdCtrlNewBody, err := eventuallyReaderFileMatches(
+		ctx, rbdReader, cephConfigPodPath, predicate, kubeletSyncTimeout,
 	)
 	Expect(err).NotTo(HaveOccurred(),
 		"FS-level verification on csi-controller-rbd; last body=%q", rbdCtrlNewBody)
 
 	By("Waiting for /etc/ceph/ceph.conf in csi-controller-cephfs to reflect the target ms_crc_data value")
-	fsCtrlNewBody, err := eventuallyPodFileMatches(
-		ctx, suiteRestCfg, suiteK8s, csiCephNamespace, cephfsControllerDeployment,
-		fsCtrlContainer, cephConfigPodPath, predicate, kubeletSyncTimeout,
+	fsCtrlNewBody, err := eventuallyReaderFileMatches(
+		ctx, fsReader, cephConfigPodPath, predicate, kubeletSyncTimeout,
 	)
 	Expect(err).NotTo(HaveOccurred(),
 		"FS-level verification on csi-controller-cephfs; last body=%q", fsCtrlNewBody)

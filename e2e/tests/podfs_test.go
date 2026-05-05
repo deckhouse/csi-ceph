@@ -23,7 +23,6 @@ import (
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	storagekube "github.com/deckhouse/storage-e2e/pkg/kubernetes"
@@ -101,24 +100,26 @@ func isPodReady(p *corev1.Pod) bool {
 	return false
 }
 
-// eventuallyPodFileMatches polls the latest Ready pod of the given
-// Deployment/DaemonSet `appLabel` and reads `path` from `targetContainer`
-// (treated as distroless — the read goes through an injected ephemeral
-// container, see storagekube.ReadFileFromDistrolessPod) until `predicate`
-// returns true on the file body, or `timeout` elapses.
+// eventuallyReaderFileMatches polls reader.ReadFile(path) until the
+// predicate returns true on the file body, or `timeout` elapses, and
+// returns the last successfully read body.
 //
-// Returns the last successfully read body. Useful as the post-flip
-// snapshot — caller compares it to the pre-flip body to decide whether
-// a rollout is expected.
+// Critical perf note: this expects a pre-opened DistrolessReader, NOT
+// a pod name. Each iteration is then just one pods/exec round-trip
+// (sub-second) — the expensive ephemeral-container cold-start is paid
+// ONCE by the caller via storagekube.OpenDistrolessReader. A previous
+// implementation that injected a fresh ephemeral container per
+// iteration burned ~20s/poll on kubelet container-start latency, so
+// even a "predicate matches in <30s" case could spend 2 minutes inside
+// this loop. Don't reintroduce that pattern.
 //
 // kubeletSyncTimeout is the right ballpark for `timeout`: projected
 // ConfigMap volumes are synced into pod mounts no slower than kubelet's
 // `--sync-frequency` (default 1m).
-func eventuallyPodFileMatches(
+func eventuallyReaderFileMatches(
 	ctx context.Context,
-	restCfg *rest.Config,
-	c client.Client,
-	namespace, appLabel, targetContainer, path string,
+	reader *storagekube.DistrolessReader,
+	path string,
 	predicate func(string) bool,
 	timeout time.Duration,
 ) (string, error) {
@@ -130,32 +131,24 @@ func eventuallyPodFileMatches(
 		lastErr  error
 	)
 	for {
-		pod, err := latestReadyPod(deadlineCtx, c, namespace, appLabel)
-		if err != nil {
-			lastErr = err
-		} else {
-			body, err := storagekube.ReadFileFromDistrolessPod(
-				deadlineCtx, restCfg, namespace, pod.Name, targetContainer, path,
-				storagekube.ReadFileOptions{},
-			)
-			if err == nil {
-				lastBody = body
-				if predicate(body) {
-					return body, nil
-				}
-			} else {
-				lastErr = err
+		body, err := reader.ReadFile(deadlineCtx, path)
+		if err == nil {
+			lastBody = body
+			if predicate(body) {
+				return body, nil
 			}
+		} else {
+			lastErr = err
 		}
 
 		select {
 		case <-deadlineCtx.Done():
 			if lastErr != nil {
-				return lastBody, fmt.Errorf("timeout (%s) waiting for %s in %s/app=%s to satisfy predicate; last error: %w",
-					timeout, path, namespace, appLabel, lastErr)
+				return lastBody, fmt.Errorf("timeout (%s) waiting for %s via reader pod=%s ec=%s to satisfy predicate; last error: %w",
+					timeout, path, reader.PodName(), reader.EphemeralName(), lastErr)
 			}
-			return lastBody, fmt.Errorf("timeout (%s) waiting for %s in %s/app=%s to satisfy predicate; last body=%q",
-				timeout, path, namespace, appLabel, lastBody)
+			return lastBody, fmt.Errorf("timeout (%s) waiting for %s via reader pod=%s ec=%s to satisfy predicate; last body=%q",
+				timeout, path, reader.PodName(), reader.EphemeralName(), lastBody)
 		case <-time.After(pollInterval):
 		}
 	}

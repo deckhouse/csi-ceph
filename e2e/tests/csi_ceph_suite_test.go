@@ -47,6 +47,14 @@ func TestCsiCeph(t *testing.T) {
 		suiteConfig.FailFast = true
 		suiteConfig.Timeout = 130 * time.Minute
 	}
+	// Randomize across the whole spec tree, not just top-level Describes.
+	// The msCrcData matrix is intentionally state-leak-resilient (each cell
+	// asserts auto-rollout vs. steady based on a real ceph.conf FS delta,
+	// not on residual state from a predecessor), so randomization is the
+	// strongest available regression guard against hidden ordering
+	// assumptions creeping back in. Ginkgo prints the seed at the start of
+	// every run; override with `-ginkgo.seed=<N>` to reproduce a failure.
+	suiteConfig.RandomizeAllSpecs = true
 	reporterConfig.Verbose = true
 	reporterConfig.ShowNodeEvents = false
 
