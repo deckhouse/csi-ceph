@@ -204,15 +204,21 @@ func applyMatrixCell(ctx context.Context, serverCRC, clientCRC bool) {
 	}
 
 	By("Waiting for /etc/ceph/ceph.conf in csi-controller-rbd to reflect the target ms_crc_data value")
-	rbdCtrlNewBody, err := eventuallyReaderFileMatches(
-		ctx, rbdReader, cephConfigPodPath, predicate, kubeletSyncTimeout,
+	rbdCtrlNewBody, err := eventuallyPodFileMatches(
+		ctx, suiteRestCfg, suiteK8s,
+		csiCephNamespace, rbdControllerDeployment, cephConfigMountDir, cephConfigPodPath,
+		rbdReader,
+		predicate, kubeletSyncTimeout,
 	)
 	Expect(err).NotTo(HaveOccurred(),
 		"FS-level verification on csi-controller-rbd; last body=%q", rbdCtrlNewBody)
 
 	By("Waiting for /etc/ceph/ceph.conf in csi-controller-cephfs to reflect the target ms_crc_data value")
-	fsCtrlNewBody, err := eventuallyReaderFileMatches(
-		ctx, fsReader, cephConfigPodPath, predicate, kubeletSyncTimeout,
+	fsCtrlNewBody, err := eventuallyPodFileMatches(
+		ctx, suiteRestCfg, suiteK8s,
+		csiCephNamespace, cephfsControllerDeployment, cephConfigMountDir, cephConfigPodPath,
+		fsReader,
+		predicate, kubeletSyncTimeout,
 	)
 	Expect(err).NotTo(HaveOccurred(),
 		"FS-level verification on csi-controller-cephfs; last body=%q", fsCtrlNewBody)
