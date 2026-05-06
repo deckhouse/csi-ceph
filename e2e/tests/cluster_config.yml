@@ -86,10 +86,10 @@ clusterDefinition:
       - name: "csi-ceph"
         version: 1
         enabled: true
-        # Default to :main. Override with the PR image tag (e.g. "pr131")
-        # by editing this file or copying it into a private worktree.
-        modulePullOverride: "main"
-        # modulePullOverride: "pr131"
+        # CI must set MODULE_IMAGE_TAG, e.g. "pr<N>" on GitHub, "mr<N>" on
+        # GitLab, or "main" for nightly. storage-e2e expands ${VAR} forms at
+        # config load time and fails fast if the env var is unset.
+        modulePullOverride: "${MODULE_IMAGE_TAG}"
         dependencies:
           - "snapshot-controller"
           - "sds-elastic"

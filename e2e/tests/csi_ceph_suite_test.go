@@ -68,6 +68,7 @@ func prepareSuite() {
 	GinkgoWriter.Printf("  TEST_CLUSTER_CREATE_MODE:         %q\n", os.Getenv("TEST_CLUSTER_CREATE_MODE"))
 	GinkgoWriter.Printf("  E2E_NAMESPACE:                    %q\n", suiteCfg.namespace)
 	GinkgoWriter.Printf("  E2E_CEPH_STORAGE_CLASS:           %q\n", suiteCfg.cephStorageClass)
+	GinkgoWriter.Printf("  E2E_CEPHFS_STORAGE_CLASS:         %q\n", suiteCfg.cephFSStorageClass)
 	GinkgoWriter.Printf("  E2E_PVC_SIZE:                     %q\n", suiteCfg.pvcSize)
 	GinkgoWriter.Printf("  E2E_ROOK_NAMESPACE:               %q\n", suiteCfg.rook.Namespace)
 	GinkgoWriter.Printf("  E2E_ROOK_OSD_STORAGE_CLASS:       %q\n", suiteCfg.rook.OSDStorageClass)
@@ -89,11 +90,18 @@ func prepareSuite() {
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Minute)
 	defer cancel()
 
-	By("Bootstrapping Rook/Ceph + csi-ceph CephStorageClass")
+	By("Bootstrapping Rook/Ceph + csi-ceph RBD CephStorageClass")
 	scName, err := bootstrapCeph(ctx, suiteRestCfg, suiteCfg)
-	Expect(err).NotTo(HaveOccurred(), "ceph.EnsureCephStorageClass failed")
+	Expect(err).NotTo(HaveOccurred(), "bootstrap RBD CephStorageClass")
 	if suiteCfg.cephStorageClass == "" {
 		suiteCfg.cephStorageClass = scName
+	}
+
+	By("Bootstrapping a CephFS CephStorageClass on the same Ceph cluster")
+	fsName, err := bootstrapCephFS(ctx, suiteRestCfg, suiteCfg)
+	Expect(err).NotTo(HaveOccurred(), "bootstrap CephFS CephStorageClass")
+	if suiteCfg.cephFSStorageClass == "" {
+		suiteCfg.cephFSStorageClass = fsName
 	}
 
 	By("Ensuring the test namespace exists")
@@ -137,10 +145,16 @@ func cleanupSuite() {
 			cleanupErrors = append(cleanupErrors, "reset server-side CRC: "+err.Error())
 		}
 
-		By("Deleting the Ceph stack created for the suite")
+		By("Deleting the CephFS Ceph stack created for the suite")
+		if err := testkit.TeardownCephStorageClass(ctx, suiteRestCfg, resolveCephFSSCConfig(suiteCfg)); err != nil {
+			GinkgoWriter.Printf("    warning: TeardownCephStorageClass(CephFS) failed: %v\n", err)
+			cleanupErrors = append(cleanupErrors, "delete CephFS stack: "+err.Error())
+		}
+
+		By("Deleting the RBD Ceph stack created for the suite")
 		if err := testkit.TeardownCephStorageClass(ctx, suiteRestCfg, resolveCephSCConfig(suiteCfg)); err != nil {
-			GinkgoWriter.Printf("    warning: TeardownCephStorageClass failed: %v\n", err)
-			cleanupErrors = append(cleanupErrors, "delete Ceph stack: "+err.Error())
+			GinkgoWriter.Printf("    warning: TeardownCephStorageClass(RBD) failed: %v\n", err)
+			cleanupErrors = append(cleanupErrors, "delete RBD stack: "+err.Error())
 		}
 	}
 }

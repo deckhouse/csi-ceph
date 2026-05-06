@@ -1,91 +1,124 @@
 # E2E tests for csi-ceph
 
-Минимальный e2e flow для проверки параметра `msCrcData`:
+End-to-end coverage for the `msCrcData` setting:
 
-1. `storage-e2e` поднимает nested-кластер по `tests/cluster_config.yml`
-2. сьют поднимает Ceph через `storage-e2e/pkg/testkit`
-3. гоняется короткая матрица `ms_crc_data x msCrcData`
-4. сьют удаляет Ceph-стек и отдаёт кластер обратно `storage-e2e`
+1. `storage-e2e` brings up a nested cluster from `tests/cluster_config.yml`.
+2. The suite provisions Ceph through `storage-e2e/pkg/testkit` — first the
+   RBD stack (`CephCluster` + `CephBlockPool` + `CephStorageClass` of type
+   RBD), then a CephFS stack on top of the same `CephCluster`
+   (`CephFilesystem` + `CephStorageClass` of type CephFS).
+3. The `protocol x ms_crc_data x msCrcData` matrix is executed.
+4. The suite tears the CephFS and RBD stacks down and hands the cluster
+   back to `storage-e2e`.
 
-Весь код провиженинга Rook/Ceph и csi-ceph-CR теперь живёт в
-`storage-e2e/pkg/testkit` — csi-ceph e2e импортирует его напрямую.
+All Rook/Ceph and csi-ceph CR provisioning lives in
+`storage-e2e/pkg/testkit`; csi-ceph e2e imports it directly via
+`require github.com/deckhouse/storage-e2e` in `e2e/go.mod`. If you need
+unreleased testkit changes during local development, add a `replace`
+directive to your working copy — but it must not be committed to the
+repository.
 
-## Что проверяется
+## What is tested
 
-Матрица состоит из трёх обязательных кейсов:
+The matrix has three mandatory cells, executed independently for RBD
+and CephFS:
 
-| server `ms_crc_data` | client `msCrcData` | Ожидание |
-| -------------------- | ------------------ | -------- |
-| `false`              | `false`            | `Bound` + Pod read/write |
-| `false`              | `true`             | `NotBound` |
-| `true`               | `true`             | `Bound` + Pod read/write |
+| protocol | server `ms_crc_data` | client `msCrcData` | Expectation |
+| -------- | -------------------- | ------------------ | ----------- |
+| RBD      | `false`              | `false`            | `Bound` + Pod read/write |
+| RBD      | `false`              | `true`             | `NotBound` |
+| RBD      | `true`               | `true`             | `Bound` + Pod read/write |
+| CephFS   | `false`              | `false`            | `Bound` + Pod read/write |
+| CephFS   | `false`              | `true`             | `NotBound` |
+| CephFS   | `true`               | `true`             | `Bound` + Pod read/write |
 
-Кейс `server=true, client=false` пропущен осознанно: регрессия находится в
-асимметричном сценарии `server=false, client=true`, а два совпадающих состояния
-проверяют, что явное включение и выключение CRC не ломают provisioning.
+The `server=true, client=false` cell is intentionally skipped: the
+regression lives in the asymmetric `server=false, client=true` case,
+and the two matched-state cells cover the property that explicitly
+turning CRC on or off does not break provisioning.
 
-Каждый кейс делает одно и то же:
+Each cell goes through the same steps:
 
-1. меняет server-side CRC через `rook-config-override`
-2. меняет client-side `ModuleConfig csi-ceph`
-3. рестартит `csi-controller-rbd` и `csi-node-rbd`
-4. создаёт PVC
-5. для успешных кейсов проверяет volume через Pod
+1. Snapshot the `checksum/ceph-config` annotation on
+   `csi-controller-{rbd,cephfs}` and `csi-node-{rbd,cephfs}`.
+2. Flip server-side CRC via `rook-config-override`.
+3. Flip client-side CRC via `ModuleConfig csi-ceph`
+   (`spec.settings.msCrcData`).
+4. Wait until csi-ceph regenerates the `ConfigMap ceph-config`
+   (`ms_crc_data = false` appears or disappears).
+5. Wait for an **automatic** rollout of all four workloads driven by a
+   change in the `checksum/ceph-config` pod-template annotation
+   (computed as `sha256` of `templates/configmap.yaml`, see csi-ceph
+   commit `42032d9`); the test no longer issues `kubectl rollout
+   restart`.
+6. Create a PVC against the appropriate `StorageClass` (RBD or CephFS).
+7. For the success cells, validate the volume from a Pod (write a
+   marker file, then read it back with `cat`).
 
-## Поддерживаемый запуск
+## Supported run mode
 
-Поддерживается только nested-кластер через `storage-e2e`.
-External mode и in-cluster Job больше не поддерживаются.
+Only the nested-cluster mode driven by `storage-e2e` is supported.
+External mode and the in-cluster Job runner have been removed.
 
-## Требования
+## Requirements
 
 - Go **1.26+**
-- базовый Deckhouse-кластер с `virtualization`
-- SSH-доступ к мастеру базового кластера
-- лицензия Deckhouse и docker config для dev-registry
-- блоковый `StorageClass` на базовом кластере для VM-дисков
+- A base Deckhouse cluster with the `virtualization` module enabled.
+- SSH access to the master node of the base cluster.
+- A Deckhouse license and a docker config for the dev registry.
+- A block-mode `StorageClass` on the base cluster for VM disks.
 
-## Основные переменные
+## Environment variables
 
 ### `storage-e2e`
 
 - `TEST_CLUSTER_CREATE_MODE`:
-  `alwaysCreateNew`, `alwaysUseExisting` или `commander`
+  one of `alwaysCreateNew`, `alwaysUseExisting`, `commander`.
 - `TEST_CLUSTER_CLEANUP`:
-  `true`, если после прогона VM нужно удалить
+  set to `true` to delete the VMs after the run.
 - `TEST_CLUSTER_NAMESPACE`
 - `TEST_CLUSTER_STORAGE_CLASS`
 - `YAML_CONFIG_FILENAME`:
-  по умолчанию `cluster_config.yml`
+  defaults to `cluster_config.yml`.
 - `SSH_HOST`, `SSH_USER`, `SSH_PRIVATE_KEY`
 - `DKP_LICENSE_KEY`
 - `REGISTRY_DOCKER_CFG`
 
 ### `csi-ceph e2e`
 
+- `MODULE_IMAGE_TAG`:
+  expanded into `modulePullOverride` in `tests/cluster_config.yml`. Set
+  to `prN` on GitHub, `mrN` on GitLab, or `main` for nightly builds.
+  storage-e2e fails fast at config-load time if the variable is unset.
+
 - `E2E_NAMESPACE`:
-  namespace для PVC и Pod, по умолчанию `csi-ceph-e2e`
+  namespace for PVCs and Pods, defaults to `csi-ceph-e2e`.
 - `E2E_CEPH_STORAGE_CLASS`:
-  имя итогового `StorageClass`, по умолчанию `ceph-rbd-r1`
+  name of the resulting RBD `StorageClass`, defaults to `ceph-rbd-r1`.
+- `E2E_CEPHFS_STORAGE_CLASS`:
+  name of the resulting CephFS `StorageClass`, defaults to `ceph-fs`.
 - `E2E_PVC_SIZE`:
-  размер PVC, по умолчанию `1Gi`
+  PVC size, defaults to `1Gi`.
 - `E2E_ROOK_NAMESPACE`:
-  namespace Rook/Ceph, по умолчанию `d8-sds-elastic`
+  Rook/Ceph namespace, defaults to `d8-sds-elastic`.
 - `E2E_ROOK_OSD_STORAGE_CLASS`:
-  core `StorageClass` для OSD PVC, по умолчанию `sds-local-volume-lvm-thick-r1`
+  base `StorageClass` for OSD PVCs, defaults to
+  `sds-local-volume-lvm-thick-r1`.
 - `E2E_ROOK_OSD_COUNT`:
-  по умолчанию `1`
+  defaults to `1`.
 - `E2E_ROOK_OSD_SIZE`:
-  по умолчанию `10Gi`
+  defaults to `10Gi`.
 - `E2E_ROOK_CEPH_IMAGE`
 - `E2E_ROOK_CLUSTER_READY_TIMEOUT`
 
-Если `E2E_ROOK_OSD_STORAGE_CLASS` не задан, suite сам ожидает типичный nested
-сценарий: локальная thick-конфигурация будет подготовлена через
-`storage-e2e/testkit`, а Ceph будет использован с
+If `E2E_ROOK_OSD_STORAGE_CLASS` is empty the suite assumes the typical
+nested layout: a local thick configuration is set up via
+`storage-e2e/testkit` and Ceph runs on top of
 `sds-local-volume-lvm-thick-r1`.
 
-## Быстрый старт
+## Quick start
+
+### Run using a new cluster (VM creation)
 
 ```bash
 export TEST_CLUSTER_CREATE_MODE=alwaysCreateNew
@@ -93,29 +126,66 @@ export TEST_CLUSTER_CLEANUP=true
 export TEST_CLUSTER_NAMESPACE=e2e-csi-ceph
 export TEST_CLUSTER_STORAGE_CLASS=linstor-r2
 
-export SSH_HOST=<master-ip>
-export SSH_USER=<ssh-user>
-export SSH_PRIVATE_KEY=~/.ssh/id_rsa
+export SSH_HOST=<master-ip> # Hypervisor master IP
+export SSH_USER=<ssh-user> # Hypervisor SSH user
+export SSH_PRIVATE_KEY=~/.ssh/id_rsa # Hypervisor SSH private key
+export SSH_PUBLIC_KEY=~/.ssh/id_rsa.pub # Hypervisor SSH public key
+export SSH_PASSPHRASE=<passphrase> # Hypervisor SSH passphrase (optional but required for non-interactive mode with encrypted keys)
 
-export DKP_LICENSE_KEY=<license>
-export REGISTRY_DOCKER_CFG=<base64-docker-config>
+export DKP_LICENSE_KEY=<license> # Deckhouse Platform license key (used to create a new cluster)
+export REGISTRY_DOCKER_CFG=<base64-docker-config> # Docker registry credentials for downloading images from Deckhouse registry
+
+export MODULE_IMAGE_TAG=main   # or prN / mrN to test a specific PR/MR
 
 cd e2e
 make deps
 make test
 ```
 
-Чтобы закрепить конкретный образ `csi-ceph`, отредактируйте
-`tests/cluster_config.yml`:
+### Run using an existing cluster (no VM creation)
+
+```bash
+export TEST_CLUSTER_CREATE_MODE=alwaysUseExisting
+export TEST_CLUSTER_CLEANUP=true
+export TEST_CLUSTER_NAMESPACE=e2e-csi-ceph
+export TEST_CLUSTER_STORAGE_CLASS=linstor-r2
+
+export SSH_HOST=<master-ip> # Test cluster master IP (when TEST_CLUSTER_CREATE_MODE=alwaysUseExisting)
+export SSH_USER=<ssh-user> # Test cluster SSH user
+export SSH_PRIVATE_KEY=~/.ssh/id_rsa # Test cluster SSH private key
+export SSH_PUBLIC_KEY=~/.ssh/id_rsa.pub # Test cluster SSH public key
+export SSH_PASSPHRASE=<passphrase> # Test cluster SSH passphrase (optional but required for non-interactive mode with encrypted keys)
+
+export SSH_JUMP_HOST=<jump-host-ip> # Jump host IP
+export SSH_JUMP_USER=<jump-host-user> # Jump host SSH user
+
+export MODULE_IMAGE_TAG=main   # or prN / mrN to test a specific PR/MR
+
+cd e2e
+make deps
+make test
+```
+
+### ??
+
+`tests/cluster_config.yml` pins the csi-ceph image via the
+`MODULE_IMAGE_TAG` environment variable:
 
 ```yaml
 - name: "csi-ceph"
   version: 1
   enabled: true
-  modulePullOverride: "pr131"
+  modulePullOverride: "${MODULE_IMAGE_TAG}"
 ```
 
-Для локальной отладки можно запускать отдельные кейсы:
+To target a specific PR or MR build, override the variable on the
+command line, for example:
+
+```bash
+MODULE_IMAGE_TAG=pr131 make test
+```
+
+For local debugging you can run a single matrix cell:
 
 ```bash
 make test-focus FOCUS="server=off"
