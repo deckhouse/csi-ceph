@@ -1,0 +1,3 @@
+Изменения:
+- Added msCrcData parameter to disable CRC32C checking on Ceph data frames; when changing
+  ceph-config, CSI pods (RBD/CephFS) are automatically restarted
