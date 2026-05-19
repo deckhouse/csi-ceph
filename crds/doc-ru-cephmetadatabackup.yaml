@@ -1,0 +1,13 @@
+spec:
+  versions:
+    - name: v1alpha1
+      schema:
+        openAPIV3Schema:
+          description: |
+            CephMetadataBackup — пользовательский ресурс Kubernetes, хранящий резервную копию ресурсов Kubernetes.
+          properties:
+            spec:
+              properties:
+                data:
+                  description: |
+                    Ресурс Kubernetes в кодировке base64.
