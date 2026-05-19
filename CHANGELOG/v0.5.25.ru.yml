@@ -1,0 +1,3 @@
+Изменения:
+  - Исправлены PromQL-выражения в алертах StorageClass — приведены к корректному формату меток kube_storageclass_labels и переименована группа в kubernetes.ceph.storage_class
+  - Добавлено русское описание для CRD CephMetadataBackup
