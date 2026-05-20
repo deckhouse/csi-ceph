@@ -141,8 +141,10 @@ func RunCephStorageClassWatcherController(
 			oldCephSC := e.ObjectOld
 			newCephSC := e.ObjectNew
 
-			if reflect.DeepEqual(oldCephSC.Spec, newCephSC.Spec) && newCephSC.DeletionTimestamp == nil {
-				log.Info(fmt.Sprintf("[UpdateFunc] an update event for the CephStorageClass %s has no Spec field updates. It will not be reconciled", newCephSC.Name))
+			if reflect.DeepEqual(oldCephSC.Spec, newCephSC.Spec) &&
+				reflect.DeepEqual(oldCephSC.Labels, newCephSC.Labels) &&
+				newCephSC.DeletionTimestamp == nil {
+				log.Info(fmt.Sprintf("[UpdateFunc] an update event for the CephStorageClass %s has no Spec or Labels updates. It will not be reconciled", newCephSC.Name))
 				return
 			}
 
