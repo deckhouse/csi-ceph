@@ -1,0 +1,4 @@
+Changes:
+- Reconciliation when changing CephStorageClass labels for forwarding to managed StorageClass
+  Kubernetes
+- Update base images, Go 1.25.10 and lib-helm 1.71.12
