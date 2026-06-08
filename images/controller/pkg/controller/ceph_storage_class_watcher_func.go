@@ -39,12 +39,12 @@ var (
 	defaultImageFeatures = "layering,exclusive-lock,object-map,fast-diff"
 )
 
-func IdentifyReconcileFuncForStorageClass(log logger.Logger, scList *v1.StorageClassList, cephSC *storagev1alpha1.CephStorageClass, controllerNamespace, clusterID string) (reconcileType string, err error) {
+func IdentifyReconcileFuncForStorageClass(log logger.Logger, scList *v1.StorageClassList, cephSC *storagev1alpha1.CephStorageClass, controllerNamespace, clusterID string, ignoredLabelPrefixes []string) (reconcileType string, err error) {
 	if shouldReconcileStorageClassByCreateFunc(scList, cephSC) {
 		return internal.CreateReconcile, nil
 	}
 
-	should, err := shouldReconcileStorageClassByUpdateFunc(log, scList, cephSC, controllerNamespace, clusterID)
+	should, err := shouldReconcileStorageClassByUpdateFunc(log, scList, cephSC, controllerNamespace, clusterID, ignoredLabelPrefixes)
 	if err != nil {
 		return "", err
 	}
@@ -69,7 +69,7 @@ func shouldReconcileStorageClassByCreateFunc(scList *v1.StorageClassList, cephSC
 	return true
 }
 
-func shouldReconcileStorageClassByUpdateFunc(log logger.Logger, scList *v1.StorageClassList, cephSC *storagev1alpha1.CephStorageClass, controllerNamespace, clusterID string) (bool, error) {
+func shouldReconcileStorageClassByUpdateFunc(log logger.Logger, scList *v1.StorageClassList, cephSC *storagev1alpha1.CephStorageClass, controllerNamespace, clusterID string, ignoredLabelPrefixes []string) (bool, error) {
 	if cephSC.DeletionTimestamp != nil {
 		return false, nil
 	}
@@ -77,7 +77,7 @@ func shouldReconcileStorageClassByUpdateFunc(log logger.Logger, scList *v1.Stora
 	for _, oldSC := range scList.Items {
 		if oldSC.Name == cephSC.Name {
 			if slices.Contains(allowedProvisioners, oldSC.Provisioner) {
-				newSC := updateStorageClass(cephSC, &oldSC, controllerNamespace, clusterID)
+				newSC := updateStorageClass(cephSC, &oldSC, controllerNamespace, clusterID, ignoredLabelPrefixes)
 				diff, err := GetSCDiff(&oldSC, newSC)
 				if err != nil {
 					return false, err
@@ -110,11 +110,12 @@ func reconcileStorageClassCreateFunc(
 	scList *v1.StorageClassList,
 	cephSC *storagev1alpha1.CephStorageClass,
 	controllerNamespace, clusterID string,
+	ignoredLabelPrefixes []string,
 ) (shouldRequeue bool, msg string, err error) {
 	log.Debug(fmt.Sprintf("[reconcileStorageClassCreateFunc] starts for CephStorageClass %q", cephSC.Name))
 
 	log.Debug(fmt.Sprintf("[reconcileStorageClassCreateFunc] starts storage class configuration for the CephStorageClass, name: %s", cephSC.Name))
-	newSC := ConfigureStorageClass(cephSC, controllerNamespace, clusterID)
+	newSC := ConfigureStorageClass(cephSC, controllerNamespace, clusterID, ignoredLabelPrefixes)
 
 	log.Debug(fmt.Sprintf("[reconcileStorageClassCreateFunc] successfully configurated storage class for the CephStorageClass, name: %s", cephSC.Name))
 	log.Trace(fmt.Sprintf("[reconcileStorageClassCreateFunc] storage class: %+v", newSC))
@@ -143,6 +144,7 @@ func reconcileStorageClassUpdateFunc(
 	scList *v1.StorageClassList,
 	cephSC *storagev1alpha1.CephStorageClass,
 	controllerNamespace, clusterID string,
+	ignoredLabelPrefixes []string,
 ) (shouldRequeue bool, msg string, err error) {
 	log.Debug(fmt.Sprintf("[reconcileStorageClassUpdateFunc] starts for CephStorageClass %q", cephSC.Name))
 
@@ -162,7 +164,7 @@ func reconcileStorageClassUpdateFunc(
 	log.Debug(fmt.Sprintf("[reconcileStorageClassUpdateFunc] successfully found a storage class for the CephStorageClass, name: %s", cephSC.Name))
 	log.Trace(fmt.Sprintf("[reconcileStorageClassUpdateFunc] storage class: %+v", oldSC))
 
-	newSC := updateStorageClass(cephSC, oldSC, controllerNamespace, clusterID)
+	newSC := updateStorageClass(cephSC, oldSC, controllerNamespace, clusterID, ignoredLabelPrefixes)
 	log.Debug(fmt.Sprintf("[reconcileStorageClassUpdateFunc] successfully configurated storage class for the CephStorageClass, name: %s", cephSC.Name))
 	log.Trace(fmt.Sprintf("[reconcileStorageClassUpdateFunc] new storage class: %+v", newSC))
 	log.Trace(fmt.Sprintf("[reconcileStorageClassUpdateFunc] old storage class: %+v", oldSC))
@@ -222,7 +224,7 @@ func reconcileStorageClassDeleteFunc(
 	return false, "", nil
 }
 
-func ConfigureStorageClass(cephSC *storagev1alpha1.CephStorageClass, controllerNamespace, clusterID string) *v1.StorageClass {
+func ConfigureStorageClass(cephSC *storagev1alpha1.CephStorageClass, controllerNamespace, clusterID string, ignoredLabelPrefixes []string) *v1.StorageClass {
 	provisioner := GetStorageClassProvisioner(cephSC.Spec.Type)
 	allowVolumeExpansion := true
 	reclaimPolicy := corev1.PersistentVolumeReclaimPolicy(cephSC.Spec.ReclaimPolicy)
@@ -253,16 +255,40 @@ func ConfigureStorageClass(cephSC *storagev1alpha1.CephStorageClass, controllerN
 		sc.MountOptions = storagev1alpha1.DefaultMountOptionsRBD
 	}
 
-	if cephSC.Labels != nil {
-		sc.Labels = cephSC.Labels
-		sc.Labels[internal.StorageManagedLabelKey] = CephStorageClassCtrlName
-	} else {
-		sc.Labels = map[string]string{
-			internal.StorageManagedLabelKey: CephStorageClassCtrlName,
-		}
-	}
+	sc.Labels = filterLabelsForStorageClass(cephSC.Labels, ignoredLabelPrefixes)
+	sc.Labels[internal.StorageManagedLabelKey] = CephStorageClassCtrlName
 
 	return sc
+}
+
+// filterLabelsForStorageClass returns a fresh map containing all labels from src
+// whose keys do NOT match any of the prefixes in ignoredPrefixes. The returned map
+// is always non-nil so that callers can unconditionally set the managed-by label
+// without an additional nil check.
+func filterLabelsForStorageClass(src map[string]string, ignoredPrefixes []string) map[string]string {
+	out := make(map[string]string, len(src))
+	for k, v := range src {
+		if isIgnoredLabelKey(k, ignoredPrefixes) {
+			continue
+		}
+		out[k] = v
+	}
+	return out
+}
+
+// isIgnoredLabelKey reports whether key starts with any non-empty prefix from
+// ignoredPrefixes. Empty prefixes are skipped explicitly: HasPrefix(_, "") is
+// always true and would otherwise drop every label, breaking propagation.
+func isIgnoredLabelKey(key string, ignoredPrefixes []string) bool {
+	for _, p := range ignoredPrefixes {
+		if p == "" {
+			continue
+		}
+		if strings.HasPrefix(key, p) {
+			return true
+		}
+	}
+	return false
 }
 
 func GetStorageClassProvisioner(cephStorageClasstype string) string {
@@ -499,8 +525,8 @@ func getClusterID(ctx context.Context, cl client.Client, cephSC *storagev1alpha1
 	return clusterID, nil
 }
 
-func updateStorageClass(cephSC *storagev1alpha1.CephStorageClass, oldSC *v1.StorageClass, controllerNamespace, clusterID string) *v1.StorageClass {
-	newSC := ConfigureStorageClass(cephSC, controllerNamespace, clusterID)
+func updateStorageClass(cephSC *storagev1alpha1.CephStorageClass, oldSC *v1.StorageClass, controllerNamespace, clusterID string, ignoredLabelPrefixes []string) *v1.StorageClass {
+	newSC := ConfigureStorageClass(cephSC, controllerNamespace, clusterID, ignoredLabelPrefixes)
 
 	if oldSC.Annotations != nil {
 		newSC.Annotations = oldSC.Annotations
