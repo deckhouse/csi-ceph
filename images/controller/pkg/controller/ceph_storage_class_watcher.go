@@ -96,7 +96,7 @@ func RunCephStorageClassWatcherController(
 				return reconcile.Result{}, err
 			}
 
-			shouldRequeue, msg, err := RunStorageClassEventReconcile(ctx, cl, log, scList, vsClassList, cephSC, cfg.ControllerNamespace)
+			shouldRequeue, msg, err := RunStorageClassEventReconcile(ctx, cl, log, scList, vsClassList, cephSC, cfg.ControllerNamespace, cfg.StorageClassLabelIgnoredPrefixes)
 			log.Info(fmt.Sprintf("[CephStorageClassReconciler] CephStorageClass %s has been reconciled with message: %s", cephSC.Name, msg))
 			phase := internal.PhaseCreated
 			if err != nil {
@@ -163,7 +163,7 @@ func RunCephStorageClassWatcherController(
 	return c, nil
 }
 
-func RunStorageClassEventReconcile(ctx context.Context, cl client.Client, log logger.Logger, scList *v1.StorageClassList, vsClassList *snapshotv1.VolumeSnapshotClassList, cephSC *v1alpha1.CephStorageClass, controllerNamespace string) (bool, string, error) {
+func RunStorageClassEventReconcile(ctx context.Context, cl client.Client, log logger.Logger, scList *v1.StorageClassList, vsClassList *snapshotv1.VolumeSnapshotClassList, cephSC *v1alpha1.CephStorageClass, controllerNamespace string, ignoredLabelPrefixes []string) (bool, string, error) {
 	log.Debug(fmt.Sprintf("[RunStorageClassEventReconcile] starts reconciliataion of CephStorageClass, name: %s", cephSC.Name))
 
 	if cephSC.DeletionTimestamp != nil {
@@ -211,7 +211,7 @@ func RunStorageClassEventReconcile(ctx context.Context, cl client.Client, log lo
 		return true, err.Error(), err
 	}
 
-	reconcileTypeForStorageClass, err := IdentifyReconcileFuncForStorageClass(log, scList, cephSC, controllerNamespace, clusterID)
+	reconcileTypeForStorageClass, err := IdentifyReconcileFuncForStorageClass(log, scList, cephSC, controllerNamespace, clusterID, ignoredLabelPrefixes)
 	if err != nil {
 		err = fmt.Errorf("[RunStorageClassEventReconcile] error occurred while identifying the reconcile function for StorageClass %s: %w", cephSC.Name, err)
 		return true, err.Error(), err
@@ -221,9 +221,9 @@ func RunStorageClassEventReconcile(ctx context.Context, cl client.Client, log lo
 	log.Debug(fmt.Sprintf("[RunStorageClassEventReconcile] Successfully identified the reconcile type for StorageClass %s: %s", cephSC.Name, reconcileTypeForStorageClass))
 	switch reconcileTypeForStorageClass {
 	case internal.CreateReconcile:
-		shouldRequeue, msg, err = reconcileStorageClassCreateFunc(ctx, cl, log, scList, cephSC, controllerNamespace, clusterID)
+		shouldRequeue, msg, err = reconcileStorageClassCreateFunc(ctx, cl, log, scList, cephSC, controllerNamespace, clusterID, ignoredLabelPrefixes)
 	case internal.UpdateReconcile:
-		shouldRequeue, msg, err = reconcileStorageClassUpdateFunc(ctx, cl, log, scList, cephSC, controllerNamespace, clusterID)
+		shouldRequeue, msg, err = reconcileStorageClassUpdateFunc(ctx, cl, log, scList, cephSC, controllerNamespace, clusterID, ignoredLabelPrefixes)
 	default:
 		log.Debug(fmt.Sprintf("[RunStorageClassEventReconcile] StorageClass for CephStorageClass %s should not be reconciled", cephSC.Name))
 		msg = "Successfully reconciled"

@@ -5,6 +5,12 @@
 }}
 {{ include "helm_lib_module_webhook_certs_secret" (list . $secretConfig) }}
 
+{{- /* StorageClass label ignored prefixes: system list (hardcoded in internal values) +
+       user-configurable list from ModuleConfig. Comma-joined for the controller. */ -}}
+{{- $systemIgnoredPrefixes := default (list) .Values.csiCeph.internal.storageClassLabelIgnoredPrefixesSystem }}
+{{- $userIgnoredPrefixes := default (list) .Values.csiCeph.storageClassLabelIgnoredPrefixes }}
+{{- $ignoredPrefixes := concat $systemIgnoredPrefixes $userIgnoredPrefixes | uniq }}
+
 {{- /* Controller Deployment */ -}}
 {{- $config := dict
   "valuesKey" "csiCeph"
@@ -12,6 +18,7 @@
   "webhookCertPath" "internal.customWebhookCert"
   "onMasterNode" true
   "podSecurityContext" "deckhouse"
+  "additionalControllerEnvs" (list (dict "name" "STORAGE_CLASS_LABEL_IGNORED_PREFIXES" "value" (join "," $ignoredPrefixes)))
 }}
 {{ include "helm_lib_module_controller_manifests" (list . $config) }}
 
