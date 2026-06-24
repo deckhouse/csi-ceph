@@ -1,5 +1,5 @@
 diff --git a/internal/rbd/nodeserver.go b/internal/rbd/nodeserver.go
-index 9c5208832..248602266 100644
+index 9c52088..7cb6c6e 100644
 --- a/internal/rbd/nodeserver.go
 +++ b/internal/rbd/nodeserver.go
 @@ -568,7 +568,15 @@ func (ns *NodeServer) stageTransaction(
@@ -50,12 +50,13 @@ index 9c5208832..248602266 100644
  	if !ok {
  		return status.Errorf(codes.Internal,
  			"resize failed on path %s, error: %v", stagingTargetPath, err)
-@@ -632,6 +650,76 @@ func resizeNodeStagePath(ctx context.Context,
+@@ -632,6 +650,92 @@ func resizeNodeStagePath(ctx context.Context,
  	return nil
  }
  
-+// runE2fsckRepair runs e2fsck -fy on an unmounted ext2/3/4 device.
-+// Exit codes 0–2 are treated as success.
++// runE2fsckRepair repairs an unmounted ext2/3/4 device only when a read-only
++// e2fsck check reports filesystem problems. Exit codes 0–2 after repair are
++// treated as success.
 +func runE2fsckRepair(ctx context.Context, exec utilexec.Interface, devicePath string) error {
 +	format, err := getDiskFormat(exec, devicePath)
 +	if err != nil {
@@ -64,6 +65,21 @@ index 9c5208832..248602266 100644
 +	if format != "ext2" && format != "ext3" && format != "ext4" {
 +		return nil
 +	}
++
++	checkOut, checkErr := exec.Command("e2fsck", "-fn", devicePath).CombinedOutput()
++	if checkErr == nil {
++		return nil
++	}
++	if errors.Is(checkErr, utilexec.ErrExecutableNotFound) {
++		log.WarningLog(ctx, "e2fsck not found, skipping filesystem repair on %s", devicePath)
++
++		return nil
++	}
++	checkExit, isExit := checkErr.(utilexec.ExitError)
++	if isExit && checkExit.ExitStatus() == 0 {
++		return nil
++	}
++	log.DebugLog(ctx, "e2fsck check found filesystem issues on %s: %s", devicePath, string(checkOut))
 +
 +	out, err := exec.Command("e2fsck", "-fy", devicePath).CombinedOutput()
 +	if err == nil {
@@ -127,17 +143,3 @@ index 9c5208832..248602266 100644
  func resizeEncryptedDevice(ctx context.Context, volID, stagingTargetPath, devicePath string) (string, error) {
  	rbdDevSize, err := getDeviceSize(ctx, devicePath)
  	if err != nil {
-@@ -912,6 +1000,13 @@ func (ns *NodeServer) mountVolumeToStagePath(
- 		}
- 	}
- 
-+	if existingFormat != "" && !isBlock && !readOnly &&
-+		(existingFormat == "ext4" || existingFormat == "ext3" || existingFormat == "ext2") {
-+		if err := runE2fsckRepair(ctx, diskMounter.Exec, devicePath); err != nil {
-+			return err
-+		}
-+	}
-+
- 	if isBlock {
- 		opt = append(opt, "bind")
- 		err = diskMounter.MountSensitiveWithoutSystemd(devicePath, stagingPath, fsType, opt, nil)
