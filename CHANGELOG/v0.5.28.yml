@@ -1,0 +1,3 @@
+Changes:
+- The e2fsck and fsck utilities for checking file systems have been added to the CSI
+  node image
