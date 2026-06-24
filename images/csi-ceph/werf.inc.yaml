@@ -1,4 +1,4 @@
-{{- $binaries := "/csi-ceph /sbin/mount.ceph /usr/bin/ceph-fuse /bin/mount /bin/umount /sbin/fsck /sbin/modprobe /bin/kmod /usr/bin/rbd /usr/bin/rbd-nbd /sbin/blkid /sbin/mkfs /sbin/mkfs.ext4 /sbin/mkfs.xfs /sbin/blockdev /sbin/dumpe2fs /usr/sbin/xfs_io /usr/sbin/xfs_growfs /sbin/resize2fs" }}
+{{- $binaries := "/csi-ceph /sbin/mount.ceph /usr/bin/ceph-fuse /bin/mount /bin/umount /sbin/fsck /sbin/fsck.ext4 /sbin/e2fsck /usr/sbin/fsck.xfs /sbin/modprobe /bin/kmod /usr/bin/rbd /usr/bin/rbd-nbd /sbin/blkid /sbin/mkfs /sbin/mkfs.ext4 /sbin/mkfs.xfs /sbin/blockdev /sbin/dumpe2fs /usr/sbin/xfs_io /usr/sbin/xfs_growfs /sbin/resize2fs" }}
 ---
 image: {{ .ModuleNamePrefix }}{{ .ImageName }}-src-artifact
 fromImage: builder/src
@@ -70,14 +70,13 @@ git:
 shell:
   install:
     {{- include "alt packages proxy" . | nindent 4 }}
-    - apt-get -y install glibc-utils mount ceph ceph-fuse rbd-fuse rbd-nbd
+    - apt-get -y install glibc-utils mount ceph ceph-fuse rbd-fuse rbd-nbd e2fsprogs xfsprogs util-linux kmod
     - rm -rf /var/lib/apt/lists/* /var/cache/apt/* && mkdir -p /var/lib/apt/lists/partial /var/cache/apt/archives/partial
     - chmod +x /binary_replace.sh
 
 ---
 image: {{ .ModuleNamePrefix }}{{ .ImageName }}-binaries-artifact
 fromImage: {{ .ModuleNamePrefix }}{{ .ImageName }}-binary-replace-artifact
-fromCacheVersion: 20250619140440
 final: false
 
 import:
