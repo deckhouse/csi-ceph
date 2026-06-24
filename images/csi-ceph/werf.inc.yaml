@@ -77,7 +77,6 @@ shell:
 ---
 image: {{ .ModuleNamePrefix }}{{ .ImageName }}-binaries-artifact
 fromImage: {{ .ModuleNamePrefix }}{{ .ImageName }}-binary-replace-artifact
-fromCacheVersion: 20250624120000
 final: false
 
 import:

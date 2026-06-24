@@ -1,5 +1,5 @@
 diff --git a/internal/rbd/nodeserver.go b/internal/rbd/nodeserver.go
-index 9c52088..7cb6c6e 100644
+index 9c52088..887b2ce 100644
 --- a/internal/rbd/nodeserver.go
 +++ b/internal/rbd/nodeserver.go
 @@ -568,7 +568,15 @@ func (ns *NodeServer) stageTransaction(
@@ -37,30 +37,39 @@ index 9c52088..7cb6c6e 100644
  	devicePath := transaction.devicePath
  	var ok bool
  
-@@ -624,6 +636,12 @@ func resizeNodeStagePath(ctx context.Context,
+@@ -624,6 +636,18 @@ func resizeNodeStagePath(ctx context.Context,
  		return nil
  	}
  	ok, err = resizer.Resize(devicePath, stagingTargetPath)
 +	if !ok {
++		log.WarningLog(ctx,
++			"resize on %s failed (%v), attempting e2fsck repair on %s",
++			stagingTargetPath, err, devicePath)
 +		if repairErr := repairExt4ForResize(
-+			ctx, ns, req, staticVol, fileEncryption, transaction, stagingTargetPath); repairErr == nil {
++			ctx, ns, req, staticVol, fileEncryption, transaction, devicePath, stagingTargetPath); repairErr != nil {
++			log.ErrorLog(ctx, "e2fsck repair on %s failed: %v; returning original resize error", stagingTargetPath, repairErr)
++		} else {
++			log.DebugLog(ctx, "e2fsck repair on %s finished, retrying resize", stagingTargetPath)
 +			ok, err = resizer.Resize(devicePath, stagingTargetPath)
 +		}
 +	}
  	if !ok {
  		return status.Errorf(codes.Internal,
  			"resize failed on path %s, error: %v", stagingTargetPath, err)
-@@ -632,6 +650,92 @@ func resizeNodeStagePath(ctx context.Context,
+@@ -632,6 +656,81 @@ func resizeNodeStagePath(ctx context.Context,
  	return nil
  }
  
 +// runE2fsckRepair repairs an unmounted ext2/3/4 device only when a read-only
 +// e2fsck check reports filesystem problems. Exit codes 0–2 after repair are
-+// treated as success.
-+func runE2fsckRepair(ctx context.Context, exec utilexec.Interface, devicePath string) error {
-+	format, err := getDiskFormat(exec, devicePath)
++// treated as success per e2fsck(8). The filesystem type is detected via the
++// canonical k8s.io/mount-utils helper so that LUKS/crypto/xfs devices are
++// skipped without false positives.
++func runE2fsckRepair(ctx context.Context, mounter mount.Interface, exec utilexec.Interface, devicePath string) error {
++	diskMounter := &mount.SafeFormatAndMount{Interface: mounter, Exec: exec}
++	format, err := diskMounter.GetDiskFormat(devicePath)
 +	if err != nil {
-+		return err
++		return fmt.Errorf("detect filesystem on %s: %w", devicePath, err)
 +	}
 +	if format != "ext2" && format != "ext3" && format != "ext4" {
 +		return nil
@@ -75,9 +84,12 @@ index 9c52088..7cb6c6e 100644
 +
 +		return nil
 +	}
-+	checkExit, isExit := checkErr.(utilexec.ExitError)
-+	if isExit && checkExit.ExitStatus() == 0 {
-+		return nil
++	var checkExit utilexec.ExitError
++	if errors.As(checkErr, &checkExit) {
++		// e2fsck(8) exit codes >= 16 (usage / cancelled / library error) — repair will not help.
++		if status := checkExit.ExitStatus(); status >= 16 {
++			return fmt.Errorf("e2fsck check on %s aborted (exit %d): %s", devicePath, status, string(checkOut))
++		}
 +	}
 +	log.DebugLog(ctx, "e2fsck check found filesystem issues on %s: %s", devicePath, string(checkOut))
 +
@@ -90,9 +102,8 @@ index 9c52088..7cb6c6e 100644
 +
 +		return nil
 +	}
-+
-+	exitErr, ok := err.(utilexec.ExitError)
-+	if ok && exitErr.ExitStatus() <= 2 {
++	var exitErr utilexec.ExitError
++	if errors.As(err, &exitErr) && exitErr.ExitStatus() <= 2 {
 +		log.DebugLog(ctx, "e2fsck repaired filesystem on %s: %s", devicePath, string(out))
 +
 +		return nil
@@ -101,43 +112,27 @@ index 9c52088..7cb6c6e 100644
 +	return fmt.Errorf("e2fsck on %s failed: %w, output: %s", devicePath, err, string(out))
 +}
 +
-+func getDiskFormat(exec utilexec.Interface, devicePath string) (string, error) {
-+	args := []string{"-p", "-s", "TYPE", "-o", "export", devicePath}
-+	out, err := exec.Command("blkid", args...).CombinedOutput()
-+	if err != nil {
-+		if errors.Is(err, utilexec.ErrExecutableNotFound) {
-+			return "", nil
-+		}
-+
-+		return "", fmt.Errorf("blkid %s failed: %w, output: %s", devicePath, err, string(out))
-+	}
-+
-+	for _, part := range strings.Split(string(out), " ") {
-+		if strings.HasPrefix(part, "TYPE=") {
-+			return strings.Trim(strings.TrimPrefix(part, "TYPE="), `"`), nil
-+		}
-+	}
-+
-+	return "", nil
-+}
-+
 +func repairExt4ForResize(
 +	ctx context.Context,
 +	ns *NodeServer,
 +	req *csi.NodeStageVolumeRequest,
 +	staticVol, fileEncryption bool,
 +	transaction *stageTransaction,
-+	stagingTargetPath string,
++	devicePath, stagingTargetPath string,
 +) error {
-+	devicePath := transaction.devicePath
 +	if err := ns.Mounter.Unmount(stagingTargetPath); err != nil {
 +		return fmt.Errorf("unmount %s before e2fsck: %w", stagingTargetPath, err)
 +	}
-+	if err := runE2fsckRepair(ctx, utilexec.New(), devicePath); err != nil {
++	transaction.isMounted = false
++	if err := runE2fsckRepair(ctx, ns.Mounter, utilexec.New(), devicePath); err != nil {
 +		return err
 +	}
++	if err := ns.mountVolumeToStagePath(ctx, req, staticVol, stagingTargetPath, devicePath, fileEncryption); err != nil {
++		return err
++	}
++	transaction.isMounted = true
 +
-+	return ns.mountVolumeToStagePath(ctx, req, staticVol, stagingTargetPath, devicePath, fileEncryption)
++	return nil
 +}
 +
  func resizeEncryptedDevice(ctx context.Context, volID, stagingTargetPath, devicePath string) (string, error) {
