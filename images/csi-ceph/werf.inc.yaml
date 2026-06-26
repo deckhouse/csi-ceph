@@ -1,7 +1,30 @@
-{{- $binaries := "/csi-ceph /sbin/mount.ceph /usr/bin/ceph-fuse /bin/mount /bin/umount /sbin/fsck /sbin/fsck.ext4 /sbin/e2fsck /usr/sbin/fsck.xfs /sbin/modprobe /bin/kmod /usr/bin/rbd /usr/bin/rbd-nbd /sbin/blkid /sbin/mkfs /sbin/mkfs.ext4 /sbin/mkfs.xfs /sbin/blockdev /sbin/dumpe2fs /usr/sbin/xfs_io /usr/sbin/xfs_growfs /sbin/resize2fs" }}
+{{- /*
+csi-ceph distroless image. The Ceph CSI plugin (cephcsi) is built from the
+upstream ceph/ceph-csi repository (with our CVE patches) and links the Ceph
+client C libraries (librbd, librados, libcephfs) via cgo, so it is built with
+CGO_ENABLED=1 on the glibc builder/golang image.
+
+All userspace tooling that cephcsi shells out to, the Ceph client binaries and
+the runtime shared libraries are provisioned via `pm install` from the
+Deckhouse container-base/base-images package catalog. `pm install` merges the
+packages' /usr trees into the final filesystem in dependency order, so the
+previous binary_replace.sh / ldd relocation step is no longer required.
+
+Runtime binary -> package map:
+
+  /csi-ceph                                  - cephcsi (built here)
+  mount.ceph, ceph-fuse                      - cephfs
+  rbd, rbd-nbd                               - rbd
+  mount, umount, blkid, blockdev, mkfs       - util-linux
+  e2fsck, fsck.ext4, mkfs.ext4, dumpe2fs,
+  resize2fs                                  - e2fsprogs
+  fsck.xfs, mkfs.xfs, xfs_io, xfs_growfs     - xfsprogs
+  modprobe, kmod                             - kmod
+*/ -}}
 ---
+# do not remove this image: used in external audits (DKP CSE)
 image: {{ .ModuleNamePrefix }}{{ .ImageName }}-src-artifact
-fromImage: builder/src
+from: {{ index $.Images "builder/src" }}
 final: false
 
 git:
@@ -13,7 +36,7 @@ git:
       install:
         - '**/*'
     excludePaths:
-      - images/{{ $.ImageName }}/werf.yaml
+      - images/{{ $.ImageName }}/werf.inc.yaml
 
 secrets:
 - id: SOURCE_REPO
@@ -27,15 +50,17 @@ shell:
     - rm -rf /src/images/csi-ceph/patches/
 
 ---
-image: {{ .ModuleNamePrefix }}{{ .ImageName }}-base-binaries-artifact
-fromImage: {{ eq .SVACE_ENABLED "false" | ternary "builder/golang-alt" "builder/golang-alt-svace" }}
+image: {{ .ModuleNamePrefix }}{{ .ImageName }}-golang-artifact
+# cephcsi links the Ceph client C libraries (cgo, glibc), so it is built on the
+# glibc builder/golang image; the musl builder/alpine-svace image cannot be used.
+from: {{ index $.Images "builder/golang" }}
 final: false
 
 import:
   - image: {{ .ModuleNamePrefix }}{{ .ImageName }}-src-artifact
     add: /src
     to: /src
-    before: install
+    before: setup
 
 mount:
 {{ include "mount points for golang builds" . }}
@@ -45,10 +70,9 @@ secrets:
   value: {{ .GOPROXY }}
 
 shell:
-  beforeInstall:
-    {{- include "alt packages proxy" . | nindent 4 }}
-    - apt-get -y install make librbd-devel librados-devel gcc git libcephfs-devel
   install:
+    - pm install make gnu-gcc gnu-glibc-devel git pkgconf ceph-devel librbd libcephfs{{ if ne .SVACE_ENABLED "false" }} svace rsync ssh-static{{ end }}
+  setup:
     - export GOPROXY=$(cat /run/secrets/GOPROXY)
     - cd /src/ceph-csi
     - export CGO_ENABLED=1
@@ -57,48 +81,30 @@ shell:
     - cp _output/cephcsi /{{ $.ImageName }}
 
 ---
-image: {{ .ModuleNamePrefix }}{{ .ImageName }}-binary-replace-artifact
-fromImage: builder/alt
-final: false
-
-git:
-  - add: {{ .ModuleDir }}/tools/dev_images/additional_tools/binary_replace.sh
-    to: /binary_replace.sh
-    stageDependencies:
-      install:
-        - '**/*'
-shell:
-  install:
-    {{- include "alt packages proxy" . | nindent 4 }}
-    - apt-get -y install glibc-utils mount ceph ceph-fuse rbd-fuse rbd-nbd e2fsprogs xfsprogs util-linux kmod
-    - rm -rf /var/lib/apt/lists/* /var/cache/apt/* && mkdir -p /var/lib/apt/lists/partial /var/cache/apt/archives/partial
-    - chmod +x /binary_replace.sh
-
----
-image: {{ .ModuleNamePrefix }}{{ .ImageName }}-binaries-artifact
-fromImage: {{ .ModuleNamePrefix }}{{ .ImageName }}-binary-replace-artifact
-final: false
-
+image: {{ .ModuleNamePrefix }}{{ .ImageName }}
+from: {{ index $.Images "builder/distroless" }}
 import:
-  - image: {{ .ModuleNamePrefix }}{{ .ImageName }}-base-binaries-artifact
+  - image: {{ .ModuleNamePrefix }}{{ .ImageName }}-golang-artifact
     add: /{{ $.ImageName }}
     to: /{{ $.ImageName }}
-    before: install
-
-shell:
-  install:
-    - /binary_replace.sh -i "{{ $binaries }}" -o /relocate
-
----
-image: {{ .ModuleNamePrefix }}{{ .ImageName }}
-fromImage: base/distroless
-import:
-  - image: {{ .ModuleNamePrefix }}{{ .ImageName }}-binaries-artifact
-    add: /relocate
-    to: /
     before: setup
 git:
 {{- include "image mount points" . }}
+shell:
+  setup:
+    - |
+      pm install \
+        gnu-glibc \
+        coreutils \
+        util-linux \
+        e2fsprogs \
+        xfsprogs \
+        kmod \
+        libfuse \
+        librbd \
+        libcephfs \
+        rbd \
+        cephfs
 imageSpec:
   config:
     entrypoint: ["/{{ $.ImageName }}"]
