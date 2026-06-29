@@ -30,11 +30,17 @@ spec:
               type: object
               x-kubernetes-validations:
                 - rule: |
-                    (self.type == "CephFS" && has(self.cephFS) && !has(self.rbd)) || self.type != "CephFS"
-                  message: "Field 'cephFS' is required for 'CephFS' type, and 'rbd' field is forbidden"
+                    self.type != "CephFS" || (has(self.cephFS) && has(self.cephFS.fsName) && self.cephFS.fsName != "")
+                  message: "Field 'cephFS.fsName' is required for 'CephFS' type."
                 - rule: |
-                    (self.type == "RBD" && has(self.rbd) && !has(self.cephFS)) || self.type != "RBD"
-                  message: "Field 'rbd' is required for 'RBD' type, and 'cephFS' field is forbidden"
+                    self.type != "CephFS" || !has(self.rbd) || !has(self.rbd.pool) || self.rbd.pool == ""
+                  message: "Field 'rbd' is forbidden for 'CephFS' type."
+                - rule: |
+                    self.type != "RBD" || (has(self.rbd) && has(self.rbd.pool) && self.rbd.pool != "")
+                  message: "Field 'rbd.pool' is required for 'RBD' type."
+                - rule: |
+                    self.type != "RBD" || !has(self.cephFS) || !has(self.cephFS.fsName) || self.cephFS.fsName == ""
+                  message: "Field 'cephFS' is forbidden for 'RBD' type."
               required:
                 - clusterConnectionName
                 - reclaimPolicy
@@ -81,23 +87,18 @@ spec:
                   type: object
                   description: |
                     CephFS specific parameters.
-                  required:
-                    - fsName
                   properties:
                     fsName:
                       description: |
                         Name of the CephFS file system.
                       type: string
                       x-kubernetes-validations:
-                        - rule: self == oldSelf
+                        - rule: self == oldSelf || oldSelf == ""
                           message: Value is immutable.
-                      minLength: 1
                 rbd:
                   type: object
                   description: |
                     Rados Block Device specific parameters.
-                  required:
-                    - pool
                   properties:
                     defaultFSType:
                       description: |
@@ -105,17 +106,15 @@ spec:
                       type: string
                       default: ext4
                       x-kubernetes-validations:
-                        - rule: self == oldSelf
+                        - rule: self == oldSelf || oldSelf == ""
                           message: Value is immutable.
-                      minLength: 1
                     pool:
                       description: |
                         Name of the RBD pool.
                       type: string
                       x-kubernetes-validations:
-                        - rule: self == oldSelf
+                        - rule: self == oldSelf || oldSelf == ""
                           message: Value is immutable.
-                      minLength: 1
             status:
               type: object
               description: |
