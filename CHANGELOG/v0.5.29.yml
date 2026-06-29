@@ -1,0 +1,3 @@
+Changes:
+- Fixed generation of access secret to registry (deckhouse-registry): Now it only
+    contains authorization data for the active image source
