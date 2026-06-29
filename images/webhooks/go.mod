@@ -1,6 +1,6 @@
 module github.com/deckhouse/csi-ceph/images/webhooks
 
-go 1.25.10
+go 1.26.4
 require (
 	github.com/sirupsen/logrus v1.9.3
 	github.com/slok/kubewebhook/v2 v2.7.0
