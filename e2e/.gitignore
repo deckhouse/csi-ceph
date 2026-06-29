@@ -1,0 +1,6 @@
+# Local env files with secrets (DKP license, registry cfg, SSH passphrase).
+# Keep them out of git — these values live in flant-context/auth.txt.
+config/
+test_exports*
+.tmp-*.log
+e2e-artifacts-*/

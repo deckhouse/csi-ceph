@@ -1,0 +1,95 @@
+# csi-ceph e2e (msCrcData matrix) nested test cluster.
+#
+# 1 master + 3 workers — a realistic Rook layout (1 mon/mgr, 3 OSDs with
+# failureDomain=osd or host). Workers are sized to host Rook daemons + the
+# PVC pods we spawn in the targeted CRC matrix without risking OOMKills on OSDs.
+#
+# Modules enabled here are the minimum the e2e harness needs on top of
+# a freshly bootstrapped Deckhouse:
+#   - snapshot-controller    : CSI snapshotter, dep of everything
+#   - sds-node-configurator  : scans block devices on each node (used by
+#                              sds-local-volume + Rook OSD PVCs)
+#   - sds-local-volume       : provides the local-path StorageClass that
+#                              backs Rook OSD PVCs (E2E_ROOK_OSD_STORAGE_CLASS)
+#   - sds-elastic            : ships Rook operator + CephCluster CRDs
+#   - csi-ceph               : the module under test. The test suite
+#                              flips its `msCrcData` setting and expects
+#                              ceph-config ConfigMap + PVC provisioning
+#                              to track the flip.
+#
+# If you need to pin csi-ceph to a specific PR image tag
+# (dev-registry.deckhouse.io/sys/deckhouse-oss/modules/csi-ceph:<tag>),
+# set `modulePullOverride: "<tag>"` below — storage-e2e will create the
+# corresponding ModulePullOverride CR.
+clusterDefinition:
+  masters:
+    - hostname: "master-1"
+      hostType: "vm"
+      osType: "Ubuntu 22.04 6.2.0-39-generic"
+      cpu: 4
+      coreFraction: 50
+      ram: 8
+      diskSize: 50
+  workers:
+    - hostname: "worker-1"
+      hostType: "vm"
+      osType: "Ubuntu 22.04 6.2.0-39-generic"
+      cpu: 4
+      coreFraction: 50
+      ram: 8
+      diskSize: 50
+    - hostname: "worker-2"
+      hostType: "vm"
+      osType: "Ubuntu 22.04 6.2.0-39-generic"
+      cpu: 4
+      coreFraction: 50
+      ram: 8
+      diskSize: 50
+    - hostname: "worker-3"
+      hostType: "vm"
+      osType: "Ubuntu 22.04 6.2.0-39-generic"
+      cpu: 4
+      coreFraction: 50
+      ram: 8
+      diskSize: 50
+  dkpParameters:
+    kubernetesVersion: "Automatic"
+    podSubnetCIDR: "10.112.0.0/16"
+    serviceSubnetCIDR: "10.225.0.0/16"
+    clusterDomain: "cluster.local"
+    registryRepo: "dev-registry.deckhouse.io/sys/deckhouse-oss"
+    devBranch: "main"
+    modules:
+      - name: "snapshot-controller"
+        version: 1
+        enabled: true
+        modulePullOverride: "main"
+        dependencies: []
+      - name: "sds-node-configurator"
+        version: 1
+        enabled: true
+        settings:
+          enableThinProvisioning: true
+        dependencies: []
+      - name: "sds-local-volume"
+        version: 1
+        enabled: true
+        dependencies:
+          - "snapshot-controller"
+          - "sds-node-configurator"
+      - name: "sds-elastic"
+        version: 1
+        enabled: true
+        dependencies:
+          - "snapshot-controller"
+          - "sds-node-configurator"
+      - name: "csi-ceph"
+        version: 1
+        enabled: true
+        # CI must set MODULE_IMAGE_TAG, e.g. "pr<N>" on GitHub, "mr<N>" on
+        # GitLab, or "main" for nightly. storage-e2e expands ${VAR} forms at
+        # config load time and fails fast if the env var is unset.
+        modulePullOverride: "${MODULE_IMAGE_TAG}"
+        dependencies:
+          - "snapshot-controller"
+          - "sds-elastic"
