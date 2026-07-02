@@ -1,0 +1,70 @@
+# CI-only cluster config for the storage-e2e reusable pipeline (commander
+# provider). It differs from cluster_config.yml in ONE way: the csi-ceph
+# modulePullOverride is the env reference ${E2E_MODULE_IMAGE_TAG}, resolved by
+# the bootstrap step (LoadClusterDefinition) to the PR's image tag. The local-run
+# loader rejects ${...}, which is why this lives in a separate file and
+# cluster_config.yml keeps a literal tag.
+#
+# In the commander CI flow only the `modules:` list + dkpParameters.registryRepo
+# are consumed (module enablement runs inside bootstrap); the masters/workers/
+# subnets below are present to satisfy validation — the cluster itself is created
+# from the Commander template, not from this block. The Commander template
+# pre-provisions the storage workers and their raw OSD block devices (>=4), so
+# BeforeSuite skips the runtime VirtualDisk attach and falls back to adopting the
+# block devices the template already exposes.
+clusterDefinition:
+  masters:
+    - hostname: "master-1"
+      hostType: "vm"
+      osType: "Ubuntu 22.04 6.2.0-39-generic"
+      cpu: 4
+      coreFraction: 50
+      ram: 8
+      diskSize: 50
+  workers:
+    - hostname: "worker-1"
+      hostType: "vm"
+      osType: "Ubuntu 22.04 6.2.0-39-generic"
+      cpu: 4
+      coreFraction: 50
+      ram: 8
+      diskSize: 50
+  dkpParameters:
+    kubernetesVersion: "Automatic"
+    podSubnetCIDR: "10.112.0.0/16"
+    serviceSubnetCIDR: "10.225.0.0/16"
+    clusterDomain: "cluster.local"
+    registryRepo: "dev-registry.deckhouse.io/sys/deckhouse-oss"
+    devBranch: "main"
+    modules:
+      # Minimum stack the ElasticCluster (Ceph substrate) needs on top of a
+      # freshly bootstrapped Deckhouse (mirrors cluster_config.yml). The released
+      # layer is pinned with modulePullOverride "main"; only csi-ceph (the module
+      # under test) is resolved to the PR image tag.
+      - name: "snapshot-controller"
+        version: 1
+        enabled: true
+        modulePullOverride: "main"
+        dependencies: []
+      - name: "sds-node-configurator"
+        version: 1
+        enabled: true
+        settings:
+          enableThinProvisioning: true
+        dependencies: []
+      - name: "csi-ceph"
+        version: 1
+        enabled: true
+        # Resolved during bootstrap to the PR image tag (e.g. pr123). The
+        # pipeline exports E2E_MODULE_IMAGE_TAG from the module_image_tag input.
+        modulePullOverride: "${E2E_MODULE_IMAGE_TAG}"
+        dependencies:
+          - "snapshot-controller"
+      - name: "sds-elastic"
+        version: 1
+        enabled: true
+        modulePullOverride: "main"
+        dependencies:
+          - "snapshot-controller"
+          - "sds-node-configurator"
+          - "csi-ceph"
