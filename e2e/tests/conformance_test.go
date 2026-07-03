@@ -95,6 +95,7 @@ func conformanceSpecs() {
 	Describe("k8s external-storage CSI conformance", Ordered, func() {
 		var (
 			e2eBin         string
+			ginkgoBin      string
 			kubeconfigPath string
 		)
 
@@ -106,9 +107,9 @@ func conformanceSpecs() {
 			defer cancel()
 
 			var err error
-			By("Resolving and downloading the version-matched k8s e2e.test binary")
-			e2eBin, err = ensureE2ETestBinary(ctx)
-			Expect(err).NotTo(HaveOccurred(), "obtain k8s e2e.test")
+			By("Resolving and downloading the version-matched k8s e2e.test + ginkgo binaries")
+			e2eBin, ginkgoBin, err = ensureK8sTestBins(ctx)
+			Expect(err).NotTo(HaveOccurred(), "obtain k8s e2e.test/ginkgo")
 
 			By("Serialising a kubeconfig for the in-process cluster connection")
 			kubeconfigPath, err = writeSuiteKubeconfig()
@@ -125,7 +126,7 @@ func conformanceSpecs() {
 				fsTypes:      []string{"", "ext4"},
 				block:        true,
 				rwx:          false,
-			}, e2eBin, kubeconfigPath)
+			}, e2eBin, ginkgoBin, kubeconfigPath)
 		})
 
 		It("CephFS: passes the focused External.Storage suite (RWX, expansion, snapshot, clone)", func() {
@@ -138,7 +139,7 @@ func conformanceSpecs() {
 				fsTypes:      []string{""},
 				block:        false,
 				rwx:          true,
-			}, e2eBin, kubeconfigPath)
+			}, e2eBin, ginkgoBin, kubeconfigPath)
 		})
 	})
 }
@@ -166,7 +167,7 @@ func envOr(key, def string) string {
 // runExternalStorageForDriver provisions the driver's VolumeSnapshotClass, writes
 // its testdriver manifest and runs the focused e2e.test suite, failing the spec on
 // a non-zero exit.
-func runExternalStorageForDriver(dm driverManifest, e2eBin, kubeconfigPath string) {
+func runExternalStorageForDriver(dm driverManifest, e2eBin, ginkgoBin, kubeconfigPath string) {
 	GinkgoHelper()
 	ctx, cancel := context.WithTimeout(context.Background(), confTimeout()+10*time.Minute)
 	defer cancel()
@@ -180,7 +181,7 @@ func runExternalStorageForDriver(dm driverManifest, e2eBin, kubeconfigPath strin
 	Expect(err).NotTo(HaveOccurred(), "write testdriver manifest")
 
 	By("Running the focused External.Storage suite for " + dm.name)
-	Expect(runE2ETest(ctx, e2eBin, kubeconfigPath, manifestPath)).
+	Expect(runE2ETest(ctx, e2eBin, ginkgoBin, kubeconfigPath, manifestPath)).
 		To(Succeed(), "External.Storage suite for %s", dm.name)
 }
 
@@ -259,46 +260,55 @@ DriverInfo:
 	return path, nil
 }
 
-// ensureE2ETestBinary downloads the k8s e2e.test binary matching the cluster's
-// server version (or E2E_K8S_TEST_VERSION) and caches it under TMPDIR.
-func ensureE2ETestBinary(ctx context.Context) (string, error) {
+// ensureK8sTestBins downloads the k8s e2e.test + ginkgo binaries matching the
+// cluster's server version (or E2E_K8S_TEST_VERSION) and caches them under
+// TMPDIR. e2e.test is a Ginkgo suite that must be parallelised via the ginkgo
+// CLI (`ginkgo --procs=N <e2e.test> -- <args>`); the parallelism flags are NOT
+// accepted by the binary itself.
+func ensureK8sTestBins(ctx context.Context) (e2eBin, ginkgoBin string, err error) {
 	ver := strings.TrimSpace(os.Getenv(envK8sTestVersion))
 	if ver == "" {
-		dc, err := discovery.NewDiscoveryClientForConfig(suiteRestCfg)
-		if err != nil {
-			return "", fmt.Errorf("discovery client: %w", err)
+		dc, derr := discovery.NewDiscoveryClientForConfig(suiteRestCfg)
+		if derr != nil {
+			return "", "", fmt.Errorf("discovery client: %w", derr)
 		}
-		info, err := dc.ServerVersion()
-		if err != nil {
-			return "", fmt.Errorf("server version: %w", err)
+		info, serr := dc.ServerVersion()
+		if serr != nil {
+			return "", "", fmt.Errorf("server version: %w", serr)
 		}
 		ver = info.GitVersion
 	}
 	m := k8sVersionRe.FindString(ver)
 	if m == "" {
-		return "", fmt.Errorf("cannot parse a X.Y.Z k8s version from %q", ver)
+		return "", "", fmt.Errorf("cannot parse a X.Y.Z k8s version from %q", ver)
 	}
 	ver = "v" + m
 
 	dir := filepath.Join(os.TempDir(), "k8s-e2e-"+ver)
-	bin := filepath.Join(dir, "e2e.test")
-	if fi, err := os.Stat(bin); err == nil && fi.Mode()&0o111 != 0 {
-		return bin, nil
+	e2eBin = filepath.Join(dir, "e2e.test")
+	ginkgoBin = filepath.Join(dir, "ginkgo")
+	if executable(e2eBin) && executable(ginkgoBin) {
+		return e2eBin, ginkgoBin, nil
 	}
 
 	url := fmt.Sprintf("https://dl.k8s.io/%s/kubernetes-test-linux-amd64.tar.gz", ver)
-	GinkgoWriter.Printf("downloading e2e.test %s from %s\n", ver, url)
+	GinkgoWriter.Printf("downloading e2e.test + ginkgo %s from %s\n", ver, url)
 	sh := fmt.Sprintf(
-		`set -euo pipefail; mkdir -p %q; curl --fail -sSL %q | tar -xz -C %q --strip-components=3 kubernetes/test/bin/e2e.test`,
+		`set -euo pipefail; mkdir -p %q; curl --fail -sSL %q | tar -xz -C %q --strip-components=3 kubernetes/test/bin/e2e.test kubernetes/test/bin/ginkgo`,
 		dir, url, dir,
 	)
 	cmd := exec.CommandContext(ctx, "bash", "-c", sh)
 	cmd.Stdout = GinkgoWriter
 	cmd.Stderr = GinkgoWriter
-	if err := cmd.Run(); err != nil {
-		return "", fmt.Errorf("download/extract e2e.test %s: %w", ver, err)
+	if runErr := cmd.Run(); runErr != nil {
+		return "", "", fmt.Errorf("download/extract k8s test bins %s: %w", ver, runErr)
 	}
-	return bin, nil
+	return e2eBin, ginkgoBin, nil
+}
+
+func executable(p string) bool {
+	fi, err := os.Stat(p)
+	return err == nil && fi.Mode()&0o111 != 0
 }
 
 // writeSuiteKubeconfig serialises the in-process cluster connection (rest.Config)
@@ -335,27 +345,33 @@ func writeSuiteKubeconfig() (string, error) {
 	return path, nil
 }
 
-// runE2ETest executes the external-storage suite with the focused filters.
-func runE2ETest(ctx context.Context, e2eBin, kubeconfigPath, manifestPath string) error {
+// runE2ETest executes the external-storage suite with the focused filters,
+// driving the precompiled e2e.test through the ginkgo CLI so it can run in
+// parallel (the parallelism flags are ginkgo-CLI-only; passing --ginkgo.procs to
+// the binary makes it print usage and exit non-zero). Ginkgo flags precede the
+// binary; suite flags follow the `--` separator.
+func runE2ETest(ctx context.Context, e2eBin, ginkgoBin, kubeconfigPath, manifestPath string) error {
 	focus := envOr(envConfFocus, defaultConfFocus)
 	skip := envOr(envConfSkip, defaultConfSkip)
 	procs := envOr(envConfProcs, defaultConfProcs)
 
 	args := []string{
+		"--procs=" + procs,
+		"--focus=" + focus,
+		"--skip=" + skip,
+		"--timeout=" + confTimeout().String(),
+		"--flake-attempts=2",
+		"--no-color",
+		e2eBin,
+		"--",
 		"--kubeconfig=" + kubeconfigPath,
 		"--provider=skeleton",
 		"--storage.testdriver=" + manifestPath,
-		"--ginkgo.focus=" + focus,
-		"--ginkgo.skip=" + skip,
-		"--ginkgo.procs=" + procs,
-		"--ginkgo.timeout=" + confTimeout().String(),
-		"--ginkgo.flake-attempts=2",
-		"--ginkgo.no-color",
 	}
 	GinkgoWriter.Printf("running: %s\n  focus=%q\n  skip=%q\n  procs=%s manifest=%s\n",
-		e2eBin, focus, skip, procs, manifestPath)
+		ginkgoBin, focus, skip, procs, manifestPath)
 
-	cmd := exec.CommandContext(ctx, e2eBin, args...)
+	cmd := exec.CommandContext(ctx, ginkgoBin, args...)
 	cmd.Stdout = GinkgoWriter
 	cmd.Stderr = GinkgoWriter
 	return cmd.Run()
