@@ -65,14 +65,6 @@ check-env: ## Print relevant env vars for the nested flow
 	@echo "E2E_OSD_DISK_SIZE:                $${E2E_OSD_DISK_SIZE}"
 	@echo "E2E_PROBE_IMAGE:                  $${E2E_PROBE_IMAGE}  # image with sh+cat for PVC round-trip pods"
 	@echo "E2E_KEEP_CLUSTER_ON_FAILURE:      $${E2E_KEEP_CLUSTER_ON_FAILURE}  # true|1|yes -> skip teardown if a spec failed"
-	@echo ""
-	@echo "=== CSI conformance (k8s External.Storage) ==="
-	@echo "E2E_CONFORMANCE:                  $${E2E_CONFORMANCE}  # false -> skip the conformance suite"
-	@echo "E2E_CONFORMANCE_FOCUS:            $${E2E_CONFORMANCE_FOCUS}  # Ginkgo focus regex override"
-	@echo "E2E_CONFORMANCE_SKIP:             $${E2E_CONFORMANCE_SKIP}  # Ginkgo skip regex override"
-	@echo "E2E_CONFORMANCE_PROCS:            $${E2E_CONFORMANCE_PROCS}  # parallel Ginkgo processes (default 4)"
-	@echo "E2E_CONFORMANCE_TIMEOUT:          $${E2E_CONFORMANCE_TIMEOUT}  # per-driver timeout (default 90m)"
-	@echo "E2E_K8S_TEST_VERSION:             $${E2E_K8S_TEST_VERSION}  # override e2e.test version (default: server version)"
 
 .PHONY: fix-mod-permissions
 fix-mod-permissions: ## Make storage-e2e module cache writable (PrepareBootstrapConfig writes temp/ under the module path)

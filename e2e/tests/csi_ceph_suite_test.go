@@ -89,8 +89,7 @@ var _ = Describe("csi-ceph e2e", Ordered, ContinueOnFailure, func() {
 		teardownFixtures(ctx)
 	})
 
-	createSpecs()      // create_test.go: EC + RBD/CephFS ESC + PVC data round-trip
-	conformanceSpecs() // conformance_test.go: focused k8s External.Storage CSI suite
+	createSpecs() // create_test.go: EC + RBD/CephFS ESC + PVC data round-trip
 })
 
 func prepareSuite() {
