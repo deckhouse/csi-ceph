@@ -26,8 +26,42 @@ storage classes). This is the same substrate `sds-object`'s Heavy profile uses.
      round-trip;
    - CephFS `ElasticStorageClass` → same wiring, then a CephFS PVC + Pod data
      round-trip.
-4. `AfterAll` tears the ElasticStorageClasses + ElasticCluster (and their probe
+4. The **k8s external-storage CSI conformance** suite (`test/e2e/storage/testsuites`,
+   the de-facto CSI conformance) runs against those StorageClasses — see below.
+5. `AfterAll` tears the ElasticStorageClasses + ElasticCluster (and their probe
    PVCs/Pods) down; `AfterSuite` hands the cluster back to `storage-e2e`.
+
+## CSI conformance (External.Storage)
+
+After the data round-trips, the suite runs the upstream Kubernetes external-storage
+test suite against the RBD and CephFS StorageClasses csi-ceph created — the same
+`test/e2e/storage/testsuites` used for CSI conformance. It:
+
+- resolves the cluster's server version and downloads the matching `e2e.test`
+  (`https://dl.k8s.io/<ver>/kubernetes-test-linux-amd64.tar.gz`), cached in TMPDIR;
+- serialises a kubeconfig from the in-process cluster connection so the external
+  `e2e.test` reaches the same cluster through the live tunnel;
+- derives a ceph-csi `VolumeSnapshotClass` from each StorageClass (clusterID +
+  provisioner secret) and writes a testdriver manifest per driver
+  (`rbd.csi.ceph.com`, `cephfs.csi.ceph.com`) declaring the capabilities
+  (persistence, exec, multipods, fsGroup, snapshotDataSource, pvcDataSource,
+  controller/node/online expansion, plus Block for RBD and RWX for CephFS);
+- runs one focused `--ginkgo.focus=External.Storage` pass per driver.
+
+The default focus/skip keeps it to the meaningful patterns — dynamic provisioning
++ clone, volume expansion, snapshot restore, and (via the RBD manifest) Block
+volumeMode — rather than the full 100+-spec matrix. Everything is tunable:
+
+| Env | Default | Purpose |
+| --- | --- | --- |
+| `E2E_CONFORMANCE` | `true` | set `false` to skip the conformance suite |
+| `E2E_CONFORMANCE_FOCUS` | `External.Storage.*(provisioning\|volume-expand\|snapshottable)` | Ginkgo focus regex |
+| `E2E_CONFORMANCE_SKIP` | disruptive/serial/slow/pre-provisioned/inline/ephemeral/non-Linux fs/snapshot-stress | Ginkgo skip regex |
+| `E2E_CONFORMANCE_PROCS` | `4` | parallel Ginkgo processes |
+| `E2E_CONFORMANCE_TIMEOUT` | `90m` | per-driver run timeout |
+| `E2E_K8S_TEST_VERSION` | server version | override the `e2e.test` version |
+
+The CI runner needs outbound access to `dl.k8s.io`, plus `curl`, `bash` and `tar`.
 
 All Elastic/Rook CR provisioning lives in `storage-e2e/pkg/testkit` and
 `storage-e2e/pkg/kubernetes`; the suite imports them via
