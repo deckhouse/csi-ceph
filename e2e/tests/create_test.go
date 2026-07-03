@@ -23,23 +23,11 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	storagekube "github.com/deckhouse/storage-e2e/pkg/kubernetes"
 	"github.com/deckhouse/storage-e2e/pkg/testkit"
-)
-
-// ElasticStorageClass / probe identifiers shared across the create and teardown
-// paths (same package). All names are derived from the shared EC name so a
-// custom E2E_EC_NAME keeps the whole fixture set consistent.
-const (
-	rbdProbePVC    = "probe-rbd"
-	rbdProbePod    = "probe-rbd"
-	rbdProbeMarker = "csi-ceph-e2e-rbd"
-
-	fsProbePVC    = "probe-fs"
-	fsProbePod    = "probe-fs"
-	fsProbeMarker = "csi-ceph-e2e-cephfs"
 )
 
 func escRBDName() string    { return suiteCfg.ecName + "-rbd" }
@@ -85,16 +73,6 @@ func createSpecs() {
 		assertCsiCephWired(ctx, escRBDName())
 	})
 
-	It("round-trips data through an RBD PVC + Pod (csi-ceph RBD driver)", func() {
-		ctx, cancel := context.WithTimeout(context.Background(), pvcBindTimeout+podReadyTimeout+2*time.Minute)
-		defer cancel()
-
-		Expect(createProbePodWithPVC(ctx, escRBDName(), rbdProbePVC, rbdProbePod, rbdProbeMarker)).
-			To(Succeed(), "RBD probe PVC+Pod should bind and become Ready")
-		Expect(verifyProbeFile(ctx, rbdProbePod, rbdProbeMarker)).
-			To(Succeed(), "RBD volume should return the written marker")
-	})
-
 	It("declares a CephFS ElasticStorageClass and materialises the csi-ceph CephStorageClass + core StorageClass", func() {
 		ctx, cancel := context.WithTimeout(context.Background(), suiteCfg.escReadyTimeout+5*time.Minute)
 		defer cancel()
@@ -111,14 +89,18 @@ func createSpecs() {
 		assertCsiCephWired(ctx, escCephFSName())
 	})
 
-	It("round-trips data through a CephFS PVC + Pod (csi-ceph CephFS driver)", func() {
-		ctx, cancel := context.WithTimeout(context.Background(), pvcBindTimeout+podReadyTimeout+2*time.Minute)
-		defer cancel()
+	lifecycleSpecs(driverCase{
+		name:        "rbd",
+		provisioner: rbdProvisioner,
+		scName:      escRBDName,
+		accessMode:  corev1.ReadWriteOnce,
+	})
 
-		Expect(createProbePodWithPVC(ctx, escCephFSName(), fsProbePVC, fsProbePod, fsProbeMarker)).
-			To(Succeed(), "CephFS probe PVC+Pod should bind and become Ready")
-		Expect(verifyProbeFile(ctx, fsProbePod, fsProbeMarker)).
-			To(Succeed(), "CephFS volume should return the written marker")
+	lifecycleSpecs(driverCase{
+		name:        "cephfs",
+		provisioner: cephfsProvisioner,
+		scName:      escCephFSName,
+		accessMode:  corev1.ReadWriteMany,
 	})
 }
 
@@ -144,22 +126,12 @@ func assertCsiCephWired(ctx context.Context, escName string) {
 		To(Succeed(), "core StorageClass %s should be materialised by csi-ceph", escName)
 }
 
-// teardownFixtures tears the suite's fixtures down in dependency order: probe
-// Pods/PVCs first (so the external provisioner reclaims the RBD images / CephFS
-// subvolumes), then the ElasticStorageClasses (force, to purge their pools), then
-// the ElasticCluster. Best-effort: every step logs and continues so a partial
+// teardownFixtures tears the suite's ElasticStorageClasses (force, to purge their
+// pools) and then the ElasticCluster down after the lifecycle specs have removed
+// their PVCs/Pods. Best-effort: every step logs and continues so a partial
 // failure never masks the spec results, and the nested-cluster teardown reclaims
 // whatever is left.
 func teardownFixtures(ctx context.Context) {
-	for _, p := range []struct{ pvc, pod string }{
-		{rbdProbePVC, rbdProbePod},
-		{fsProbePVC, fsProbePod},
-	} {
-		if err := deleteProbe(ctx, p.pvc, p.pod); err != nil {
-			GinkgoWriter.Printf("  warning: probe cleanup %s/%s failed: %v\n", p.pvc, p.pod, err)
-		}
-	}
-
 	for _, esc := range []string{escRBDName(), escCephFSName()} {
 		if err := testkit.TeardownElasticStorageClass(ctx, suiteRestCfg, esc, true, resourceGoneTimeout); err != nil {
 			GinkgoWriter.Printf("  warning: ElasticStorageClass %s teardown failed: %v\n", esc, err)

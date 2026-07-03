@@ -20,14 +20,22 @@ storage classes). This is the same substrate `sds-object`'s Heavy profile uses.
    the template already exposes the raw devices (>=4), so the attach is skipped
    and the suite adopts the pre-provisioned disks.
 3. A single shared `ElasticCluster` is created (it bootstraps the vendored Rook
-   `CephCluster` — ~15-25 min) and the ordered specs exercise:
-   - RBD `ElasticStorageClass` → csi-ceph `CephClusterConnection` +
-     `CephStorageClass` + core `StorageClass`, then an RBD PVC + Pod data
-     round-trip;
-   - CephFS `ElasticStorageClass` → same wiring, then a CephFS PVC + Pod data
-     round-trip.
-4. `AfterAll` tears the ElasticStorageClasses + ElasticCluster (and their probe
-   PVCs/Pods) down; `AfterSuite` hands the cluster back to `storage-e2e`.
+   `CephCluster` — ~15-25 min); an RBD and a CephFS `ElasticStorageClass` are
+   declared (each drives csi-ceph into creating a `CephClusterConnection` +
+   `CephStorageClass` + core `StorageClass`), then the full volume lifecycle is
+   exercised **for both RBD and CephFS** (`lifecycle_test.go`, one ordered block
+   per driver, sharing a base PVC):
+   - **create** — PVC binds, Pod writes and reads back data;
+   - **expand** — PVC resize is honoured (`allowVolumeExpansion`) and data survives;
+   - **pod migration** — the Pod is rescheduled onto another node and the volume
+     re-attaches with data intact (RBD RWO detach/attach; CephFS RWX);
+   - **snapshot + restore** — a `VolumeSnapshot` is taken and restored into a new
+     PVC that carries the original data;
+   - **clone** — a new PVC is provisioned from the source PVC (`dataSource`,
+     which ceph-csi implements via an internal snapshot);
+   - **delete** — Pods/PVCs/snapshot are removed and the backing volumes reclaimed.
+4. `AfterAll` tears the ElasticStorageClasses + ElasticCluster down; `AfterSuite`
+   hands the cluster back to `storage-e2e`.
 
 > **Note on k8s external-storage CSI conformance.** The upstream
 > `test/e2e/storage/testsuites` suite is *not* used here: it creates and mutates
