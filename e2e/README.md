@@ -34,6 +34,12 @@ storage classes). This is the same substrate `sds-object`'s Heavy profile uses.
    - **clone** — a new PVC is provisioned from the source PVC (`dataSource`,
      which ceph-csi implements via an internal snapshot);
    - **delete** — Pods/PVCs/snapshot are removed and the backing volumes reclaimed.
+
+   Plus two driver-specific specs:
+   - **CephFS RWX multi-node** — the same PVC is mounted RW by Pods on two
+     different nodes at once and the second Pod reads the first Pod's data;
+   - **RBD Block volumeMode** — a raw `volumeMode: Block` PVC is attached as a
+     block device (`volumeDevices`) and round-trips a marker written with `dd`.
 4. `AfterAll` tears the ElasticStorageClasses + ElasticCluster down; `AfterSuite`
    hands the cluster back to `storage-e2e`.
 

@@ -19,6 +19,7 @@ package tests
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -59,12 +60,20 @@ var (
 	}
 )
 
+// blockDevicePath is where the Block-volumeMode spec exposes the raw RBD device
+// inside the probe Pod.
+const blockDevicePath = "/dev/csi-block"
+
 // driverCase parametrises the shared lifecycle suite for one csi-ceph driver.
 type driverCase struct {
 	name        string // short label: "rbd" / "cephfs"
 	provisioner string // rbd.csi.ceph.com / cephfs.csi.ceph.com
 	scName      func() string
 	accessMode  corev1.PersistentVolumeAccessMode
+	// supportsRWX runs the extra "same volume mounted RW on two nodes at once"
+	// spec (CephFS). supportsBlock runs the raw Block-volumeMode spec (RBD).
+	supportsRWX   bool
+	supportsBlock bool
 }
 
 // lifecycleSpecs registers the full volume-lifecycle coverage for one driver on
@@ -164,6 +173,67 @@ func lifecycleSpecs(dc driverCase) {
 			Expect(applyPVCAndPod(ctx, pvc, pod)).To(Succeed(), "cloned PVC+Pod should bind and become Ready")
 			Expect(verifyProbeFile(ctx, clonePod, marker)).To(Succeed(), "cloned volume should carry the source data")
 		})
+
+		if dc.supportsRWX {
+			It("serves the same volume RW from Pods on two nodes at once (RWX)", func() {
+				ctx, cancel := context.WithTimeout(context.Background(), pvcBindTimeout+2*podReadyTimeout+3*time.Minute)
+				defer cancel()
+
+				n1, n2, err := twoSchedulableWorkers(ctx)
+				Expect(err).NotTo(HaveOccurred())
+				if n1 == "" {
+					Skip("need >=2 schedulable worker nodes for the RWX multi-node spec")
+				}
+
+				rwxPVC := dc.name + "-rwx"
+				podA := dc.name + "-rwx-a"
+				podB := dc.name + "-rwx-b"
+				rwxMarker := "csi-ceph-" + dc.name + "-rwx"
+				DeferCleanup(func() {
+					cctx, ccancel := context.WithTimeout(context.Background(), pvcGoneTimeout+2*time.Minute)
+					defer ccancel()
+					_ = deletePodBestEffort(cctx, podA)
+					_ = deletePodBestEffort(cctx, podB)
+					_ = deletePVCWaitGone(cctx, rwxPVC, pvcGoneTimeout)
+				})
+
+				By("mounting an RWX PVC on " + n1 + " (writer) and " + n2 + " (reader) simultaneously")
+				pvc := buildLifecyclePVC(rwxPVC, dc.scName(), suiteCfg.pvcSize, corev1.ReadWriteMany, nil)
+				writer := buildLifecyclePod(podA, rwxPVC, n1, rwxMarker, true)
+				Expect(applyPVCAndPod(ctx, pvc, writer)).To(Succeed(), "writer Pod on %s should become Ready", n1)
+
+				reader := buildLifecyclePod(podB, rwxPVC, n2, rwxMarker, false)
+				Expect(applyPodOnly(ctx, reader)).To(Succeed(), "reader Pod on %s should mount the same RWX volume", n2)
+
+				Expect(verifyProbeFile(ctx, podB, rwxMarker)).
+					To(Succeed(), "the node-%s Pod should read the node-%s Pod's data while both are mounted", n2, n1)
+			})
+		}
+
+		if dc.supportsBlock {
+			It("provisions a raw Block-volumeMode PVC and round-trips through the block device", func() {
+				ctx, cancel := context.WithTimeout(context.Background(), pvcBindTimeout+podReadyTimeout+3*time.Minute)
+				defer cancel()
+
+				blockPVC := dc.name + "-block"
+				blockPod := dc.name + "-block"
+				blockMarker := "csi-ceph-" + dc.name + "-block"
+				DeferCleanup(func() {
+					cctx, ccancel := context.WithTimeout(context.Background(), pvcGoneTimeout+2*time.Minute)
+					defer ccancel()
+					_ = deletePodBestEffort(cctx, blockPod)
+					_ = deletePVCWaitGone(cctx, blockPVC, pvcGoneTimeout)
+				})
+
+				By("creating a Block-mode PVC and a Pod with a raw volumeDevice")
+				pvc := buildBlockPVC(blockPVC, dc.scName(), suiteCfg.pvcSize, dc.accessMode)
+				pod := buildBlockPod(blockPod, blockPVC, blockMarker)
+				Expect(applyPVCAndPod(ctx, pvc, pod)).To(Succeed(), "Block-mode PVC+Pod should bind and become Ready")
+
+				Expect(verifyBlockData(ctx, blockPod, blockMarker)).
+					To(Succeed(), "raw block device should return the written marker")
+			})
+		}
 
 		It("deletes the volumes and snapshot: resources are reclaimed", func() {
 			ctx, cancel := context.WithTimeout(context.Background(), resourceGoneTimeout+5*time.Minute)
@@ -312,6 +382,76 @@ func nodeSchedulable(n *corev1.Node) bool {
 		}
 	}
 	return true
+}
+
+// twoSchedulableWorkers returns two distinct schedulable worker node names, or
+// ("","") if there are fewer than two.
+func twoSchedulableWorkers(ctx context.Context) (string, string, error) {
+	workers, err := storagekube.GetWorkerNodes(ctx, suiteRestCfg)
+	if err != nil {
+		return "", "", err
+	}
+	var names []string
+	for i := range workers {
+		if nodeSchedulable(&workers[i]) {
+			names = append(names, workers[i].Name)
+		}
+	}
+	if len(names) < 2 {
+		return "", "", nil
+	}
+	return names[0], names[1], nil
+}
+
+// buildBlockPVC is buildLifecyclePVC with volumeMode: Block (raw device).
+func buildBlockPVC(name, sc, size string, mode corev1.PersistentVolumeAccessMode) *corev1.PersistentVolumeClaim {
+	pvc := buildLifecyclePVC(name, sc, size, mode, nil)
+	block := corev1.PersistentVolumeBlock
+	pvc.Spec.VolumeMode = &block
+	return pvc
+}
+
+// buildBlockPod attaches pvc as a raw block device at blockDevicePath and writes
+// marker to the start of the device at boot (via dd), then idles.
+func buildBlockPod(name, pvc, marker string) *corev1.Pod {
+	script := fmt.Sprintf(`printf '%%s' "$MARKER" | dd of=%s 2>/dev/null; sync; sleep 360000`, blockDevicePath)
+	return &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: suiteCfg.namespace,
+			Name:      name,
+			Labels:    map[string]string{"app": "csi-ceph-e2e-block"},
+		},
+		Spec: corev1.PodSpec{
+			RestartPolicy: corev1.RestartPolicyNever,
+			Containers: []corev1.Container{{
+				Name:          probeContainerName,
+				Image:         suiteCfg.probeImage,
+				Command:       []string{"sh", "-c", script},
+				Env:           []corev1.EnvVar{{Name: "MARKER", Value: marker}},
+				VolumeDevices: []corev1.VolumeDevice{{Name: "data", DevicePath: blockDevicePath}},
+			}},
+			Volumes: []corev1.Volume{{
+				Name: "data",
+				VolumeSource: corev1.VolumeSource{
+					PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{ClaimName: pvc},
+				},
+			}},
+		},
+	}
+}
+
+// verifyBlockData reads len(want) bytes from the raw block device and asserts
+// they equal want.
+func verifyBlockData(ctx context.Context, podName, want string) error {
+	out, stderr, err := storagekube.ExecInPod(ctx, suiteRestCfg, suiteCfg.namespace, podName, probeContainerName,
+		[]string{"dd", "if=" + blockDevicePath, "bs=1", fmt.Sprintf("count=%d", len(want))})
+	if err != nil {
+		return fmt.Errorf("read block device in %s/%s: %w (stderr: %s)", suiteCfg.namespace, podName, err, stderr)
+	}
+	if strings.TrimSpace(out) != want {
+		return fmt.Errorf("block data mismatch in %s/%s: want %q, got %q", suiteCfg.namespace, podName, want, strings.TrimSpace(out))
+	}
+	return nil
 }
 
 // resizePVCAndWait patches the PVC request up to newSize and waits for
