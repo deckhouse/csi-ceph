@@ -88,6 +88,21 @@ import:
     add: /{{ $.ImageName }}
     to: /{{ $.ImageName }}
     before: setup
+  # libcephfs (loaded by cephcsi) -> libboost_charconv -> libquadmath.so.0.
+  # libquadmath ships only inside the heavy gnu-gcc compiler package and has no
+  # standalone runtime package in the container-base catalog, so `pm install`
+  # cannot resolve it and cephcsi fails at startup with
+  # "libquadmath.so.0: cannot open shared object file". The glibc build stage
+  # already has gnu-gcc installed, so copy just the runtime lib (and its SONAME
+  # symlink) from there.
+  - image: {{ .ModuleNamePrefix }}{{ .ImageName }}-golang-artifact
+    add: /usr/lib64/libquadmath.so.0.0.0
+    to: /usr/lib64/libquadmath.so.0.0.0
+    before: setup
+  - image: {{ .ModuleNamePrefix }}{{ .ImageName }}-golang-artifact
+    add: /usr/lib64/libquadmath.so.0
+    to: /usr/lib64/libquadmath.so.0
+    before: setup
 git:
 {{- include "image mount points" . }}
 shell:
