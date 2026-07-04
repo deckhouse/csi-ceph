@@ -26,7 +26,6 @@ import (
 	. "github.com/onsi/gomega"
 
 	corev1 "k8s.io/api/core/v1"
-	storagev1 "k8s.io/api/storage/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -37,12 +36,7 @@ import (
 	storagekube "github.com/deckhouse/storage-e2e/pkg/kubernetes"
 )
 
-// The upstream ceph-csi provisioner names csi-ceph registers (used for the
-// VolumeSnapshotClass driver field).
 const (
-	rbdProvisioner    = "rbd.csi.ceph.com"
-	cephfsProvisioner = "cephfs.csi.ceph.com"
-
 	// lifecycleResizedSize is the target for the expansion spec; restore/clone
 	// PVCs use it too so they are always >= the (resized) source volume.
 	lifecycleResizedSize = "2Gi"
@@ -51,14 +45,9 @@ const (
 	pvcGoneTimeout       = 5 * time.Minute
 )
 
-var (
-	volumeSnapshotGVR = schema.GroupVersionResource{
-		Group: "snapshot.storage.k8s.io", Version: "v1", Resource: "volumesnapshots",
-	}
-	volumeSnapshotClassGVR = schema.GroupVersionResource{
-		Group: "snapshot.storage.k8s.io", Version: "v1", Resource: "volumesnapshotclasses",
-	}
-)
+var volumeSnapshotGVR = schema.GroupVersionResource{
+	Group: "snapshot.storage.k8s.io", Version: "v1", Resource: "volumesnapshots",
+}
 
 // blockDevicePath is where the Block-volumeMode spec exposes the raw RBD device
 // inside the probe Pod.
@@ -66,10 +55,9 @@ const blockDevicePath = "/dev/csi-block"
 
 // driverCase parametrises the shared lifecycle suite for one csi-ceph driver.
 type driverCase struct {
-	name        string // short label: "rbd" / "cephfs"
-	provisioner string // rbd.csi.ceph.com / cephfs.csi.ceph.com
-	scName      func() string
-	accessMode  corev1.PersistentVolumeAccessMode
+	name       string // short label: "rbd" / "cephfs"
+	scName     func() string
+	accessMode corev1.PersistentVolumeAccessMode
 	// supportsRWX runs the extra "same volume mounted RW on two nodes at once"
 	// spec (CephFS). supportsBlock runs the raw Block-volumeMode spec (RBD).
 	supportsRWX   bool
@@ -94,8 +82,7 @@ func lifecycleSpecs(dc driverCase) {
 			snapName   = dc.name + "-snap"
 			marker     = "csi-ceph-" + dc.name + "-lifecycle"
 
-			snapClass string
-			baseNode  string
+			baseNode string
 		)
 
 		It("creates a volume: PVC binds, Pod writes and reads back data", func() {
@@ -149,12 +136,13 @@ func lifecycleSpecs(dc driverCase) {
 			ctx, cancel := context.WithTimeout(context.Background(), snapshotReadyTimeout+pvcBindTimeout+podReadyTimeout+2*time.Minute)
 			defer cancel()
 
-			var err error
-			snapClass, err = ensureVolumeSnapshotClass(ctx, dc.scName(), dc.provisioner)
-			Expect(err).NotTo(HaveOccurred(), "VolumeSnapshotClass for %s", dc.scName())
-
+			// csi-ceph auto-creates a VolumeSnapshotClass named after the
+			// StorageClass (the SC's storage.deckhouse.io/volumesnapshotclass
+			// annotation points to it), and the deckhouse snapshot-controller
+			// mutation webhook requires the VolumeSnapshot to reference exactly
+			// that class. Use it rather than creating our own.
 			By("creating VolumeSnapshot " + snapName + " and waiting for readyToUse")
-			Expect(createSnapshotWait(ctx, snapName, basePVC, snapClass, snapshotReadyTimeout)).
+			Expect(createSnapshotWait(ctx, snapName, basePVC, dc.scName(), snapshotReadyTimeout)).
 				To(Succeed(), "snapshot %s should become readyToUse", snapName)
 
 			By("restoring a new PVC from the snapshot")
@@ -484,40 +472,6 @@ func resizePVCAndWait(ctx context.Context, name, newSize string, timeout time.Du
 			return ctx.Err()
 		}
 	}
-}
-
-// ensureVolumeSnapshotClass derives a ceph-csi VolumeSnapshotClass from the
-// StorageClass csi-ceph created (clusterID + the provisioner secret, reused as
-// the snapshotter secret). Idempotent.
-func ensureVolumeSnapshotClass(ctx context.Context, scName, driver string) (string, error) {
-	var sc storagev1.StorageClass
-	if err := suiteK8s.Get(ctx, client.ObjectKey{Name: scName}, &sc); err != nil {
-		return "", fmt.Errorf("get StorageClass %s: %w", scName, err)
-	}
-	clusterID := sc.Parameters["clusterID"]
-	secretName := sc.Parameters["csi.storage.k8s.io/provisioner-secret-name"]
-	secretNS := sc.Parameters["csi.storage.k8s.io/provisioner-secret-namespace"]
-	if clusterID == "" || secretName == "" || secretNS == "" {
-		return "", fmt.Errorf("StorageClass %s is missing ceph-csi params (clusterID/provisioner-secret)", scName)
-	}
-
-	name := scName + "-snap"
-	vsc := &unstructured.Unstructured{}
-	vsc.SetGroupVersionKind(schema.GroupVersionKind{Group: "snapshot.storage.k8s.io", Version: "v1", Kind: "VolumeSnapshotClass"})
-	vsc.SetName(name)
-	vsc.Object["driver"] = driver
-	vsc.Object["deletionPolicy"] = "Delete"
-	vsc.Object["parameters"] = map[string]interface{}{
-		"clusterID": clusterID,
-		"csi.storage.k8s.io/snapshotter-secret-name":      secretName,
-		"csi.storage.k8s.io/snapshotter-secret-namespace": secretNS,
-	}
-
-	_, err := suiteDyn.Resource(volumeSnapshotClassGVR).Create(ctx, vsc, metav1.CreateOptions{})
-	if err != nil && !apierrors.IsAlreadyExists(err) {
-		return "", fmt.Errorf("create VolumeSnapshotClass %s: %w", name, err)
-	}
-	return name, nil
 }
 
 func createSnapshotWait(ctx context.Context, name, srcPVC, snapClass string, timeout time.Duration) error {

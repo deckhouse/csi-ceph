@@ -91,7 +91,6 @@ func createSpecs() {
 
 	lifecycleSpecs(driverCase{
 		name:          "rbd",
-		provisioner:   rbdProvisioner,
 		scName:        escRBDName,
 		accessMode:    corev1.ReadWriteOnce,
 		supportsBlock: true, // RBD supports volumeMode: Block
@@ -99,7 +98,6 @@ func createSpecs() {
 
 	lifecycleSpecs(driverCase{
 		name:        "cephfs",
-		provisioner: cephfsProvisioner,
 		scName:      escCephFSName,
 		accessMode:  corev1.ReadWriteMany,
 		supportsRWX: true, // CephFS supports simultaneous multi-node RWX
