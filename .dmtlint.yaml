@@ -106,3 +106,7 @@ linters-settings:
         - kind: DaemonSet
           name: csi-node-cephfs
           container: node-driver-registrar
+  no-cyrillic:
+    exclude-rules:
+      directories:
+        - hack/
