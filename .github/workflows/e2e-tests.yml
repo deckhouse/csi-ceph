@@ -16,6 +16,12 @@
 # the PR carries the `e2e/commander/run` label (set it on the PR to trigger).
 # Other labels: `e2e/keep-cluster` (skip teardown), `e2e/label:<suite>` (Ginkgo
 # label filter). See storage-e2e docs/CI.md for the secrets/vars to configure.
+#
+# The msCrcData suite is excluded by default (label_filter '!msCrcData') because it
+# needs a dedicated Ceph cluster brought up born CRC-off — flipping ms_crc_data on
+# a running cluster wedges it. Run it on demand by adding the `e2e/label:msCrcData`
+# PR label (alongside `e2e/commander/run`); that stands up its own CRC-off
+# ElasticCluster and skips the default lifecycle suite.
 
 name: E2E
 
@@ -47,4 +53,6 @@ jobs:
       storage_e2e_ref: main
       # Install the image built for this PR (build_dev publishes the pr<N> tag).
       module_image_tag: pr${{ github.event.pull_request.number }}
+      # Default runs skip the msCrcData suite; add e2e/label:msCrcData to run it.
+      label_filter: '!msCrcData'
     secrets: inherit

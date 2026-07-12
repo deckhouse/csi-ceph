@@ -102,6 +102,10 @@ func createSpecs() {
 		accessMode:  corev1.ReadWriteMany,
 		supportsRWX: true, // CephFS supports simultaneous multi-node RWX
 	})
+
+	// msCrcData last: toggling CRC rolls every Ceph daemon + the csi-ceph CSI
+	// pods, so it runs only after the RBD/CephFS lifecycle coverage has passed.
+	msCrcDataSpecs()
 }
 
 // assertCsiCephWired asserts an ElasticStorageClass reached its backend + CSI

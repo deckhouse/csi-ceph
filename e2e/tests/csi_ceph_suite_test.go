@@ -106,6 +106,7 @@ func prepareSuite() {
 	GinkgoWriter.Printf("  module ready timeout:      %s\n", suiteCfg.moduleReadyTO)
 	GinkgoWriter.Printf("  OSD disks per worker:      %d (%s each)\n", suiteCfg.osdDisksPerWorker, suiteCfg.osdDiskSize)
 	GinkgoWriter.Printf("  probe image:               %q\n", suiteCfg.probeImage)
+	GinkgoWriter.Printf("  sds-elastic namespace:     %q\n", suiteCfg.sdsElasticNamespace)
 
 	ensureNestedTestCluster()
 
