@@ -54,6 +54,12 @@ const (
 	envOSDDiskSize       = "E2E_OSD_DISK_SIZE"
 	envProbeImage        = "E2E_PROBE_IMAGE"
 
+	// envSdsElasticNamespace overrides the namespace the sds-elastic module
+	// deploys Rook into. The msCrcData spec flips the server-side ms_crc_data
+	// via that module's rook-config-override, so it must match the running
+	// sds-elastic install (default d8-sds-elastic).
+	envSdsElasticNamespace = "E2E_SDS_ELASTIC_NAMESPACE"
+
 	// envKeepClusterOnFailure, when truthy, skips nested-cluster teardown if any
 	// spec failed, leaving the cluster live for manual debugging.
 	envKeepClusterOnFailure = "E2E_KEEP_CLUSTER_ON_FAILURE"
@@ -67,6 +73,10 @@ const (
 	defaultOSDDiskSize  = "20Gi"
 	defaultDisksPerNode = 2
 	defaultModuleReady  = 15 * time.Minute
+
+	// defaultSdsElasticNamespace is the namespace the sds-elastic module deploys
+	// its vendored Rook into; it is also storage-e2e's DefaultRookNamespace.
+	defaultSdsElasticNamespace = "d8-sds-elastic"
 
 	// moduleName is the Deckhouse module under test; also the suffix of its
 	// namespace (d8-csi-ceph).
@@ -132,6 +142,10 @@ type e2eConfig struct {
 	osdDiskSize       string
 	probeImage        string
 
+	// sdsElasticNamespace is where the sds-elastic Rook install lives; the
+	// msCrcData spec targets its rook-config-override for the server-side flip.
+	sdsElasticNamespace string
+
 	// vmNamespace / baseStorageClass drive the runtime VirtualDisk attach for
 	// raw OSD disks (base cluster). Both come from TEST_CLUSTER_*.
 	vmNamespace      string
@@ -162,6 +176,8 @@ func loadConfig() e2eConfig {
 		probeImage:       os.Getenv(envProbeImage),
 		vmNamespace:      strings.TrimSpace(os.Getenv("TEST_CLUSTER_NAMESPACE")),
 		baseStorageClass: strings.TrimSpace(os.Getenv("TEST_CLUSTER_STORAGE_CLASS")),
+
+		sdsElasticNamespace: strings.TrimSpace(os.Getenv(envSdsElasticNamespace)),
 	}
 
 	if cfg.namespace == "" {
@@ -179,6 +195,9 @@ func loadConfig() e2eConfig {
 	}
 	if cfg.probeImage == "" {
 		cfg.probeImage = defaultProbeImage
+	}
+	if cfg.sdsElasticNamespace == "" {
+		cfg.sdsElasticNamespace = defaultSdsElasticNamespace
 	}
 
 	cfg.storageNodeLabelKey, cfg.storageNodeLabelValue = parseLabel(

@@ -43,6 +43,39 @@ storage classes). This is the same substrate `sds-object`'s Heavy profile uses.
 4. `AfterAll` tears the ElasticStorageClasses + ElasticCluster down; `AfterSuite`
    hands the cluster back to `storage-e2e`.
 
+## msCrcData suite (`mscrcdata_test.go`, `Label("msCrcData")`, opt-in)
+
+A separate, label-gated suite verifies the `msCrcData` openapi option end to end.
+It is **excluded from the default run** (`label_filter '!msCrcData'`) and runs only
+when the PR carries `e2e/label:msCrcData` (alongside `e2e/commander/run`); under
+that label the default lifecycle specs are filtered out and this suite runs alone.
+
+It brings up its **own** ElasticCluster that is *born* CRC-off, then round-trips
+RBD and CephFS. In order:
+
+- asserts the default `ms_crc_data = true` in `d8-csi-ceph/ceph-config`, then sets
+  `msCrcData=false` on the csi-ceph `ModuleConfig` and verifies `ceph.conf`
+  re-renders to `false` and the RBD/CephFS CSI Deployments/DaemonSets roll (their
+  `checksum/ceph-config` pod annotation changes) — the client side;
+- writes `ms_crc_data = false` into the sds-elastic `rook-config-override`
+  **before** the ElasticCluster exists — the server side;
+- creates the ElasticCluster (its Ceph daemons boot with `ms_crc_data=false`) and
+  the RBD/CephFS ElasticStorageClasses, then round-trips a PVC through each.
+
+Override the sds-elastic namespace with `E2E_SDS_ELASTIC_NAMESPACE` (default
+`d8-sds-elastic`).
+
+> **Why born CRC-off, not a live flip.** `ms_crc_data` is not per-frame tolerated:
+> a client/server mismatch is fatal — a one-sided flip makes every connection to
+> the mons time out (operator `HEALTH_ERR`, provisioning hangs). And reconfiguring
+> a running cluster is destructive: rollout-restarting the Rook PVC-backed OSDs
+> (`storageClassDeviceSets`) races Rook's OSD lifecycle (new OSD pod points at a
+> deleted data PVC `set1-data-…`, OSDs stuck `Pending`), and changing
+> `rook-config-override` live deadlocks the operator. So the suite sets both sides
+> to `false` *before* the cluster is created, so every daemon + operator + client
+> start matched — no live reconfiguration. (Both failure modes above were observed
+> on the live e2e cluster.)
+
 > **Note on k8s external-storage CSI conformance.** The upstream
 > `test/e2e/storage/testsuites` suite is *not* used here: it creates and mutates
 > its own StorageClasses with the ceph provisioners, which csi-ceph's

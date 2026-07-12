@@ -64,6 +64,7 @@ check-env: ## Print relevant env vars for the nested flow
 	@echo "E2E_OSD_DISKS_PER_WORKER:         $${E2E_OSD_DISKS_PER_WORKER}"
 	@echo "E2E_OSD_DISK_SIZE:                $${E2E_OSD_DISK_SIZE}"
 	@echo "E2E_PROBE_IMAGE:                  $${E2E_PROBE_IMAGE}  # image with sh+cat for PVC round-trip pods"
+	@echo "E2E_SDS_ELASTIC_NAMESPACE:        $${E2E_SDS_ELASTIC_NAMESPACE}  # sds-elastic/Rook ns for the msCrcData server-side flip (default d8-sds-elastic)"
 	@echo "E2E_KEEP_CLUSTER_ON_FAILURE:      $${E2E_KEEP_CLUSTER_ON_FAILURE}  # true|1|yes -> skip teardown if a spec failed"
 
 .PHONY: fix-mod-permissions
