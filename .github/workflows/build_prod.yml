@@ -51,7 +51,7 @@ jobs:
         with:
           registry: ${{ vars.DEV_REGISTRY }}
           registry_login: ${{ vars.DEV_MODULES_REGISTRY_LOGIN }}
-          registry_password: ${{ secrets.PROD_MODULES_REGISTRY_PASSWORD }}
+          registry_password: ${{ secrets.DEV_MODULES_REGISTRY_PASSWORD }}
       - uses: deckhouse/modules-actions/build@v15
         with:
           module_source: "${{ vars.PROD_REGISTRY }}/${{ vars.PROD_MODULE_SOURCE_NAME }}/ce/modules"
@@ -96,7 +96,7 @@ jobs:
         with:
           registry: ${{ vars.DEV_REGISTRY }}
           registry_login: ${{ vars.DEV_MODULES_REGISTRY_LOGIN }}
-          registry_password: ${{ secrets.PROD_MODULES_REGISTRY_PASSWORD }}
+          registry_password: ${{ secrets.DEV_MODULES_REGISTRY_PASSWORD }}
       - uses: deckhouse/modules-actions/build@v15
         with:
           module_source: "${{ vars.PROD_REGISTRY }}/${{ vars.PROD_MODULE_SOURCE_NAME }}/ee/modules"
@@ -141,7 +141,7 @@ jobs:
         with:
           registry: ${{ vars.DEV_REGISTRY }}
           registry_login: ${{ vars.DEV_MODULES_REGISTRY_LOGIN }}
-          registry_password: ${{ secrets.PROD_MODULES_REGISTRY_PASSWORD }}
+          registry_password: ${{ secrets.DEV_MODULES_REGISTRY_PASSWORD }}
       - uses: deckhouse/modules-actions/build@v15
         with:
           module_source: "${{ vars.PROD_REGISTRY }}/${{ vars.PROD_MODULE_SOURCE_NAME }}/fe/modules"
@@ -186,7 +186,7 @@ jobs:
         with:
           registry: ${{ vars.DEV_REGISTRY }}
           registry_login: ${{ vars.DEV_MODULES_REGISTRY_LOGIN }}
-          registry_password: ${{ secrets.PROD_MODULES_REGISTRY_PASSWORD }}
+          registry_password: ${{ secrets.DEV_MODULES_REGISTRY_PASSWORD }}
       - uses: deckhouse/modules-actions/build@v15
         with:
           module_source: "${{ vars.PROD_REGISTRY }}/${{ vars.PROD_MODULE_SOURCE_NAME }}/se/modules"
@@ -231,7 +231,7 @@ jobs:
         with:
           registry: ${{ vars.DEV_REGISTRY }}
           registry_login: ${{ vars.DEV_MODULES_REGISTRY_LOGIN }}
-          registry_password: ${{ secrets.PROD_MODULES_REGISTRY_PASSWORD }}
+          registry_password: ${{ secrets.DEV_MODULES_REGISTRY_PASSWORD }}
       - uses: deckhouse/modules-actions/build@v15
         with:
           module_source: "${{ vars.PROD_REGISTRY }}/${{ vars.PROD_MODULE_SOURCE_NAME }}/se-plus/modules"
