@@ -19,6 +19,7 @@ package controller
 import (
 	"context"
 	"fmt"
+	"os"
 	"slices"
 	"strings"
 
@@ -31,6 +32,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	storagev1alpha1 "github.com/deckhouse/csi-ceph/api/v1alpha1"
+	"github.com/deckhouse/csi-ceph/images/controller/pkg/config"
 	"github.com/deckhouse/csi-ceph/images/controller/pkg/internal"
 	"github.com/deckhouse/csi-ceph/images/controller/pkg/logger"
 )
@@ -38,6 +40,23 @@ import (
 var (
 	defaultImageFeatures = "layering,exclusive-lock,object-map,fast-diff"
 )
+
+// legacyMsgrOption pins the Ceph kernel clients (krbd map / CephFS kernel mount)
+// to the msgr1 wire protocol. It is applied only when msCrcData is disabled:
+// with ms_crc_data=false the daemons stop emitting the per-frame CRC that the
+// kernel client insists on in msgr2 crc-mode ("libceph: bad control crc"), so the
+// map/mount times out. msgr1 treats ms_crc_data as a genuinely optional toggle and
+// tolerates the CRC-off peer, so the data path keeps working. Delivered via
+// ceph-csi's mapOptions (RBD) / kernelMountOptions (CephFS) StorageClass params.
+const legacyMsgrOption = "ms_mode=legacy"
+
+// msCrcDataDisabled reports whether the module's msCrcData option is turned off
+// (MS_CRC_DATA=="false", case-insensitive). The env is rendered from
+// .Values.csiCeph.msCrcData onto the controller Deployment; an unset/other value
+// means CRC stays enabled (the safe default) and no ms_mode override is applied.
+func msCrcDataDisabled() bool {
+	return strings.EqualFold(strings.TrimSpace(os.Getenv(config.MsCrcDataEnvName)), "false")
+}
 
 func IdentifyReconcileFuncForStorageClass(log logger.Logger, scList *v1.StorageClassList, cephSC *storagev1alpha1.CephStorageClass, controllerNamespace, clusterID string, ignoredLabelPrefixes []string) (reconcileType string, err error) {
 	if shouldReconcileStorageClassByCreateFunc(scList, cephSC) {
@@ -318,14 +337,24 @@ func GetStoragecClassParams(cephSC *storagev1alpha1.CephStorageClass, controller
 		"csi.storage.k8s.io/controller-expand-secret-namespace": controllerNamespace,
 	}
 
+	crcDisabled := msCrcDataDisabled()
+
 	if cephSC.Spec.Type == storagev1alpha1.CephStorageClassTypeRBD {
 		params["imageFeatures"] = defaultImageFeatures
 		params["csi.storage.k8s.io/fstype"] = cephSC.Spec.RBD.DefaultFSType
 		params["pool"] = cephSC.Spec.RBD.Pool
+		if crcDisabled {
+			// krbd map must use msgr1 when messenger CRC is off (see legacyMsgrOption).
+			params["mapOptions"] = legacyMsgrOption
+		}
 	}
 
 	if cephSC.Spec.Type == storagev1alpha1.CephStorageClassTypeCephFS {
 		params["fsName"] = cephSC.Spec.CephFS.FSName
+		if crcDisabled {
+			// CephFS kernel mount must use msgr1 when messenger CRC is off.
+			params["kernelMountOptions"] = legacyMsgrOption
+		}
 	}
 
 	return params
