@@ -1,0 +1,5 @@
+Changes:
+- Correction: CephStorageClass validation no longer rejects a resource with an empty
+    parameter block of the opposite type (rbd or cephFS)
+- Updating base images, Go 1.26.5 and lib-helm to 1.72.9
+- Internal changes in module assembly
