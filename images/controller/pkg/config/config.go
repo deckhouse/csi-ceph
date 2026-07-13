@@ -37,6 +37,12 @@ const (
 	// prefixes whose matching labels MUST NOT be propagated from a CephStorageClass to
 	// the managed Kubernetes StorageClass.
 	StorageClassLabelIgnoredPrefixesEnvName = "STORAGE_CLASS_LABEL_IGNORED_PREFIXES"
+	// MsCrcDataEnvName mirrors the module's msCrcData config value ("true"/"false").
+	// When it is "false", Ceph messenger CRC32C on data frames is disabled cluster-wide;
+	// the kernel clients (krbd / CephFS kernel mount) then cannot use msgr2 crc-mode
+	// (they reject the peer's absent frame CRC), so the StorageClass controller pins them
+	// to msgr1 via ms_mode=legacy. See GetStoragecClassParams.
+	MsCrcDataEnvName = "MS_CRC_DATA"
 )
 
 type Options struct {

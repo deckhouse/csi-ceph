@@ -62,6 +62,12 @@ RBD and CephFS. In order:
 - creates the ElasticCluster (its Ceph daemons boot with `ms_crc_data=false`) and
   the RBD/CephFS ElasticStorageClasses, then round-trips a PVC through each.
 
+The round-trip exercises the kernel clients (krbd map / CephFS kernel mount), which
+cannot use msgr2 with CRC disabled. It passes because the csi-ceph controller, when
+`msCrcData=false`, pins those StorageClasses to msgr1 via `ms_mode=legacy`
+(`mapOptions` for RBD, `kernelMountOptions` for CephFS) — so this suite is also the
+end-to-end check of that controller behaviour.
+
 Override the sds-elastic namespace with `E2E_SDS_ELASTIC_NAMESPACE` (default
 `d8-sds-elastic`).
 

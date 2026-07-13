@@ -18,7 +18,10 @@
   "webhookCertPath" "internal.customWebhookCert"
   "onMasterNode" true
   "podSecurityContext" "deckhouse"
-  "additionalControllerEnvs" (list (dict "name" "STORAGE_CLASS_LABEL_IGNORED_PREFIXES" "value" (join "," $ignoredPrefixes)))
+  "additionalControllerEnvs" (list
+    (dict "name" "STORAGE_CLASS_LABEL_IGNORED_PREFIXES" "value" (join "," $ignoredPrefixes))
+    (dict "name" "MS_CRC_DATA" "value" (.Values.csiCeph.msCrcData | toString))
+  )
 }}
 {{ include "helm_lib_module_controller_manifests" (list . $config) }}
 
