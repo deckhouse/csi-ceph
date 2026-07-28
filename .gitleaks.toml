@@ -1,8 +1,15 @@
-# Use default gitleaks rules + module allowlist
+# Extend the centralized Deckhouse gitleaks config + module allowlist
 [extend]
-useDefault = true
+useDefault = false
+path = "gitleaks.base.toml"
 
 [allowlist]
 paths = [
   '''(?:^|/)images/.*\.patch$''',
+]
+regexes = [
+  # Sample Ceph auth key from the docs (docs/EXAMPLES*.md, docs/README*.md), present
+  # between f7ace07 and f9fc369, which replaced it with "<your-ceph-auth-key>". It stays
+  # in the history that the full-history scan walks.
+  '''AQDiVXVmBJVRLxAAg65PhODrtwbwSWrjJwssUg==''',
 ]
