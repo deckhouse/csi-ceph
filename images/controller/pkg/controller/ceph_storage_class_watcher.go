@@ -66,6 +66,7 @@ func RunCephStorageClassWatcherController(
 	log logger.Logger,
 ) (controller.Controller, error) {
 	cl := mgr.GetClient()
+	mapper := mgr.GetRESTMapper()
 
 	c, err := controller.New(CephStorageClassCtrlName, mgr, controller.Options{
 		Reconciler: reconcile.Func(func(ctx context.Context, request reconcile.Request) (reconcile.Result, error) {
@@ -89,11 +90,18 @@ func RunCephStorageClassWatcherController(
 				return reconcile.Result{}, err
 			}
 
-			vsClassList := &snapshotv1.VolumeSnapshotClassList{}
-			err = cl.List(ctx, vsClassList)
-			if err != nil {
-				log.Error(err, "[CephStorageClassReconciler] unable to list VolumeSnapshot Classes")
-				return reconcile.Result{}, err
+			// A nil list tells RunStorageClassEventReconcile that the VolumeSnapshotClass
+			// CRD is absent and the whole snapshot leg has to be skipped.
+			var vsClassList *snapshotv1.VolumeSnapshotClassList
+			if VolumeSnapshotClassCRDExists(mapper, log) {
+				vsClassList = &snapshotv1.VolumeSnapshotClassList{}
+				err = cl.List(ctx, vsClassList)
+				if err != nil {
+					log.Error(err, "[CephStorageClassReconciler] unable to list VolumeSnapshot Classes")
+					return reconcile.Result{}, err
+				}
+			} else {
+				log.Info("[CephStorageClassReconciler] the VolumeSnapshotClass CRD is not registered in the cluster, skipping VolumeSnapshotClass reconciliation")
 			}
 
 			shouldRequeue, msg, err := RunStorageClassEventReconcile(ctx, cl, log, scList, vsClassList, cephSC, cfg.ControllerNamespace, cfg.StorageClassLabelIgnoredPrefixes)
@@ -174,11 +182,13 @@ func RunStorageClassEventReconcile(ctx context.Context, cl client.Client, log lo
 			return shouldRequeue, msg, err
 		}
 
-		oldVSClass := findVSClass(vsClassList, cephSC.Name)
-		shouldRequeue, err = reconcileVolumeSnapshotClassDeleteFunc(ctx, cl, log, oldVSClass, cephSC)
-		log.Debug(fmt.Sprintf("[RunStorageClassEventReconcile] ends reconciliataion of VolumeSnapshotClass, name: %s, shouldRequeue: %t, err: %v", cephSC.Name, shouldRequeue, err))
-		if err != nil || shouldRequeue {
-			return shouldRequeue, "", err
+		if vsClassList != nil {
+			oldVSClass := findVSClass(vsClassList, cephSC.Name)
+			shouldRequeue, err = reconcileVolumeSnapshotClassDeleteFunc(ctx, cl, log, oldVSClass, cephSC)
+			log.Debug(fmt.Sprintf("[RunStorageClassEventReconcile] ends reconciliataion of VolumeSnapshotClass, name: %s, shouldRequeue: %t, err: %v", cephSC.Name, shouldRequeue, err))
+			if err != nil || shouldRequeue {
+				return shouldRequeue, "", err
+			}
 		}
 
 		log.Debug(fmt.Sprintf("[RunStorageClassEventReconcile] removing finalizer %s from the CephStorageClass %s", CephStorageClassControllerFinalizerName, cephSC.Name))
@@ -234,21 +244,25 @@ func RunStorageClassEventReconcile(ctx context.Context, cl client.Client, log lo
 		return shouldRequeue, msg, err
 	}
 
-	reconcileTypeForVSClass, oldVSClass, newVSClass := IdentifyReconcileFuncForVSClass(log, vsClassList, cephSC, clusterID, controllerNamespace)
+	if vsClassList == nil {
+		log.Debug(fmt.Sprintf("[RunStorageClassEventReconcile] the VolumeSnapshotClass CRD is absent, skipping the VolumeSnapshotClass for the CephStorageClass %q", cephSC.Name))
+	} else {
+		reconcileTypeForVSClass, oldVSClass, newVSClass := IdentifyReconcileFuncForVSClass(log, vsClassList, cephSC, clusterID, controllerNamespace)
 
-	log.Debug(fmt.Sprintf("[RunStorageClassEventReconcile] reconcile operation for VolumeSnapshotClass %q: %q", cephSC.Name, reconcileTypeForVSClass))
-	switch reconcileTypeForVSClass {
-	case internal.CreateReconcile:
-		shouldRequeue, err = reconcileVolumeSnapshotClassCreateFunc(ctx, cl, log, newVSClass)
-	case internal.UpdateReconcile:
-		shouldRequeue, err = reconcileVolumeSnapshotClassUpdateFunc(ctx, cl, log, oldVSClass, newVSClass)
-	default:
-		log.Debug(fmt.Sprintf("[RunStorageClassEventReconcile] VolumeSnapshotClass %q should not be reconciled", cephSC.Name))
-	}
+		log.Debug(fmt.Sprintf("[RunStorageClassEventReconcile] reconcile operation for VolumeSnapshotClass %q: %q", cephSC.Name, reconcileTypeForVSClass))
+		switch reconcileTypeForVSClass {
+		case internal.CreateReconcile:
+			shouldRequeue, err = reconcileVolumeSnapshotClassCreateFunc(ctx, cl, log, newVSClass)
+		case internal.UpdateReconcile:
+			shouldRequeue, err = reconcileVolumeSnapshotClassUpdateFunc(ctx, cl, log, oldVSClass, newVSClass)
+		default:
+			log.Debug(fmt.Sprintf("[RunStorageClassEventReconcile] VolumeSnapshotClass %q should not be reconciled", cephSC.Name))
+		}
 
-	log.Debug(fmt.Sprintf("[RunStorageClassEventReconcile] ends reconciliataion of VolumeSnapshotClass, name: %s, shouldRequeue: %t, err: %v", cephSC.Name, shouldRequeue, err))
-	if err != nil || shouldRequeue {
-		return shouldRequeue, msg, err
+		log.Debug(fmt.Sprintf("[RunStorageClassEventReconcile] ends reconciliataion of VolumeSnapshotClass, name: %s, shouldRequeue: %t, err: %v", cephSC.Name, shouldRequeue, err))
+		if err != nil || shouldRequeue {
+			return shouldRequeue, msg, err
+		}
 	}
 
 	log.Debug(fmt.Sprintf("[RunStorageClassEventReconcile] Finish all reconciliations for CephStorageClass %q.", cephSC.Name))

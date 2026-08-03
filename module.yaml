@@ -7,6 +7,4 @@ descriptions:
   ru: "Обеспечивает интеграцию с Ceph-кластерами, позволяет динамически управлять хранилищем и использовать StorageClass на основе RBD (RADOS Block Device) или CephFS."
 requirements:
   deckhouse: ">= 1.72"
-  modules:
-    snapshot-controller: ">= 0.0.0"
 namespace: "d8-csi-ceph"
