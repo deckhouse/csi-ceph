@@ -1,0 +1,11 @@
+Changes:
+- The snapshot-controller module is no longer a required dependency: VolumeSnapshotClass
+    is created only if the CRD snapshot.storage.k8s.io is available, otherwise CephStorageClass
+    is processed without the snapshot part; After installing the CRD, restarting the
+    controller is not required
+- Correction: when msCrcData is disabled, managed StorageClasses are transferred to
+    msgr1 (ms_mode=legacy) - otherwise the nuclear clients krbd and CephFS discarded
+    frames without CRC and the mount ended with a timeout if the cluster was healthy
+- Updating base images, Go 1.26.5 and lib-helm to 1.72.10
+- Fixed vulnerabilities in third-party dependencies
+- Internal changes in module assembly and CI, added e2e tests
