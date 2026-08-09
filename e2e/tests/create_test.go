@@ -126,6 +126,11 @@ func assertCsiCephWired(ctx context.Context, escName string) {
 	_, err = suiteDyn.Resource(cephStorageClassGVR).Get(ctx, escName, metav1.GetOptions{})
 	Expect(err).NotTo(HaveOccurred(), "csi-ceph CephStorageClass %s should exist", escName)
 
+	Expect(waitCRReadyCondition(ctx, cephClusterConnectionGVR, suiteCfg.ecName, crReadyConditionTimeout)).
+		To(Succeed(), "CephClusterConnection %s should publish Ready=True for its current generation", suiteCfg.ecName)
+	Expect(waitCRReadyCondition(ctx, cephStorageClassGVR, escName, crReadyConditionTimeout)).
+		To(Succeed(), "CephStorageClass %s should publish Ready=True for its current generation", escName)
+
 	Expect(storageClassExists(ctx, escName)).
 		To(Succeed(), "core StorageClass %s should be materialised by csi-ceph", escName)
 }

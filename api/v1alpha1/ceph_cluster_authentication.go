@@ -45,6 +45,27 @@ type CephClusterAuthenticationSpec struct {
 
 // +k8s:deepcopy-gen=true
 type CephClusterAuthenticationStatus struct {
-	Phase  string `json:"phase,omitempty"`
+	// Phase is a coarse summary derived from Conditions, kept for
+	// compatibility with the printer column and existing tooling.
+	// Conditions are the source of truth.
+	Phase string `json:"phase,omitempty"`
+
+	// Reason mirrors the message of the most significant condition.
 	Reason string `json:"reason,omitempty"`
+
+	// ObservedGeneration is the most recent metadata.generation the
+	// controller has acted on.
+	// +optional
+	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
+
+	// Conditions holds the latest observations of the resource state.
+	// Condition type: Deprecated.
+	//
+	// This kind publishes no Ready condition: the controller does not
+	// reconcile it towards a desired state, it only marks it as superseded
+	// by CephClusterConnection.
+	// +optional
+	// +listType=map
+	// +listMapKey=type
+	Conditions []metav1.Condition `json:"conditions,omitempty"`
 }

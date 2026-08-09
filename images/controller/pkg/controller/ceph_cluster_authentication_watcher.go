@@ -21,6 +21,7 @@ import (
 	"fmt"
 
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/util/workqueue"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -34,6 +35,7 @@ import (
 	v1alpha1 "github.com/deckhouse/csi-ceph/api/v1alpha1"
 	"github.com/deckhouse/csi-ceph/images/controller/pkg/config"
 	"github.com/deckhouse/csi-ceph/images/controller/pkg/logger"
+	"github.com/deckhouse/sds-common-lib/conditions"
 )
 
 const (
@@ -127,10 +129,43 @@ func labelAsDeprecatedIfNeeded(ctx context.Context, cl client.Client, cephCluste
 		cephClusterAuthentication.Labels = map[string]string{}
 	}
 
-	if cephClusterAuthentication.Labels[DeprecatedLabel] == DeprecatedLabelValue {
-		return nil
+	if cephClusterAuthentication.Labels[DeprecatedLabel] != DeprecatedLabelValue {
+		cephClusterAuthentication.Labels[DeprecatedLabel] = DeprecatedLabelValue
+		if err := cl.Update(ctx, cephClusterAuthentication); err != nil {
+			return err
+		}
 	}
 
-	cephClusterAuthentication.Labels[DeprecatedLabel] = DeprecatedLabelValue
-	return cl.Update(ctx, cephClusterAuthentication)
+	return publishDeprecatedCondition(ctx, cl, cephClusterAuthentication)
+}
+
+// publishDeprecatedCondition records that the resource kind is superseded.
+//
+// This kind publishes no Ready condition: the controller does not reconcile it
+// towards a desired state, its only job is to mark the resource as replaced by
+// CephClusterConnection. Until now that was visible only as a label, which
+// neither `kubectl get` nor `kubectl describe` surfaces by default.
+func publishDeprecatedCondition(
+	ctx context.Context,
+	cl client.Client,
+	cephClusterAuthentication *v1alpha1.CephClusterAuthentication,
+) error {
+	generation := cephClusterAuthentication.Generation
+
+	cond := metav1.Condition{
+		Type:               v1alpha1.ConditionTypeDeprecated,
+		Status:             metav1.ConditionTrue,
+		Reason:             v1alpha1.ReasonSupersededByCephClusterConnection,
+		Message:            "CephClusterAuthentication is deprecated; move the userID and userKey into the CephClusterConnection that references this resource",
+		ObservedGeneration: generation,
+	}
+
+	return conditions.UpdateStatus(ctx, cl, cephClusterAuthentication, func(cca *v1alpha1.CephClusterAuthentication) {
+		if cca.Status == nil {
+			cca.Status = &v1alpha1.CephClusterAuthenticationStatus{}
+		}
+		cca.Status.ObservedGeneration = generation
+		conditions.Set(&cca.Status.Conditions, cond)
+		cca.Status.Reason = cond.Message
+	})
 }

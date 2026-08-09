@@ -35,6 +35,7 @@ import (
 	"github.com/deckhouse/csi-ceph/images/controller/pkg/config"
 	"github.com/deckhouse/csi-ceph/images/controller/pkg/internal"
 	"github.com/deckhouse/csi-ceph/images/controller/pkg/logger"
+	"github.com/deckhouse/sds-common-lib/conditions"
 )
 
 var (
@@ -107,7 +108,11 @@ func shouldReconcileStorageClassByUpdateFunc(log logger.Logger, scList *v1.Stora
 					return true, nil
 				}
 
-				if cephSC.Status != nil && cephSC.Status.Phase == internal.PhaseFailed {
+				// Retry a CephStorageClass whose last reconcile is known to
+				// have failed, even when the StorageClass itself needs no
+				// change: the failure may have been in the secret this pass
+				// reads to build the StorageClass parameters.
+				if shouldRetryFailedStorageClass(cephSC.Status) {
 					return true, nil
 				}
 
@@ -360,20 +365,40 @@ func GetStoragecClassParams(cephSC *storagev1alpha1.CephStorageClass, controller
 	return params
 }
 
-func updateCephStorageClassPhase(ctx context.Context, cl client.Client, cephSC *storagev1alpha1.CephStorageClass, phase, reason string) error {
-	if cephSC.Status == nil {
-		cephSC.Status = &storagev1alpha1.CephStorageClassStatus{}
-	}
-	cephSC.Status.Phase = phase
-	cephSC.Status.Reason = reason
+// updateCephStorageClassStatus records the outcome of a reconcile pass.
+//
+// The Ready condition is the source of truth; phase and reason are derived from
+// it and kept for the printer column and for tooling that predates conditions.
+//
+// reconcileErr is the error the pass returned, or nil on success. msg is the
+// human-readable summary the pass produced, which may be empty.
+func updateCephStorageClassStatus(
+	ctx context.Context,
+	cl client.Client,
+	cephSC *storagev1alpha1.CephStorageClass,
+	reconcileErr error,
+	msg string,
+) error {
+	// The generation that was actually reconciled. Taken from the object the
+	// caller reconciled rather than from the one read inside UpdateStatus: if
+	// the spec changed in between, observedGeneration must still point at the
+	// generation this verdict is about.
+	generation := cephSC.Generation
 
-	// TODO: add retry logic
-	err := cl.Status().Update(ctx, cephSC)
-	if err != nil {
-		return err
+	cond := conditions.Ready(generation, reconcileErr)
+	if cond.Message == "" {
+		cond.Message = msg
 	}
 
-	return nil
+	return conditions.UpdateStatus(ctx, cl, cephSC, func(sc *storagev1alpha1.CephStorageClass) {
+		if sc.Status == nil {
+			sc.Status = &storagev1alpha1.CephStorageClassStatus{}
+		}
+		sc.Status.ObservedGeneration = generation
+		conditions.Set(&sc.Status.Conditions, cond)
+		sc.Status.Phase = phaseFromReady(sc.Status.Conditions)
+		sc.Status.Reason = msg
+	})
 }
 
 func createStorageClassIfNotExists(ctx context.Context, cl client.Client, scList *v1.StorageClassList, sc *v1.StorageClass) (bool, error) {

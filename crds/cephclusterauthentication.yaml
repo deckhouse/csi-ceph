@@ -48,9 +48,9 @@ spec:
                 phase:
                   type: string
                   description: |
-                    The current state of resources managed by the CephClusterAuthentication custom resource. Might be: 
-                    - Failed (if the controller received incorrect resource configuration or some errors occurred during the operation)
-                    - Created (if everything went fine)
+                    Not published for this resource kind. This resource is deprecated and the controller
+                    does not reconcile it towards a desired state, so there is no phase to report — see
+                    the `Deprecated` condition instead. The field is retained for compatibility.
                   enum:
                     - Failed
                     - Created
@@ -58,11 +58,75 @@ spec:
                   type: string
                   description: |
                     Additional information about the resources managed by the CephClusterAuthentication custom resource.
+                observedGeneration:
+                  type: integer
+                  format: int64
+                  description: |
+                    The value of `metadata.generation` the controller has last acted on.
+                conditions:
+                  type: array
+                  x-kubernetes-list-type: map
+                  x-kubernetes-list-map-keys:
+                    - type
+                  description: |
+                    The latest observations of the resource state. Condition type: `Deprecated`.
+
+                    No `Ready` condition is published: the controller does not reconcile this resource
+                    towards a desired state, it only marks it as superseded by CephClusterConnection.
+                  items:
+                    type: object
+                    required:
+                      - type
+                      - status
+                      - lastTransitionTime
+                      - reason
+                      - message
+                    properties:
+                      type:
+                        type: string
+                        maxLength: 316
+                        pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$
+                        description: |
+                          Condition type. `Deprecated` is `True` for every CephClusterAuthentication:
+                          the kind is superseded by CephClusterConnection, which carries the
+                          authentication fields itself.
+                      status:
+                        type: string
+                        description: |
+                          Current status of the condition.
+                        enum:
+                          - "True"
+                          - "False"
+                          - "Unknown"
+                      observedGeneration:
+                        type: integer
+                        minimum: 0
+                        format: int64
+                        description: |
+                          The value of `metadata.generation` this condition was set against.
+                      lastTransitionTime:
+                        type: string
+                        format: date-time
+                        description: |
+                          Timestamp of the last status transition for this condition.
+                      reason:
+                        type: string
+                        maxLength: 1024
+                        minLength: 1
+                        pattern: ^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$
+                        description: |
+                          Machine-readable reason for the current status, suitable for log filtering
+                          and alerting.
+                      message:
+                        type: string
+                        maxLength: 32768
+                        description: |
+                          Human-readable explanation of the current status.
       subresources:
         status: {}
       additionalPrinterColumns:
-        - jsonPath: .status.phase
-          name: Phase
+        - jsonPath: .status.conditions[?(@.type=="Deprecated")].status
+          name: Deprecated
           type: string
         - jsonPath: .status.reason
           name: Reason

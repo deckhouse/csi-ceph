@@ -80,19 +80,27 @@ func RunCephClusterConnectionWatcherController(
 			}
 
 			shouldRequeue, msg, err := RunCephClusterConnectionEventReconcile(ctx, cl, log, cephClusterConnection, cfg.ControllerNamespace)
-			phase := internal.PhaseCreated
 			if err != nil {
 				log.Error(err, fmt.Sprintf("[CephClusterConnectionReconciler] an error occurred while reconciles the CephClusterConnection, name: %s", cephClusterConnection.Name))
-				phase = internal.PhaseFailed
 			} else {
-				log.Info(fmt.Sprintf("[CephClusterConnectionReconciler] CeohClusterConnection %s has been reconciled with message: %s", cephClusterConnection.Name, msg))
+				log.Info(fmt.Sprintf("[CephClusterConnectionReconciler] CephClusterConnection %s has been reconciled with message: %s", cephClusterConnection.Name, msg))
 			}
 
-			log.Debug(fmt.Sprintf("[CephClusterConnectionReconciler] update the CephClusterConnection %s with the phase %s and message: %s", cephClusterConnection.Name, phase, msg))
-			upErr := updateCephClusterConnectionPhaseIfNeeded(ctx, cl, cephClusterConnection, phase, msg)
-			if upErr != nil {
-				log.Error(upErr, fmt.Sprintf("[CephClusterConnectionReconciler] unable to update the CephClusterConnection %s: %s", cephClusterConnection.Name, upErr.Error()))
-				shouldRequeue = true
+			// A deletion pass that failed still writes: the finalizer is then
+			// held, the object is alive, and its status is the only in-cluster
+			// signal of whether the secret or the CSI ConfigMap entry is
+			// blocking the teardown. Only the object itself disappearing under
+			// the write is tolerated.
+			if shouldPublishStatus(cephClusterConnection, err, shouldRequeue) {
+				log.Debug(fmt.Sprintf("[CephClusterConnectionReconciler] update the CephClusterConnection %s status with message: %s", cephClusterConnection.Name, msg))
+				upErr := updateCephClusterConnectionStatus(ctx, cl, cephClusterConnection, err, msg)
+				switch {
+				case k8serr.IsNotFound(upErr):
+					log.Debug(fmt.Sprintf("[CephClusterConnectionReconciler] the CephClusterConnection %s is gone, its status was not written", cephClusterConnection.Name))
+				case upErr != nil:
+					log.Error(upErr, fmt.Sprintf("[CephClusterConnectionReconciler] unable to update the CephClusterConnection %s: %s", cephClusterConnection.Name, upErr.Error()))
+					shouldRequeue = true
+				}
 			}
 
 			if shouldRequeue {
