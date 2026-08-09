@@ -1,0 +1,8 @@
+Changes:
+- CephStorageClass, CephClusterConnection, and CephClusterAuthentication publish status.conditions
+  and status.observedGeneration. The status.phase field retains the same set of values
+  ​​and its column, but is now calculated from the Ready condition
+- CephClusterAuthentication received a status record that it did not have and publishes
+  the condition Deprecated instead of Ready - this resource is not brought to the
+  desired state
+- Updating base images to v1.3.25 and lib-helm to 1.72.13
