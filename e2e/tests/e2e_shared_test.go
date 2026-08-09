@@ -28,6 +28,7 @@ import (
 	storagev1 "k8s.io/api/storage/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes/scheme"
@@ -100,6 +101,14 @@ const (
 	pvcBindTimeout      = 5 * time.Minute
 	podReadyTimeout     = 5 * time.Minute
 	resourceGoneTimeout = 15 * time.Minute
+
+	// crConditionReady is the aggregate condition CephClusterConnection and
+	// CephStorageClass publish in status.conditions alongside the phase.
+	crConditionReady = "Ready"
+	// crReadyConditionTimeout bounds the wait for it. The gate that got us
+	// here is a condition on the ElasticStorageClass, not on these two, so
+	// csi-ceph may still be a reconcile pass behind.
+	crReadyConditionTimeout = 2 * time.Minute
 )
 
 // fallbackMinOSDBlockDevices is the floor of consumable OSD BlockDevices the
@@ -388,6 +397,79 @@ func waitESCCondition(ctx context.Context, escName, condType, wantStatus string,
 			return ctx.Err()
 		}
 	}
+}
+
+// waitCRReadyCondition polls a cluster-scoped csi-ceph CR until it publishes
+// Ready=True for the generation it currently carries.
+//
+// This is the only place the hand-written status.conditions schema meets a real
+// API server: the controller's unit tests run against a fake client, which does
+// no OpenAPI validation. A condition the server rejects leaves the resource with
+// no status at all and the reconcile loop requeueing forever, which nothing else
+// in the suite would notice.
+func waitCRReadyCondition(ctx context.Context, gvr schema.GroupVersionResource, name string, timeout time.Duration) error {
+	deadline := time.Now().Add(timeout)
+	var last string
+	for {
+		last = checkCRReadyCondition(ctx, gvr, name)
+		if last == "" {
+			return nil
+		}
+		if time.Now().After(deadline) {
+			return fmt.Errorf("timeout waiting for %s %s to publish %s=True; last: %s",
+				gvr.Resource, name, crConditionReady, last)
+		}
+		if !sleepCtx(ctx, pollInterval) {
+			return ctx.Err()
+		}
+	}
+}
+
+// checkCRReadyCondition returns "" when the CR publishes Ready=True for its
+// current generation, and otherwise a description of what is off.
+func checkCRReadyCondition(ctx context.Context, gvr schema.GroupVersionResource, name string) string {
+	obj, err := suiteDyn.Resource(gvr).Get(ctx, name, metav1.GetOptions{})
+	if err != nil {
+		return fmt.Sprintf("get err=%v", err)
+	}
+
+	conds, _, err := unstructured.NestedSlice(obj.Object, "status", "conditions")
+	if err != nil {
+		return fmt.Sprintf("reading status.conditions: %v", err)
+	}
+
+	var ready map[string]any
+	for _, raw := range conds {
+		cond, ok := raw.(map[string]any)
+		if ok && cond["type"] == crConditionReady {
+			ready = cond
+			break
+		}
+	}
+	if ready == nil {
+		return fmt.Sprintf("no %s condition; conditions=%v", crConditionReady, conds)
+	}
+
+	if got := ready["status"]; got != string(metav1.ConditionTrue) {
+		return fmt.Sprintf("%s=%v reason=%v message=%v", crConditionReady, got, ready["reason"], ready["message"])
+	}
+
+	// observedGeneration is the point of the whole condition: it is what
+	// separates "reconciled and healthy" from "the controller has not looked at
+	// your edit yet". A Ready=True that trails metadata.generation is stale.
+	generation, _, err := unstructured.NestedInt64(obj.Object, "metadata", "generation")
+	if err != nil {
+		return fmt.Sprintf("reading metadata.generation: %v", err)
+	}
+	observed, _, err := unstructured.NestedInt64(obj.Object, "status", "observedGeneration")
+	if err != nil {
+		return fmt.Sprintf("reading status.observedGeneration: %v", err)
+	}
+	if observed != generation {
+		return fmt.Sprintf("status.observedGeneration=%d trails metadata.generation=%d", observed, generation)
+	}
+
+	return ""
 }
 
 // waitResourceGone blocks until a dynamic GET of the resource returns NotFound.

@@ -32,6 +32,7 @@ import (
 	v1alpha1 "github.com/deckhouse/csi-ceph/api/v1alpha1"
 	"github.com/deckhouse/csi-ceph/images/controller/pkg/internal"
 	"github.com/deckhouse/csi-ceph/images/controller/pkg/logger"
+	"github.com/deckhouse/sds-common-lib/conditions"
 )
 
 func validateCephClusterConnectionSpec(cephClusterConnection *v1alpha1.CephClusterConnection) (bool, string) {
@@ -69,31 +70,40 @@ func validateCephClusterConnectionSpec(cephClusterConnection *v1alpha1.CephClust
 	return validationPassed, failedMsgBuilder.String()
 }
 
-func updateCephClusterConnectionPhaseIfNeeded(ctx context.Context, cl client.Client, cephClusterConnection *v1alpha1.CephClusterConnection, phase, reason string) error {
-	needUpdate := false
+// updateCephClusterConnectionStatus records the outcome of a reconcile pass.
+//
+// The Ready condition is the source of truth; phase and reason are derived from
+// it and kept for the printer column and for tooling that predates conditions.
+//
+// reconcileErr is the error the pass returned, or nil on success. msg is the
+// human-readable summary the pass produced, which may be empty.
+func updateCephClusterConnectionStatus(
+	ctx context.Context,
+	cl client.Client,
+	cephClusterConnection *v1alpha1.CephClusterConnection,
+	reconcileErr error,
+	msg string,
+) error {
+	// The generation that was actually reconciled. Taken from the object the
+	// caller reconciled rather than from the one read inside UpdateStatus: if
+	// the spec changed in between, observedGeneration must still point at the
+	// generation this verdict is about.
+	generation := cephClusterConnection.Generation
 
-	if cephClusterConnection.Status == nil {
-		cephClusterConnection.Status = &v1alpha1.CephClusterConnectionStatus{}
-		needUpdate = true
-	}
-	if cephClusterConnection.Status.Phase != phase {
-		cephClusterConnection.Status.Phase = phase
-		needUpdate = true
+	cond := conditions.Ready(generation, reconcileErr)
+	if cond.Message == "" {
+		cond.Message = msg
 	}
 
-	if cephClusterConnection.Status.Reason != reason {
-		cephClusterConnection.Status.Reason = reason
-		needUpdate = true
-	}
-
-	if needUpdate {
-		err := cl.Status().Update(ctx, cephClusterConnection)
-		if err != nil {
-			return err
+	return conditions.UpdateStatus(ctx, cl, cephClusterConnection, func(cc *v1alpha1.CephClusterConnection) {
+		if cc.Status == nil {
+			cc.Status = &v1alpha1.CephClusterConnectionStatus{}
 		}
-	}
-
-	return nil
+		cc.Status.ObservedGeneration = generation
+		conditions.Set(&cc.Status.Conditions, cond)
+		cc.Status.Phase = phaseFromReady(cc.Status.Conditions)
+		cc.Status.Reason = msg
+	})
 }
 
 func reconcileConfigMap(ctx context.Context, cl client.Client, log logger.Logger, configMapList *corev1.ConfigMapList, cephClusterConnection *v1alpha1.CephClusterConnection, configMapNamespace, configMapName, controllerNamespace string) (shouldRequeue bool, msg string, err error) {

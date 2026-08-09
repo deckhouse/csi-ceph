@@ -106,16 +106,26 @@ func RunCephStorageClassWatcherController(
 
 			shouldRequeue, msg, err := RunStorageClassEventReconcile(ctx, cl, log, scList, vsClassList, cephSC, cfg.ControllerNamespace, cfg.StorageClassLabelIgnoredPrefixes)
 			log.Info(fmt.Sprintf("[CephStorageClassReconciler] CephStorageClass %s has been reconciled with message: %s", cephSC.Name, msg))
-			phase := internal.PhaseCreated
 			if err != nil {
 				log.Error(err, fmt.Sprintf("[CephStorageClassReconciler] an error occurred while reconciles the CephStorageClass, name: %s", cephSC.Name))
-				phase = internal.PhaseFailed
 			}
 
-			if msg != "" {
-				log.Debug(fmt.Sprintf("[CephStorageClassReconciler] Update the CephStorageClass %s with %s status phase and message: %s", cephSC.Name, phase, msg))
-				upErr := updateCephStorageClassPhase(ctx, cl, cephSC, phase, msg)
-				if upErr != nil {
+			// The status is written on every pass over a live object, not only
+			// when the pass produced a message: a successful reconcile that had
+			// nothing to say still has to publish Ready=True, or the condition
+			// stays absent and is indistinguishable from never evaluated.
+			//
+			// A deletion pass that failed still writes: the finalizer is then
+			// held, the object is alive, and its status is the only in-cluster
+			// signal of what is blocking the teardown. Only the object itself
+			// disappearing under the write is tolerated.
+			if shouldPublishStatus(cephSC, err, shouldRequeue) {
+				log.Debug(fmt.Sprintf("[CephStorageClassReconciler] Update the CephStorageClass %s status with message: %s", cephSC.Name, msg))
+				upErr := updateCephStorageClassStatus(ctx, cl, cephSC, err, msg)
+				switch {
+				case k8serr.IsNotFound(upErr):
+					log.Debug(fmt.Sprintf("[CephStorageClassReconciler] the CephStorageClass %s is gone, its status was not written", cephSC.Name))
+				case upErr != nil:
 					log.Error(upErr, fmt.Sprintf("[CephStorageClassReconciler] unable to update the CephStorageClass %s: %s", cephSC.Name, upErr.Error()))
 					shouldRequeue = true
 				}
