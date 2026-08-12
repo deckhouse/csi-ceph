@@ -2,5 +2,6 @@
 .PHONY: update-base-images-versions
 update-base-images-versions:
 	##~ Options: version=vMAJOR.MINOR.PATCH
-	$(eval version ?= $(shell yq -r '.env.BASE_IMAGES_VERSION' .github/workflows/build_dev.yml))
-	curl --fail -sSLO https://fox.flant.com/api/v4/projects/deckhouse%2Fbase-images/packages/generic/base_images/$(version)/base_images.yml
+	$(eval version ?= $(shell yq -r '.variables.BASE_IMAGES_VERSION' .gitlab-ci.yml))
+	$(eval project ?= $(shell case "$(version)" in v0*) echo 'deckhouse%2Fbase-images';; *) echo 'deckhouse%2Fcontainer-base%2Fbase-images';; esac))
+	curl --fail -sSLO https://github.com/api/v4/projects/$(project)/packages/generic/base_images/$(version)/base_images.yml

@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/deckhouse/sds-common-lib/conditions"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -35,7 +36,6 @@ import (
 	v1alpha1 "github.com/deckhouse/csi-ceph/api/v1alpha1"
 	"github.com/deckhouse/csi-ceph/images/controller/pkg/config"
 	"github.com/deckhouse/csi-ceph/images/controller/pkg/logger"
-	"github.com/deckhouse/sds-common-lib/conditions"
 )
 
 const (

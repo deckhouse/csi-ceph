@@ -17,11 +17,11 @@ limitations under the License.
 package controller
 
 import (
+	"github.com/deckhouse/sds-common-lib/conditions"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	storagev1alpha1 "github.com/deckhouse/csi-ceph/api/v1alpha1"
 	"github.com/deckhouse/csi-ceph/images/controller/pkg/internal"
-	"github.com/deckhouse/sds-common-lib/conditions"
 )
 
 // phaseFromReady maps the Ready condition onto this module's coarse phase

@@ -22,6 +22,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/deckhouse/module-sdk/pkg"
+	"github.com/deckhouse/module-sdk/pkg/registry"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/labels"
@@ -31,8 +33,6 @@ import (
 	"github.com/deckhouse/csi-ceph/api/v1alpha1"
 	oldApi "github.com/deckhouse/csi-ceph/hooks/go/api/v1alpha1"
 	funcs "github.com/deckhouse/csi-ceph/hooks/go/funcs"
-	"github.com/deckhouse/module-sdk/pkg"
-	"github.com/deckhouse/module-sdk/pkg/registry"
 )
 
 const (

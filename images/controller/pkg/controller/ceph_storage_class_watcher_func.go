@@ -23,6 +23,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/deckhouse/sds-common-lib/conditions"
 	"github.com/google/go-cmp/cmp"
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v8/apis/volumesnapshot/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -35,7 +36,6 @@ import (
 	"github.com/deckhouse/csi-ceph/images/controller/pkg/config"
 	"github.com/deckhouse/csi-ceph/images/controller/pkg/internal"
 	"github.com/deckhouse/csi-ceph/images/controller/pkg/logger"
-	"github.com/deckhouse/sds-common-lib/conditions"
 )
 
 var (

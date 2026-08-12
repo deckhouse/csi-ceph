@@ -21,6 +21,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/deckhouse/sds-common-lib/conditions"
 	v1 "k8s.io/api/storage/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -31,7 +32,6 @@ import (
 	storagev1alpha1 "github.com/deckhouse/csi-ceph/api/v1alpha1"
 	"github.com/deckhouse/csi-ceph/images/controller/pkg/internal"
 	"github.com/deckhouse/csi-ceph/images/controller/pkg/logger"
-	"github.com/deckhouse/sds-common-lib/conditions"
 )
 
 func newStatusTestClient(t *testing.T, objs ...client.Object) client.Client {

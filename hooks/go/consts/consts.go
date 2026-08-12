@@ -17,10 +17,10 @@ limitations under the License.
 package consts
 
 const (
-	ModuleName      	string = "csiCeph"
-	ModuleNamespace 	string = "d8-csi-ceph"
-	ModulePluralName	string = "csi-ceph"
-	WebhookCertCn   	string = "webhooks"
+	ModuleName       string = "csiCeph"
+	ModuleNamespace  string = "d8-csi-ceph"
+	ModulePluralName string = "csi-ceph"
+	WebhookCertCn    string = "webhooks"
 )
 
 var AllowedProvisioners = []string{
