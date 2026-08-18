@@ -25,7 +25,6 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/deckhouse/sds-common-lib/conditions"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -33,6 +32,7 @@ import (
 	v1alpha1 "github.com/deckhouse/csi-ceph/api/v1alpha1"
 	"github.com/deckhouse/csi-ceph/images/controller/pkg/internal"
 	"github.com/deckhouse/csi-ceph/images/controller/pkg/logger"
+	"github.com/deckhouse/sds-common-lib/conditions"
 )
 
 func validateCephClusterConnectionSpec(cephClusterConnection *v1alpha1.CephClusterConnection) (bool, string) {
