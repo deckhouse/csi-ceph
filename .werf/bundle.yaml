@@ -71,7 +71,6 @@ git:
       - templates
       - Chart.yaml
       - module.yaml
-      - hack
       - CHANGELOG
 
 # Attach an OpenVEX attestation to the bundle image so trivy suppresses the
