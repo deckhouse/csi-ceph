@@ -1,6 +1,6 @@
 module github.com/deckhouse/csi-ceph/images/controller
 
-go 1.26.6
+go 1.27.0
 require (
 	github.com/deckhouse/csi-ceph/api v0.0.0-20250314071238-6a7df30c52cc
 	github.com/deckhouse/sds-common-lib v0.10.0
