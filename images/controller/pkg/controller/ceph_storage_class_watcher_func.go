@@ -34,8 +34,8 @@ import (
 	storagev1alpha1 "github.com/deckhouse/csi-ceph/api/v1alpha1"
 	"github.com/deckhouse/csi-ceph/images/controller/pkg/config"
 	"github.com/deckhouse/csi-ceph/images/controller/pkg/internal"
-	"github.com/deckhouse/csi-ceph/images/controller/pkg/logger"
 	"github.com/deckhouse/sds-common-lib/conditions"
+	"github.com/deckhouse/sds-common-lib/logger"
 )
 
 var (
@@ -90,6 +90,8 @@ func shouldReconcileStorageClassByCreateFunc(scList *v1.StorageClassList, cephSC
 }
 
 func shouldReconcileStorageClassByUpdateFunc(log logger.Logger, scList *v1.StorageClassList, cephSC *storagev1alpha1.CephStorageClass, controllerNamespace, clusterID string, ignoredLabelPrefixes []string) (bool, error) {
+	log = log.Named("shouldReconcileStorageClassByUpdateFunc")
+
 	if cephSC.DeletionTimestamp != nil {
 		return false, nil
 	}
@@ -104,7 +106,7 @@ func shouldReconcileStorageClassByUpdateFunc(log logger.Logger, scList *v1.Stora
 				}
 
 				if diff != "" {
-					log.Debug(fmt.Sprintf("[shouldReconcileStorageClassByUpdateFunc] a storage class %s should be updated. Diff: %s", oldSC.Name, diff))
+					log.Debug(fmt.Sprintf("a storage class %s should be updated. Diff: %s", oldSC.Name, diff))
 					return true, nil
 				}
 
@@ -136,13 +138,15 @@ func reconcileStorageClassCreateFunc(
 	controllerNamespace, clusterID string,
 	ignoredLabelPrefixes []string,
 ) (shouldRequeue bool, msg string, err error) {
-	log.Debug(fmt.Sprintf("[reconcileStorageClassCreateFunc] starts for CephStorageClass %q", cephSC.Name))
+	log = log.Named("reconcileStorageClassCreateFunc")
 
-	log.Debug(fmt.Sprintf("[reconcileStorageClassCreateFunc] starts storage class configuration for the CephStorageClass, name: %s", cephSC.Name))
+	log.Debug(fmt.Sprintf("starts for CephStorageClass %q", cephSC.Name))
+
+	log.Debug(fmt.Sprintf("starts storage class configuration for the CephStorageClass, name: %s", cephSC.Name))
 	newSC := ConfigureStorageClass(cephSC, controllerNamespace, clusterID, ignoredLabelPrefixes)
 
-	log.Debug(fmt.Sprintf("[reconcileStorageClassCreateFunc] successfully configurated storage class for the CephStorageClass, name: %s", cephSC.Name))
-	log.Trace(fmt.Sprintf("[reconcileStorageClassCreateFunc] storage class: %+v", newSC))
+	log.Debug(fmt.Sprintf("successfully configurated storage class for the CephStorageClass, name: %s", cephSC.Name))
+	log.Trace(fmt.Sprintf("storage class: %+v", newSC))
 
 	created, err := createStorageClassIfNotExists(ctx, cl, scList, newSC)
 	if err != nil {
@@ -150,9 +154,9 @@ func reconcileStorageClassCreateFunc(
 		return true, err.Error(), err
 	}
 
-	log.Debug(fmt.Sprintf("[reconcileStorageClassCreateFunc] a storage class %s was created: %t", newSC.Name, created))
+	log.Debug(fmt.Sprintf("a storage class %s was created: %t", newSC.Name, created))
 	if created {
-		log.Info(fmt.Sprintf("[reconcileStorageClassCreateFunc] successfully create storage class, name: %s", newSC.Name))
+		log.Info(fmt.Sprintf("successfully create storage class, name: %s", newSC.Name))
 	} else {
 		err = fmt.Errorf("[reconcileStorageClassCreateFunc] Storage class %s already exists", newSC.Name)
 		return true, err.Error(), err
@@ -170,7 +174,9 @@ func reconcileStorageClassUpdateFunc(
 	controllerNamespace, clusterID string,
 	ignoredLabelPrefixes []string,
 ) (shouldRequeue bool, msg string, err error) {
-	log.Debug(fmt.Sprintf("[reconcileStorageClassUpdateFunc] starts for CephStorageClass %q", cephSC.Name))
+	log = log.Named("reconcileStorageClassUpdateFunc")
+
+	log.Debug(fmt.Sprintf("starts for CephStorageClass %q", cephSC.Name))
 
 	var oldSC *v1.StorageClass
 	for _, s := range scList.Items {
@@ -185,13 +191,13 @@ func reconcileStorageClassUpdateFunc(
 		return true, err.Error(), err
 	}
 
-	log.Debug(fmt.Sprintf("[reconcileStorageClassUpdateFunc] successfully found a storage class for the CephStorageClass, name: %s", cephSC.Name))
-	log.Trace(fmt.Sprintf("[reconcileStorageClassUpdateFunc] storage class: %+v", oldSC))
+	log.Debug(fmt.Sprintf("successfully found a storage class for the CephStorageClass, name: %s", cephSC.Name))
+	log.Trace(fmt.Sprintf("storage class: %+v", oldSC))
 
 	newSC := updateStorageClass(cephSC, oldSC, controllerNamespace, clusterID, ignoredLabelPrefixes)
-	log.Debug(fmt.Sprintf("[reconcileStorageClassUpdateFunc] successfully configurated storage class for the CephStorageClass, name: %s", cephSC.Name))
-	log.Trace(fmt.Sprintf("[reconcileStorageClassUpdateFunc] new storage class: %+v", newSC))
-	log.Trace(fmt.Sprintf("[reconcileStorageClassUpdateFunc] old storage class: %+v", oldSC))
+	log.Debug(fmt.Sprintf("successfully configurated storage class for the CephStorageClass, name: %s", cephSC.Name))
+	log.Trace(fmt.Sprintf("new storage class: %+v", newSC))
+	log.Trace(fmt.Sprintf("old storage class: %+v", oldSC))
 
 	err = recreateStorageClass(ctx, cl, oldSC, newSC)
 	if err != nil {
@@ -199,7 +205,7 @@ func reconcileStorageClassUpdateFunc(
 		return true, err.Error(), err
 	}
 
-	log.Info(fmt.Sprintf("[reconcileStorageClassUpdateFunc] a Storage Class %s was successfully recreated", newSC.Name))
+	log.Info(fmt.Sprintf("a Storage Class %s was successfully recreated", newSC.Name))
 
 	return false, "Successfully updated", nil
 }
@@ -211,7 +217,9 @@ func reconcileStorageClassDeleteFunc(
 	scList *v1.StorageClassList,
 	cephSC *storagev1alpha1.CephStorageClass,
 ) (shouldRequeue bool, msg string, err error) {
-	log.Debug(fmt.Sprintf("[reconcileStorageClassDeleteFunc] starts for CephStorageClass %q", cephSC.Name))
+	log = log.Named("reconcileStorageClassDeleteFunc")
+
+	log.Debug(fmt.Sprintf("starts for CephStorageClass %q", cephSC.Name))
 
 	var sc *v1.StorageClass
 	for _, s := range scList.Items {
@@ -222,29 +230,29 @@ func reconcileStorageClassDeleteFunc(
 	}
 
 	if sc == nil {
-		log.Info(fmt.Sprintf("[reconcileStorageClassDeleteFunc] no storage class found for the CephStorageClass, name: %s", cephSC.Name))
+		log.Info(fmt.Sprintf("no storage class found for the CephStorageClass, name: %s", cephSC.Name))
 	}
 
 	if sc != nil {
-		log.Info(fmt.Sprintf("[reconcileStorageClassDeleteFunc] successfully found a storage class for the CephStorageClass %s", cephSC.Name))
-		log.Debug(fmt.Sprintf("[reconcileStorageClassDeleteFunc] starts identifying a provisioner for the storage class %s", sc.Name))
+		log.Info(fmt.Sprintf("successfully found a storage class for the CephStorageClass %s", cephSC.Name))
+		log.Debug(fmt.Sprintf("starts identifying a provisioner for the storage class %s", sc.Name))
 
 		if slices.Contains(allowedProvisioners, sc.Provisioner) {
-			log.Info(fmt.Sprintf("[reconcileStorageClassDeleteFunc] the storage class %s provisioner %s belongs to allowed provisioners: %v", sc.Name, sc.Provisioner, allowedProvisioners))
+			log.Info(fmt.Sprintf("the storage class %s provisioner %s belongs to allowed provisioners: %v", sc.Name, sc.Provisioner, allowedProvisioners))
 			err := deleteStorageClass(ctx, cl, sc)
 			if err != nil {
 				err = fmt.Errorf("[reconcileStorageClassDeleteFunc] unable to delete a storage class %s: %w", sc.Name, err)
 				return true, err.Error(), err
 			}
-			log.Info(fmt.Sprintf("[reconcileStorageClassDeleteFunc] successfully deleted a storage class, name: %s", sc.Name))
+			log.Info(fmt.Sprintf("successfully deleted a storage class, name: %s", sc.Name))
 		}
 
 		if !slices.Contains(allowedProvisioners, sc.Provisioner) {
-			log.Info(fmt.Sprintf("[reconcileStorageClassDeleteFunc] a storage class %s with provisioner %s does not belong to allowed provisioners: %v. Skip deletion of storage class", sc.Name, sc.Provisioner, allowedProvisioners))
+			log.Info(fmt.Sprintf("a storage class %s with provisioner %s does not belong to allowed provisioners: %v. Skip deletion of storage class", sc.Name, sc.Provisioner, allowedProvisioners))
 		}
 	}
 
-	log.Debug("[reconcileStorageClassDeleteFunc] ends the reconciliation")
+	log.Debug("ends the reconciliation")
 	return false, "", nil
 }
 
@@ -591,18 +599,20 @@ func updateStorageClass(cephSC *storagev1alpha1.CephStorageClass, oldSC *v1.Stor
 
 // VolumeSnaphotClass
 func IdentifyReconcileFuncForVSClass(log logger.Logger, vsClassList *snapshotv1.VolumeSnapshotClassList, cephSC *storagev1alpha1.CephStorageClass, clusterID, controllerNamespace string) (reconcileType string, oldVSClass, newVSClass *snapshotv1.VolumeSnapshotClass) {
+	log = log.Named("IdentifyReconcileFuncForVSClass")
+
 	oldVSClass = findVSClass(vsClassList, cephSC.Name)
 
 	if oldVSClass == nil {
-		log.Debug(fmt.Sprintf("[IdentifyReconcileFuncForVSClass] no volume snapshot class found for the CephStorageClass %s", cephSC.Name))
+		log.Debug(fmt.Sprintf("no volume snapshot class found for the CephStorageClass %s", cephSC.Name))
 	} else {
-		log.Debug(fmt.Sprintf("[IdentifyReconcileFuncForVSClass] finds old volume snapshot class for the CephStorageClass %s", cephSC.Name))
-		log.Trace(fmt.Sprintf("[IdentifyReconcileFuncForVSClass] old volume snapshot class: %+v", oldVSClass))
+		log.Debug(fmt.Sprintf("finds old volume snapshot class for the CephStorageClass %s", cephSC.Name))
+		log.Trace(fmt.Sprintf("old volume snapshot class: %+v", oldVSClass))
 	}
 
 	newVSClass = ConfigureVSClass(oldVSClass, cephSC, clusterID, controllerNamespace)
-	log.Debug(fmt.Sprintf("[IdentifyReconcileFuncForVSClass] successfully configurated new volume snapshot class for the CephStorageClass %s", cephSC.Name))
-	log.Trace(fmt.Sprintf("[IdentifyReconcileFuncForVSClass] new volume snapshot class: %+v", newVSClass))
+	log.Debug(fmt.Sprintf("successfully configurated new volume snapshot class for the CephStorageClass %s", cephSC.Name))
+	log.Trace(fmt.Sprintf("new volume snapshot class: %+v", newVSClass))
 
 	if shouldReconcileVSClassByCreateFunc(oldVSClass, cephSC) {
 		return internal.CreateReconcile, nil, newVSClass
@@ -638,7 +648,7 @@ func shouldReconcileVSClassByUpdateFunc(log logger.Logger, oldVSClass, newVSClas
 
 	diff := CompareVSClasses(oldVSClass, newVSClass)
 	if diff != "" {
-		log.Debug(fmt.Sprintf("[shouldReconcileVSClassByUpdateFunc] a volume snapshot class %s should be updated. Diff: %s", oldVSClass.Name, diff))
+		log.Named("shouldReconcileVSClassByUpdateFunc").Debug(fmt.Sprintf("a volume snapshot class %s should be updated. Diff: %s", oldVSClass.Name, diff))
 		return true
 	}
 
@@ -715,8 +725,10 @@ func reconcileVolumeSnapshotClassCreateFunc(
 	log logger.Logger,
 	newVSClass *snapshotv1.VolumeSnapshotClass,
 ) (bool, error) {
-	log.Debug(fmt.Sprintf("[reconcileVolumeSnapshotClassCreateFunc] starts for VolumeSnapshotClass %q", newVSClass.Name))
-	log.Trace(fmt.Sprintf("[reconcileVolumeSnapshotClassCreateFunc] volume snapshot class: %+v", newVSClass))
+	log = log.Named("reconcileVolumeSnapshotClassCreateFunc")
+
+	log.Debug(fmt.Sprintf("starts for VolumeSnapshotClass %q", newVSClass.Name))
+	log.Trace(fmt.Sprintf("volume snapshot class: %+v", newVSClass))
 
 	err := cl.Create(ctx, newVSClass)
 	if err != nil {
@@ -724,7 +736,7 @@ func reconcileVolumeSnapshotClassCreateFunc(
 		return true, err
 	}
 
-	log.Info(fmt.Sprintf("[reconcileVolumeSnapshotClassCreateFunc] successfully create volume snapshot class, name: %s", newVSClass.Name))
+	log.Info(fmt.Sprintf("successfully create volume snapshot class, name: %s", newVSClass.Name))
 
 	return false, nil
 }
@@ -736,7 +748,9 @@ func reconcileVolumeSnapshotClassUpdateFunc(
 	oldVSClass *snapshotv1.VolumeSnapshotClass,
 	newVSClass *snapshotv1.VolumeSnapshotClass,
 ) (bool, error) {
-	log.Debug(fmt.Sprintf("[reconcileVolumeSnapshotClassUpdateFunc] starts for VolumeSnapshotClass %q", newVSClass.Name))
+	log = log.Named("reconcileVolumeSnapshotClassUpdateFunc")
+
+	log.Debug(fmt.Sprintf("starts for VolumeSnapshotClass %q", newVSClass.Name))
 
 	newVSClass.ResourceVersion = oldVSClass.ResourceVersion
 	err := cl.Update(ctx, newVSClass)
@@ -745,7 +759,7 @@ func reconcileVolumeSnapshotClassUpdateFunc(
 		return true, err
 	}
 
-	log.Info(fmt.Sprintf("[reconcileVolumeSnapshotClassUpdateFunc] successfully updated a VolumeSnapshotClass, name: %s", newVSClass.Name))
+	log.Info(fmt.Sprintf("successfully updated a VolumeSnapshotClass, name: %s", newVSClass.Name))
 
 	return false, nil
 }
@@ -757,19 +771,21 @@ func reconcileVolumeSnapshotClassDeleteFunc(
 	oldVSClass *snapshotv1.VolumeSnapshotClass,
 	cephSC *storagev1alpha1.CephStorageClass,
 ) (bool, error) {
-	log.Debug(fmt.Sprintf("[reconcileVolumeSnapshotClassDeleteFunc] starts for VolumeSnapshotClass %q", cephSC.Name))
+	log = log.Named("reconcileVolumeSnapshotClassDeleteFunc")
+
+	log.Debug(fmt.Sprintf("starts for VolumeSnapshotClass %q", cephSC.Name))
 
 	if oldVSClass == nil {
-		log.Info(fmt.Sprintf("[reconcileVolumeSnapshotClassDeleteFunc] no volume snapshot class found for the CephStorageClass, name: %s", cephSC.Name))
-		log.Debug("[reconcileVolumeSnapshotClassDeleteFunc] ends the reconciliation")
+		log.Info(fmt.Sprintf("no volume snapshot class found for the CephStorageClass, name: %s", cephSC.Name))
+		log.Debug("ends the reconciliation")
 		return false, nil
 	}
 
-	log.Info(fmt.Sprintf("[reconcileVolumeSnapshotClassDeleteFunc] successfully found a volume snapshot class %s for the CephStorageClass %s", oldVSClass.Name, cephSC.Name))
-	log.Trace(fmt.Sprintf("[reconcileVolumeSnapshotClassDeleteFunc] volume snapshot class: %+v", oldVSClass))
+	log.Info(fmt.Sprintf("successfully found a volume snapshot class %s for the CephStorageClass %s", oldVSClass.Name, cephSC.Name))
+	log.Trace(fmt.Sprintf("volume snapshot class: %+v", oldVSClass))
 
 	if !slices.Contains(allowedProvisioners, oldVSClass.Driver) {
-		log.Info(fmt.Sprintf("[reconcileVolumeSnapshotClassDeleteFunc] the volume snapshot class %s driver %s does not belong to allowed provisioners: %v. Skip deletion", oldVSClass.Name, oldVSClass.Driver, allowedProvisioners))
+		log.Info(fmt.Sprintf("the volume snapshot class %s driver %s does not belong to allowed provisioners: %v. Skip deletion", oldVSClass.Name, oldVSClass.Driver, allowedProvisioners))
 		return false, nil
 	}
 
@@ -779,9 +795,9 @@ func reconcileVolumeSnapshotClassDeleteFunc(
 		return true, err
 	}
 
-	log.Info(fmt.Sprintf("[reconcileVolumeSnapshotClassDeleteFunc] successfully deleted a volume snapshot class, name: %s", oldVSClass.Name))
+	log.Info(fmt.Sprintf("successfully deleted a volume snapshot class, name: %s", oldVSClass.Name))
 
-	log.Debug("[reconcileVolumeSnapshotClassDeleteFunc] ends the reconciliation")
+	log.Debug("ends the reconciliation")
 	return false, nil
 }
 

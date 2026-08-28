@@ -26,19 +26,21 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/deckhouse/csi-ceph/images/controller/pkg/internal"
-	"github.com/deckhouse/csi-ceph/images/controller/pkg/logger"
+	"github.com/deckhouse/sds-common-lib/logger"
 )
 
 // EnsureConfigMapExists ensures that the ceph-csi-config ConfigMap exists in the given namespace.
 // If it doesn't exist, creates an empty one with config.json containing an empty array.
 // reader is used for Get operations (bypasses cache), writer is used for Create operations.
 func EnsureConfigMapExists(ctx context.Context, reader client.Reader, writer client.Writer, namespace string, log logger.Logger) error {
+	log = log.Named("EnsureConfigMapExists")
+
 	configMapName := internal.CSICephConfigMapName
 	configMap := &corev1.ConfigMap{}
 
 	err := reader.Get(ctx, client.ObjectKey{Name: configMapName, Namespace: namespace}, configMap)
 	if err == nil {
-		log.Info(fmt.Sprintf("[EnsureConfigMapExists] ConfigMap %s/%s already exists", namespace, configMapName))
+		log.Info(fmt.Sprintf("ConfigMap %s/%s already exists", namespace, configMapName))
 		return nil
 	}
 
@@ -62,6 +64,6 @@ func EnsureConfigMapExists(ctx context.Context, reader client.Reader, writer cli
 		return fmt.Errorf("unable to create ConfigMap %s/%s: %w", namespace, configMapName, err)
 	}
 
-	log.Info(fmt.Sprintf("[EnsureConfigMapExists] successfully created empty ConfigMap %s/%s", namespace, configMapName))
+	log.Info(fmt.Sprintf("successfully created empty ConfigMap %s/%s", namespace, configMapName))
 	return nil
 }

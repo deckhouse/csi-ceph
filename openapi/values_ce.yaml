@@ -28,6 +28,22 @@ properties:
           ca:
             type: string
             x-examples: ["YjY0ZW5jX3N0cmluZwo="]
+      controllerMetricsProxyPort:
+        type: integer
+        default: 8080
+        description: |
+          The port the kube-rbac-proxy publishes the controller metrics on. Reaching
+          it requires "get" on deployments/prometheus-metrics for the controller; the
+          controller itself keeps its metrics on 127.0.0.1.
+      controllerMetricsPort:
+        type: integer
+        description: |
+          The port the module controller serves its metrics on, bound on 127.0.0.1:
+          the kube-rbac-proxy of the same pod is the only thing that reaches it. What
+          is on it is what controller-runtime exports for every controller registered
+          with the manager -- reconcile counts and durations, workqueue depth,
+          client-go latency -- plus any metric the module declares of its own.
+        default: 8080
       storageClassLabelIgnoredPrefixesSystem:
         type: array
         description: |

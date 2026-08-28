@@ -19,6 +19,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"os"
 	goruntime "runtime"
 
@@ -31,12 +32,14 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
+	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
 	"github.com/deckhouse/csi-ceph/api/v1alpha1"
 	"github.com/deckhouse/csi-ceph/images/controller/pkg/config"
 	"github.com/deckhouse/csi-ceph/images/controller/pkg/controller"
 	"github.com/deckhouse/csi-ceph/images/controller/pkg/kubutils"
-	"github.com/deckhouse/csi-ceph/images/controller/pkg/logger"
+	"github.com/deckhouse/sds-common-lib/logger"
+	"github.com/deckhouse/sds-common-lib/monitoring"
 )
 
 var (
@@ -54,34 +57,40 @@ func main() {
 	ctx := context.Background()
 	cfgParams := config.NewConfig()
 
-	log, err := logger.NewLogger(cfgParams.Loglevel)
+	baseLog, err := logger.NewLogger(cfgParams.Loglevel)
 	if err != nil {
 		fmt.Printf("unable to create NewLogger, err: %v\n", err)
 		os.Exit(1)
 	}
+	log := baseLog.Named("main")
 
-	log.Info(fmt.Sprintf("[main] Go Version:%s ", goruntime.Version()))
-	log.Info(fmt.Sprintf("[main] OS/Arch:Go OS/Arch:%s/%s ", goruntime.GOOS, goruntime.GOARCH))
-
-	log.Info("[main] CfgParams has been successfully created")
-	log.Info(fmt.Sprintf("[main] %s = %s", config.LogLevelEnvName, cfgParams.Loglevel))
-	log.Info(fmt.Sprintf("[main] RequeueStorageClassInterval = %d", cfgParams.RequeueStorageClassInterval))
+	log.Info("starting csi-ceph-controller",
+		"goVersion", goruntime.Version(), "os", goruntime.GOOS, "arch", goruntime.GOARCH)
+	log.Info("configuration",
+		"logLevel", string(cfgParams.Loglevel),
+		"requeueStorageClassInterval", cfgParams.RequeueStorageClassInterval.String(),
+		"controllerNamespace", cfgParams.ControllerNamespace,
+		"healthProbeBindAddress", cfgParams.HealthProbeBindAddress,
+		"metricsBindAddress", cfgParams.MetricsBindAddress)
 
 	kConfig, err := kubutils.KubernetesDefaultConfigCreate()
 	if err != nil {
-		log.Error(err, "[main] unable to KubernetesDefaultConfigCreate")
+		// Without a config the manager cannot be built at all; continuing only moved
+		// the failure a few lines down, to a message that does not name the cause.
+		log.Error("unable to KubernetesDefaultConfigCreate", logger.Err(err))
+		os.Exit(1)
 	}
-	log.Info("[main] kubernetes config has been successfully created.")
+	log.Info("kubernetes config has been successfully created.")
 
 	scheme := apiruntime.NewScheme()
 	for _, f := range resourcesSchemeFuncs {
 		err := f(scheme)
 		if err != nil {
-			log.Error(err, "[main] unable to add scheme to func")
+			log.Error("unable to add scheme to func", logger.Err(err))
 			os.Exit(1)
 		}
 	}
-	log.Info("[main] successfully read scheme CR")
+	log.Info("successfully read scheme CR")
 
 	cacheOpt := cache.Options{
 		DefaultNamespaces: map[string]cache.Config{
@@ -89,54 +98,58 @@ func main() {
 		},
 	}
 
+	// Configured, not yet serving: the listener is opened by the manager below, and a
+	// port already in use is reported from mgr.Start.
+	log.Info("metrics endpoint configured", "address", cfgParams.MetricsBindAddress+monitoring.MetricsPath)
+
 	managerOpts := manager.Options{
-		Scheme: scheme,
-		Cache:  cacheOpt,
-		//MetricsBindAddress: cfgParams.MetricsPort,
+		Scheme:                  scheme,
+		Cache:                   cacheOpt,
+		Metrics:                 metricsserver.Options{BindAddress: cfgParams.MetricsBindAddress},
 		HealthProbeBindAddress:  cfgParams.HealthProbeBindAddress,
 		LeaderElection:          true,
 		LeaderElectionNamespace: cfgParams.ControllerNamespace,
 		LeaderElectionID:        config.ControllerName,
-		Logger:                  log.GetLogger(),
+		Logger:                  baseLog.GetLogger(),
 	}
 
 	mgr, err := manager.New(kConfig, managerOpts)
 	if err != nil {
-		log.Error(err, "[main] unable to manager.New")
+		log.Error("unable to manager.New", logger.Err(err))
 		os.Exit(1)
 	}
-	log.Info("[main] successfully created kubernetes manager")
+	log.Info("successfully created kubernetes manager")
 
-	if _, err = controller.RunCephStorageClassWatcherController(mgr, *cfgParams, *log); err != nil {
-		log.Error(err, fmt.Sprintf("[main] unable to run %s", controller.CephStorageClassCtrlName))
-		os.Exit(1)
-	}
-
-	if _, err = controller.RunCephClusterConnectionWatcherController(mgr, *cfgParams, *log); err != nil {
-		log.Error(err, fmt.Sprintf("[main] unable to run %s", controller.CephClusterConnectionCtrlName))
+	if _, err = controller.RunCephStorageClassWatcherController(mgr, *cfgParams, baseLog.Named(controller.CephStorageClassCtrlName)); err != nil {
+		log.Error("unable to run the controller", logger.Err(err), slog.String("controller", controller.CephStorageClassCtrlName))
 		os.Exit(1)
 	}
 
-	if _, err = controller.RunCephClusterAuthenticationWatcherController(mgr, *cfgParams, *log); err != nil {
-		log.Error(err, fmt.Sprintf("[main] unable to run %s", controller.CephClusterAuthenticationCtrlName))
+	if _, err = controller.RunCephClusterConnectionWatcherController(mgr, *cfgParams, baseLog.Named(controller.CephClusterConnectionCtrlName)); err != nil {
+		log.Error("unable to run the controller", logger.Err(err), slog.String("controller", controller.CephClusterConnectionCtrlName))
+		os.Exit(1)
+	}
+
+	if _, err = controller.RunCephClusterAuthenticationWatcherController(mgr, *cfgParams, baseLog.Named(controller.CephClusterAuthenticationCtrlName)); err != nil {
+		log.Error("unable to run the controller", logger.Err(err), slog.String("controller", controller.CephClusterAuthenticationCtrlName))
 		os.Exit(1)
 	}
 
 	if err = mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
-		log.Error(err, "[main] unable to mgr.AddHealthzCheck")
+		log.Error("unable to mgr.AddHealthzCheck", logger.Err(err))
 		os.Exit(1)
 	}
-	log.Info("[main] successfully AddHealthzCheck")
+	log.Info("successfully AddHealthzCheck")
 
 	if err = mgr.AddReadyzCheck("readyz", healthz.Ping); err != nil {
-		log.Error(err, "[main] unable to mgr.AddReadyzCheck")
+		log.Error("unable to mgr.AddReadyzCheck", logger.Err(err))
 		os.Exit(1)
 	}
-	log.Info("[main] successfully AddReadyzCheck")
+	log.Info("successfully AddReadyzCheck")
 
 	err = mgr.Start(ctx)
 	if err != nil {
-		log.Error(err, "[main] unable to mgr.Start")
+		log.Error("unable to mgr.Start", logger.Err(err))
 		os.Exit(1)
 	}
 }

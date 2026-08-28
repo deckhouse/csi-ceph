@@ -30,7 +30,7 @@ import (
 
 	v1alpha1 "github.com/deckhouse/csi-ceph/api/v1alpha1"
 	"github.com/deckhouse/csi-ceph/images/controller/pkg/controller"
-	"github.com/deckhouse/csi-ceph/images/controller/pkg/logger"
+	"github.com/deckhouse/sds-common-lib/logger"
 )
 
 var _ = Describe(controller.CephStorageClassCtrlName, func() {
@@ -43,7 +43,7 @@ var _ = Describe(controller.CephStorageClassCtrlName, func() {
 	var (
 		ctx = context.Background()
 		cl  = NewFakeClient()
-		log = logger.Logger{}
+		log = logger.NewNop()
 
 		clusterConnectionName     = "ceph-connection"
 		clusterAuthenticationName = "ceph-auth"

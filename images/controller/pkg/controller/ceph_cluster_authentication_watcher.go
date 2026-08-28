@@ -34,8 +34,8 @@ import (
 
 	v1alpha1 "github.com/deckhouse/csi-ceph/api/v1alpha1"
 	"github.com/deckhouse/csi-ceph/images/controller/pkg/config"
-	"github.com/deckhouse/csi-ceph/images/controller/pkg/logger"
 	"github.com/deckhouse/sds-common-lib/conditions"
+	"github.com/deckhouse/sds-common-lib/logger"
 )
 
 const (
@@ -53,63 +53,71 @@ func RunCephClusterAuthenticationWatcherController(
 ) (controller.Controller, error) {
 	cl := mgr.GetClient()
 
+	reconcileLog := log.Named("reconcile")
+
 	c, err := controller.New(CephClusterAuthenticationCtrlName, mgr, controller.Options{
 		Reconciler: reconcile.Func(func(ctx context.Context, request reconcile.Request) (reconcile.Result, error) {
-			log.Info(fmt.Sprintf("[CephClusterAuthenticationReconciler] starts Reconcile for the CephClusterAuthentication %q", request.Name))
+			log := reconcileLog
+
+			log.Info(fmt.Sprintf("starts Reconcile for the CephClusterAuthentication %q", request.Name))
 			cephClusterAuthentication := &v1alpha1.CephClusterAuthentication{}
 			err := cl.Get(ctx, request.NamespacedName, cephClusterAuthentication)
 			if err != nil && !k8serr.IsNotFound(err) {
-				log.Error(err, fmt.Sprintf("[CephClusterAuthenticationReconciler] unable to get CephClusterAuthentication, name: %s", request.Name))
+				log.Error(fmt.Sprintf("unable to get CephClusterAuthentication, name: %s", request.Name), logger.Err(err))
 				return reconcile.Result{}, err
 			}
 
 			if cephClusterAuthentication.Name == "" {
-				log.Info(fmt.Sprintf("[CephClusterAuthenticationReconciler] seems like the CephClusterAuthentication for the request %s was deleted. Reconcile retrying will stop.", request.Name))
+				log.Info(fmt.Sprintf("seems like the CephClusterAuthentication for the request %s was deleted. Reconcile retrying will stop.", request.Name))
 				return reconcile.Result{}, nil
 			}
 
 			err = labelAsDeprecatedIfNeeded(ctx, cl, cephClusterAuthentication)
 			if err != nil {
-				log.Error(err, fmt.Sprintf("[CephClusterAuthenticationReconciler] unable to label as deprecated CephClusterAuthentication %q", cephClusterAuthentication.Name))
+				log.Error(fmt.Sprintf("unable to label as deprecated CephClusterAuthentication %q", cephClusterAuthentication.Name), logger.Err(err))
 				return reconcile.Result{}, err
 			}
 
-			log.Info(fmt.Sprintf("[CephClusterAuthenticationReconciler] ends Reconcile for the CephClusterAuthentication %q", request.Name))
+			log.Info(fmt.Sprintf("ends Reconcile for the CephClusterAuthentication %q", request.Name))
 			return reconcile.Result{}, nil
 		}),
 	})
 	if err != nil {
-		log.Error(err, "[RunCephClusterAuthenticationWatcherController] unable to create controller")
+		log.Error("unable to create controller", logger.Err(err))
 		return nil, err
 	}
 
 	err = c.Watch(source.Kind(mgr.GetCache(), &v1alpha1.CephClusterAuthentication{}, handler.TypedFuncs[*v1alpha1.CephClusterAuthentication, reconcile.Request]{
 		CreateFunc: func(_ context.Context, e event.TypedCreateEvent[*v1alpha1.CephClusterAuthentication], q workqueue.TypedRateLimitingInterface[reconcile.Request]) {
-			log.Warning(fmt.Sprintf("[CreateFunc] get event for CephClusterAuthentication %q. Label as deprecated", e.Object.GetName()))
+			log := log.Named("create")
+
+			log.Warn(fmt.Sprintf("get event for CephClusterAuthentication %q. Label as deprecated", e.Object.GetName()))
 			err := labelAsDeprecatedIfNeeded(context.Background(), cl, e.Object)
 			if err != nil {
-				log.Error(err, fmt.Sprintf("[CreateFunc] unable to label as deprecated CephClusterAuthentication %q", e.Object.GetName()))
+				log.Error(fmt.Sprintf("unable to label as deprecated CephClusterAuthentication %q", e.Object.GetName()), logger.Err(err))
 				q.Add(reconcile.Request{NamespacedName: types.NamespacedName{Namespace: e.Object.GetNamespace(), Name: e.Object.GetName()}})
 			}
 
-			log.Warning(fmt.Sprintf("[CreateFunc] Successfully labeled as deprecated CephClusterAuthentication %q", e.Object.GetName()))
+			log.Warn(fmt.Sprintf("successfully labeled as deprecated CephClusterAuthentication %q", e.Object.GetName()))
 		},
 		UpdateFunc: func(_ context.Context, e event.TypedUpdateEvent[*v1alpha1.CephClusterAuthentication], q workqueue.TypedRateLimitingInterface[reconcile.Request]) {
-			log.Warning(fmt.Sprintf("[UpdateFunc] get event for CephClusterAuthentication %q. Label as deprecated", e.ObjectNew.GetName()))
+			log := log.Named("update")
+
+			log.Warn(fmt.Sprintf("get event for CephClusterAuthentication %q. Label as deprecated", e.ObjectNew.GetName()))
 			err := labelAsDeprecatedIfNeeded(context.Background(), cl, e.ObjectNew)
 			if err != nil {
-				log.Error(err, fmt.Sprintf("[UpdateFunc] unable to label as deprecated CephClusterAuthentication %q", e.ObjectNew.GetName()))
+				log.Error(fmt.Sprintf("unable to label as deprecated CephClusterAuthentication %q", e.ObjectNew.GetName()), logger.Err(err))
 				q.Add(reconcile.Request{NamespacedName: types.NamespacedName{Namespace: e.ObjectNew.GetNamespace(), Name: e.ObjectNew.GetName()}})
 			}
 
-			log.Warning(fmt.Sprintf("[UpdateFunc] Successfully labeled as deprecated CephClusterAuthentication %q", e.ObjectNew.GetName()))
+			log.Warn(fmt.Sprintf("successfully labeled as deprecated CephClusterAuthentication %q", e.ObjectNew.GetName()))
 		},
 	},
 	),
 	)
 
 	if err != nil {
-		log.Error(err, "[RunCephClusterAuthenticationWatcherController] unable to watch the events")
+		log.Error("unable to watch the events", logger.Err(err))
 		return nil, err
 	}
 

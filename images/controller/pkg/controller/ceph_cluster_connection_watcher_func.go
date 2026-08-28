@@ -31,8 +31,8 @@ import (
 
 	v1alpha1 "github.com/deckhouse/csi-ceph/api/v1alpha1"
 	"github.com/deckhouse/csi-ceph/images/controller/pkg/internal"
-	"github.com/deckhouse/csi-ceph/images/controller/pkg/logger"
 	"github.com/deckhouse/sds-common-lib/conditions"
+	"github.com/deckhouse/sds-common-lib/logger"
 )
 
 func validateCephClusterConnectionSpec(cephClusterConnection *v1alpha1.CephClusterConnection) (bool, string) {
@@ -123,7 +123,7 @@ func reconcileConfigMap(ctx context.Context, cl client.Client, log logger.Logger
 		if cephClusterConnection.DeletionTimestamp == nil {
 			return createConfigMap(ctx, cl, log, cephClusterConnection, configMapNamespace, configMapName)
 		}
-		log.Info("cephClusterConnection is being deleted and Config map not found.")
+		log.Info("CephClusterConnection is being deleted and Config map not found.")
 		return false, "", nil
 	}
 
@@ -192,7 +192,9 @@ func generateClusterConfig(cephClusterConnection *v1alpha1.CephClusterConnection
 }
 
 func createConfigMap(ctx context.Context, cl client.Client, log logger.Logger, cephClusterConnection *v1alpha1.CephClusterConnection, controllerNamespace, configMapName string) (shouldRequeue bool, msg string, err error) {
-	log.Debug(fmt.Sprintf("[createConfigMap] starts creation of ConfigMap %s for CephClusterConnection %s", configMapName, cephClusterConnection.Name))
+	log = log.Named("createConfigMap")
+
+	log.Debug(fmt.Sprintf("starts creation of ConfigMap %s for CephClusterConnection %s", configMapName, cephClusterConnection.Name))
 
 	newClusterConfig := generateClusterConfig(cephClusterConnection, controllerNamespace)
 	newConfigMap, err := generateNewConfigMap(newClusterConfig, controllerNamespace, configMapName)
@@ -200,8 +202,8 @@ func createConfigMap(ctx context.Context, cl client.Client, log logger.Logger, c
 		err = fmt.Errorf("[createConfigMap] unable to generate the ConfigMap %s for CephClusterConnection %s: %w", configMapName, cephClusterConnection.Name, err)
 		return true, err.Error(), err
 	}
-	log.Debug(fmt.Sprintf("[createConfigMap] successfully generate the ConfigMap %s for the CephClusterConnection %s", configMapName, cephClusterConnection.Name))
-	log.Trace(fmt.Sprintf("[createConfigMap] configMap: %+v", newConfigMap))
+	log.Debug(fmt.Sprintf("successfully generate the ConfigMap %s for the CephClusterConnection %s", configMapName, cephClusterConnection.Name))
+	log.Trace(fmt.Sprintf("ConfigMap: %+v", newConfigMap))
 
 	err = cl.Create(ctx, newConfigMap)
 	if err != nil {
@@ -209,7 +211,7 @@ func createConfigMap(ctx context.Context, cl client.Client, log logger.Logger, c
 		return true, err.Error(), err
 	}
 
-	log.Debug(fmt.Sprintf("[createConfigMap] successfully created ConfigMap %s for the CephClusterConnection %s", newConfigMap.Name, cephClusterConnection.Name))
+	log.Debug(fmt.Sprintf("successfully created ConfigMap %s for the CephClusterConnection %s", newConfigMap.Name, cephClusterConnection.Name))
 	return false, fmt.Sprintf("Successfully created ConfigMap %s", newConfigMap.Name), nil
 }
 
@@ -244,9 +246,11 @@ func generateNewConfigMap(clusterConfig v1alpha1.ClusterConfig, controllerNamesp
 var errUpdateIncompleted = errors.New("update was not completed yet, should requeue")
 
 func updateConfigMapIfNeeded(ctx context.Context, cl client.Client, log logger.Logger, configMap *corev1.ConfigMap, cephClusterConnection *v1alpha1.CephClusterConnection, updateAction string, controllerNamespace string) error {
-	log.Debug(fmt.Sprintf("[updateConfigMapIfNeeded] starts for the ConfigMap %s/%s", configMap.Namespace, configMap.Name))
-	log.Trace(fmt.Sprintf("[updateConfigMapIfNeeded] ConfigMap: %+v", configMap))
-	log.Trace(fmt.Sprintf("[updateConfigMapIfNeeded] Update action: %s", updateAction))
+	log = log.Named("updateConfigMapIfNeeded")
+
+	log.Debug(fmt.Sprintf("starts for the ConfigMap %s/%s", configMap.Namespace, configMap.Name))
+	log.Trace(fmt.Sprintf("ConfigMap: %+v", configMap))
+	log.Trace(fmt.Sprintf("update action: %s", updateAction))
 
 	if configMap.DeletionTimestamp != nil {
 		// delete finalizers
@@ -264,12 +268,12 @@ func updateConfigMapIfNeeded(ctx context.Context, cl client.Client, log logger.L
 
 	clusterConfigs, err := getClusterConfigsFromConfigMap(configMap)
 	if err != nil {
-		log.Warning(fmt.Sprintf("[updateConfigMapIfNeeded] unable to get cluster configs from the ConfigMap %s. New cluster config will be created. Error: %s", configMap.Name, err.Error()))
+		log.Warn(fmt.Sprintf("unable to get cluster configs from the ConfigMap %s. New cluster config will be created. Error: %s", configMap.Name, err.Error()))
 		clusterConfigs = []v1alpha1.ClusterConfig{}
 		needUpdate = true
 	}
 
-	log.Trace(fmt.Sprintf("[updateConfigMapIfNeeded] clusterConfigs: %+v", clusterConfigs))
+	log.Trace(fmt.Sprintf("clusterConfigs: %+v", clusterConfigs))
 
 	clusterConfigs, updated := updateClusterConfigsIfNeeded(log, clusterConfigs, cephClusterConnection, updateAction, controllerNamespace)
 	if updated {
@@ -283,16 +287,16 @@ func updateConfigMapIfNeeded(ctx context.Context, cl client.Client, log logger.L
 	}
 
 	if !needUpdate {
-		log.Debug(fmt.Sprintf("[updateConfigMapIfNeeded] no changes required for the ConfigMap %s", configMap.Name))
+		log.Debug(fmt.Sprintf("no changes required for the ConfigMap %s", configMap.Name))
 		return nil
 	}
 
-	log.Debug(fmt.Sprintf("[updateConfigMapIfNeeded] changes required for the ConfigMap %s", configMap.Name))
+	log.Debug(fmt.Sprintf("changes required for the ConfigMap %s", configMap.Name))
 	newJSONData, err := json.Marshal(clusterConfigs)
 	if err != nil {
 		return fmt.Errorf("[updateConfigMapIfNeeded] unable to marshal clusterConfigs: %w", err)
 	}
-	log.Trace(fmt.Sprintf("[updateConfigMapIfNeeded] newJSONData: %s", newJSONData))
+	log.Trace(fmt.Sprintf("newJSONData: %s", newJSONData))
 
 	if configMap.Data == nil {
 		configMap.Data = map[string]string{}
@@ -304,7 +308,7 @@ func updateConfigMapIfNeeded(ctx context.Context, cl client.Client, log logger.L
 
 	configMap.Data["config.json"] = string(newJSONData)
 
-	log.Trace(fmt.Sprintf("[updateConfigMapIfNeeded] updated ConfigMap: %+v", configMap))
+	log.Trace(fmt.Sprintf("updated ConfigMap: %+v", configMap))
 
 	err = cl.Update(ctx, configMap)
 	if err != nil {
@@ -325,35 +329,37 @@ func findClusterConfigByClusterID(clusterConfigs []v1alpha1.ClusterConfig, clust
 }
 
 func updateClusterConfigsIfNeeded(log logger.Logger, clusterConfigs []v1alpha1.ClusterConfig, cephClusterConnection *v1alpha1.CephClusterConnection, updateAction string, controllerNamespace string) ([]v1alpha1.ClusterConfig, bool) {
+	log = log.Named("updateClusterConfigsIfNeeded")
+
 	updated := false
 
 	clusterConfigIndex, clusterConfigExists := findClusterConfigByClusterID(clusterConfigs, cephClusterConnection.Spec.ClusterID)
-	log.Debug(fmt.Sprintf("[updateClusterConfigsIfNeeded] Find cluster config by cluster ID: %d, %t. Index: %d", clusterConfigIndex, clusterConfigExists, clusterConfigIndex))
+	log.Debug(fmt.Sprintf("find cluster config by cluster ID: %d, %t. Index: %d", clusterConfigIndex, clusterConfigExists, clusterConfigIndex))
 
 	switch updateAction {
 	case internal.UpdateConfigMapActionDelete:
 		if clusterConfigExists {
-			log.Debug(fmt.Sprintf("[updateClusterConfigsIfNeeded] clusterConfigExists %t and updateAction == internal.UpdateConfigMapActionDelete. Delete clusterConfig", clusterConfigExists))
+			log.Debug(fmt.Sprintf("clusterConfigExists %t and updateAction == internal.UpdateConfigMapActionDelete. Delete clusterConfig", clusterConfigExists))
 			clusterConfigs = append(clusterConfigs[:clusterConfigIndex], clusterConfigs[clusterConfigIndex+1:]...)
 			updated = true
 		} else {
-			log.Debug(fmt.Sprintf("[updateClusterConfigsIfNeeded] clusterConfigExists %t. No need to delete clusterConfig", clusterConfigExists))
+			log.Debug(fmt.Sprintf("clusterConfigExists %t. No need to delete clusterConfig", clusterConfigExists))
 		}
 	default:
 		newClusterConfig := generateClusterConfig(cephClusterConnection, controllerNamespace)
-		log.Trace(fmt.Sprintf("[updateClusterConfigsIfNeeded] updateAction %s, newClusterConfig: %+v", updateAction, newClusterConfig))
+		log.Trace(fmt.Sprintf("updateAction %s, newClusterConfig: %+v", updateAction, newClusterConfig))
 
 		if clusterConfigExists {
-			log.Trace(fmt.Sprintf("[updateClusterConfigsIfNeeded] existedClusterConfig: %+v", clusterConfigs[clusterConfigIndex]))
+			log.Trace(fmt.Sprintf("existedClusterConfig: %+v", clusterConfigs[clusterConfigIndex]))
 			if !reflect.DeepEqual(clusterConfigs[clusterConfigIndex], newClusterConfig) {
-				log.Debug(fmt.Sprintf("[updateClusterConfigsIfNeeded] clusterConfigExists: %t and configs differ. Updating clusterConfig at index %d", clusterConfigExists, clusterConfigIndex))
+				log.Debug(fmt.Sprintf("clusterConfigExists: %t and configs differ. Updating clusterConfig at index %d", clusterConfigExists, clusterConfigIndex))
 				clusterConfigs[clusterConfigIndex] = newClusterConfig
 				updated = true
 			} else {
-				log.Debug(fmt.Sprintf("[updateClusterConfigsIfNeeded] clusterConfigExists: %t and configs are equal. No need to update", clusterConfigExists))
+				log.Debug(fmt.Sprintf("clusterConfigExists: %t and configs are equal. No need to update", clusterConfigExists))
 			}
 		} else {
-			log.Debug(fmt.Sprintf("[updateClusterConfigsIfNeeded] clusterConfigExists %t. Append newClusterConfig", clusterConfigExists))
+			log.Debug(fmt.Sprintf("clusterConfigExists %t. Append newClusterConfig", clusterConfigExists))
 			clusterConfigs = append(clusterConfigs, newClusterConfig)
 			updated = true
 		}
@@ -389,10 +395,12 @@ func reconcileSecret(ctx context.Context, cl client.Client, log logger.Logger, s
 }
 
 func createSecret(ctx context.Context, cl client.Client, log logger.Logger, cephClusterConnection *v1alpha1.CephClusterConnection, controllerNamespace, secretName string) (shouldRequeue bool, msg string, err error) {
-	log.Debug(fmt.Sprintf("[createSecret] starts creation of Secret %s for CephClusterConnection %s", secretName, cephClusterConnection.Name))
+	log = log.Named("createSecret")
+
+	log.Debug(fmt.Sprintf("starts creation of Secret %s for CephClusterConnection %s", secretName, cephClusterConnection.Name))
 
 	newSecret := generateNewSecret(cephClusterConnection, controllerNamespace, secretName)
-	log.Debug(fmt.Sprintf("[createSecret] successfully generate the Secret %s for the CephClusterConnection %s", secretName, cephClusterConnection.Name))
+	log.Debug(fmt.Sprintf("successfully generate the Secret %s for the CephClusterConnection %s", secretName, cephClusterConnection.Name))
 
 	err = cl.Create(ctx, newSecret)
 	if err != nil {
@@ -400,7 +408,7 @@ func createSecret(ctx context.Context, cl client.Client, log logger.Logger, ceph
 		return true, err.Error(), err
 	}
 
-	log.Debug(fmt.Sprintf("[createSecret] successfully created Secret %s for the CephClusterConnection %s", newSecret.Name, cephClusterConnection.Name))
+	log.Debug(fmt.Sprintf("successfully created Secret %s for the CephClusterConnection %s", newSecret.Name, cephClusterConnection.Name))
 	return false, fmt.Sprintf("Successfully created Secret %s", newSecret.Name), nil
 }
 
@@ -433,7 +441,7 @@ func generateNewSecret(cephClusterConnection *v1alpha1.CephClusterConnection, co
 
 func removeFinalizerAndDeleteSecret(ctx context.Context, cl client.Client, log logger.Logger, secret *corev1.Secret, finalizerName string) (shouldRequeue bool, msg string, err error) {
 	if secret == nil {
-		log.Debug("[deleteSecret] Secret is nil. No need to delete")
+		log.Debug("secret is nil. No need to delete")
 		return false, "[deleteSecret] Secret is nil. No need to delete", nil
 	}
 
@@ -449,36 +457,38 @@ func removeFinalizerAndDeleteSecret(ctx context.Context, cl client.Client, log l
 		return true, err.Error(), err
 	}
 
-	log.Debug(fmt.Sprintf("[deleteSecret] successfully deleted Secret %s", secret.Name))
+	log.Named("deleteSecret").Debug(fmt.Sprintf("successfully deleted Secret %s", secret.Name))
 
 	return false, fmt.Sprintf("[deleteSecret] Successfully deleted Secret %s", secret.Name), nil
 }
 
 func updateSecretIfNeeded(ctx context.Context, cl client.Client, log logger.Logger, oldSecret *corev1.Secret, cephClusterConnection *v1alpha1.CephClusterConnection) error {
-	log.Debug(fmt.Sprintf("[updateSecretIfNeeded] starts for the Secret %s/%s", oldSecret.Namespace, oldSecret.Name))
+	log = log.Named("updateSecretIfNeeded")
+
+	log.Debug(fmt.Sprintf("starts for the Secret %s/%s", oldSecret.Namespace, oldSecret.Name))
 
 	needUpdate := false
 
 	newSecret := generateNewSecret(cephClusterConnection, oldSecret.Namespace, oldSecret.Name)
 	needUpdate = compareSecretsData(oldSecret, newSecret)
 	if needUpdate {
-		log.Debug(fmt.Sprintf("[updateSecretIfNeeded] data in the Secret %s has been changed", oldSecret.Name))
+		log.Debug(fmt.Sprintf("data in the Secret %s has been changed", oldSecret.Name))
 		oldSecret.StringData = newSecret.StringData
 	}
 
 	obj, metadataAdded := addRequiredMetadataIfNeeded(oldSecret)
 	oldSecret = obj.(*corev1.Secret)
 	if metadataAdded {
-		log.Trace(fmt.Sprintf("[updateSecretIfNeeded] metadataAdded: %t", metadataAdded))
+		log.Trace(fmt.Sprintf("metadataAdded: %t", metadataAdded))
 		needUpdate = true
 	}
 
 	if !needUpdate {
-		log.Debug(fmt.Sprintf("[updateSecretIfNeeded] no changes required for the Secret %s", oldSecret.Name))
+		log.Debug(fmt.Sprintf("no changes required for the Secret %s", oldSecret.Name))
 		return nil
 	}
 
-	log.Debug(fmt.Sprintf("[updateSecretIfNeeded] changes required for the Secret %s", oldSecret.Name))
+	log.Debug(fmt.Sprintf("changes required for the Secret %s", oldSecret.Name))
 
 	err := cl.Update(ctx, oldSecret)
 	if err != nil {

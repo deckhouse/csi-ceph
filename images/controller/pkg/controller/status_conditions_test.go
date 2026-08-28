@@ -30,8 +30,8 @@ import (
 
 	storagev1alpha1 "github.com/deckhouse/csi-ceph/api/v1alpha1"
 	"github.com/deckhouse/csi-ceph/images/controller/pkg/internal"
-	"github.com/deckhouse/csi-ceph/images/controller/pkg/logger"
 	"github.com/deckhouse/sds-common-lib/conditions"
+	"github.com/deckhouse/sds-common-lib/logger"
 )
 
 func newStatusTestClient(t *testing.T, objs ...client.Object) client.Client {
@@ -501,10 +501,9 @@ func TestIdentifyReconcileFuncForStorageClass_StatusDrivenRetry(t *testing.T) {
 		clusterID           = "cluster-id"
 	)
 
-	log, err := logger.NewLogger("0")
-	if err != nil {
-		t.Fatalf("building the logger: %v", err)
-	}
+	// Discards everything: the test asserts on the verdict, not on output, and
+	// the zero logger.Logger is no longer a silent no-op.
+	log := logger.NewNop()
 
 	readyStatus := func(status metav1.ConditionStatus, phase string) *storagev1alpha1.CephStorageClassStatus {
 		return &storagev1alpha1.CephStorageClassStatus{
@@ -550,7 +549,7 @@ func TestIdentifyReconcileFuncForStorageClass_StatusDrivenRetry(t *testing.T) {
 			existing := ConfigureStorageClass(cephSC, controllerNamespace, clusterID, nil)
 			scList := &v1.StorageClassList{Items: []v1.StorageClass{*existing}}
 
-			got, err := IdentifyReconcileFuncForStorageClass(*log, scList, cephSC, controllerNamespace, clusterID, nil)
+			got, err := IdentifyReconcileFuncForStorageClass(log, scList, cephSC, controllerNamespace, clusterID, nil)
 			if err != nil {
 				t.Fatalf("identifying the reconcile func: %v", err)
 			}

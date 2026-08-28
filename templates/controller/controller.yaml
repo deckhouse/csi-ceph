@@ -16,6 +16,8 @@
   "valuesKey" "csiCeph"
   "webhookEnabled" true
   "webhookCertPath" "internal.customWebhookCert"
+  "controllerMetricsPort" (int .Values.csiCeph.internal.controllerMetricsPort)
+  "controllerMetricsProxyPort" (int .Values.csiCeph.internal.controllerMetricsProxyPort)
   "onMasterNode" true
   "podSecurityContext" "deckhouse"
   "additionalControllerEnvs" (list
@@ -25,8 +27,19 @@
 }}
 {{ include "helm_lib_module_controller_manifests" (list . $config) }}
 
-{{- /* Webhook Service */ -}}
-{{ include "helm_lib_module_webhook_service" (list . dict) }}
+{{- /*
+  Webhook Service. It carries the metrics port too: the controller and the
+  webhook share a pod, so one Service can front both, and a ServiceMonitor needs
+  a Service to select.
+*/ -}}
+{{- $serviceConfig := dict
+  "additionalPorts" (list (dict
+    "name" "https-metrics"
+    "port" (int .Values.csiCeph.internal.controllerMetricsProxyPort)
+    "targetPort" "https-metrics"
+  ))
+}}
+{{ include "helm_lib_module_webhook_service" (list . $serviceConfig) }}
 
 {{- /* ValidatingWebhookConfiguration */ -}}
 {{- $webhookConfig := dict

@@ -37,7 +37,7 @@ import (
 	v1alpha1 "github.com/deckhouse/csi-ceph/api/v1alpha1"
 	"github.com/deckhouse/csi-ceph/images/controller/pkg/config"
 	"github.com/deckhouse/csi-ceph/images/controller/pkg/internal"
-	"github.com/deckhouse/csi-ceph/images/controller/pkg/logger"
+	"github.com/deckhouse/sds-common-lib/logger"
 )
 
 const (
@@ -59,31 +59,35 @@ func RunCephClusterConnectionWatcherController(
 	// Use regular client for Create operations (writes bypass cache)
 	apiReader := mgr.GetAPIReader()
 	if err := EnsureConfigMapExists(ctx, apiReader, cl, cfg.ControllerNamespace, log); err != nil {
-		log.Error(err, "[RunCephClusterConnectionWatcherController] unable to ensure ConfigMap exists")
+		log.Error("unable to ensure ConfigMap exists", logger.Err(err))
 		return nil, err
 	}
-	log.Info("[RunCephClusterConnectionWatcherController] successfully ensured ConfigMap exists")
+	log.Info("successfully ensured ConfigMap exists")
+
+	reconcileLog := log.Named("reconcile")
 
 	c, err := controller.New(CephClusterConnectionCtrlName, mgr, controller.Options{
 		Reconciler: reconcile.Func(func(ctx context.Context, request reconcile.Request) (reconcile.Result, error) {
-			log.Info(fmt.Sprintf("[CephClusterConnectionReconciler] starts Reconcile for the CephClusterConnection %q", request.Name))
+			log := reconcileLog
+
+			log.Info(fmt.Sprintf("starts Reconcile for the CephClusterConnection %q", request.Name))
 			cephClusterConnection := &v1alpha1.CephClusterConnection{}
 			err := cl.Get(ctx, request.NamespacedName, cephClusterConnection)
 			if err != nil && !k8serr.IsNotFound(err) {
-				log.Error(err, fmt.Sprintf("[CephClusterConnectionReconciler] unable to get CephClusterConnection, name: %s", request.Name))
+				log.Error(fmt.Sprintf("unable to get CephClusterConnection, name: %s", request.Name), logger.Err(err))
 				return reconcile.Result{}, err
 			}
 
 			if cephClusterConnection.Name == "" {
-				log.Info(fmt.Sprintf("[CephClusterConnectionReconciler] seems like the CephClusterConnection for the request %s was deleted. Reconcile retrying will stop.", request.Name))
+				log.Info(fmt.Sprintf("seems like the CephClusterConnection for the request %s was deleted. Reconcile retrying will stop.", request.Name))
 				return reconcile.Result{}, nil
 			}
 
 			shouldRequeue, msg, err := RunCephClusterConnectionEventReconcile(ctx, cl, log, cephClusterConnection, cfg.ControllerNamespace)
 			if err != nil {
-				log.Error(err, fmt.Sprintf("[CephClusterConnectionReconciler] an error occurred while reconciles the CephClusterConnection, name: %s", cephClusterConnection.Name))
+				log.Error(fmt.Sprintf("an error occurred while reconciles the CephClusterConnection, name: %s", cephClusterConnection.Name), logger.Err(err))
 			} else {
-				log.Info(fmt.Sprintf("[CephClusterConnectionReconciler] CephClusterConnection %s has been reconciled with message: %s", cephClusterConnection.Name, msg))
+				log.Info(fmt.Sprintf("CephClusterConnection %s has been reconciled with message: %s", cephClusterConnection.Name, msg))
 			}
 
 			// A deletion pass that failed still writes: the finalizer is then
@@ -92,54 +96,56 @@ func RunCephClusterConnectionWatcherController(
 			// blocking the teardown. Only the object itself disappearing under
 			// the write is tolerated.
 			if shouldPublishStatus(cephClusterConnection, err, shouldRequeue) {
-				log.Debug(fmt.Sprintf("[CephClusterConnectionReconciler] update the CephClusterConnection %s status with message: %s", cephClusterConnection.Name, msg))
+				log.Debug(fmt.Sprintf("update the CephClusterConnection %s status with message: %s", cephClusterConnection.Name, msg))
 				upErr := updateCephClusterConnectionStatus(ctx, cl, cephClusterConnection, err, msg)
 				switch {
 				case k8serr.IsNotFound(upErr):
-					log.Debug(fmt.Sprintf("[CephClusterConnectionReconciler] the CephClusterConnection %s is gone, its status was not written", cephClusterConnection.Name))
+					log.Debug(fmt.Sprintf("the CephClusterConnection %s is gone, its status was not written", cephClusterConnection.Name))
 				case upErr != nil:
-					log.Error(upErr, fmt.Sprintf("[CephClusterConnectionReconciler] unable to update the CephClusterConnection %s: %s", cephClusterConnection.Name, upErr.Error()))
+					log.Error(fmt.Sprintf("unable to update the CephClusterConnection %s", cephClusterConnection.Name), logger.Err(upErr))
 					shouldRequeue = true
 				}
 			}
 
 			if shouldRequeue {
-				log.Warning(fmt.Sprintf("[CephClusterConnectionReconciler] Reconciler will requeue the request, name: %s", request.Name))
+				log.Warn(fmt.Sprintf("reconciler will requeue the request, name: %s", request.Name))
 				return reconcile.Result{
 					RequeueAfter: cfg.RequeueStorageClassInterval * time.Second,
 				}, nil
 			}
 
-			log.Info(fmt.Sprintf("[CephClusterConnectionReconciler] ends Reconcile for the CephClusterConnection %q", request.Name))
+			log.Info(fmt.Sprintf("ends Reconcile for the CephClusterConnection %q", request.Name))
 			return reconcile.Result{}, nil
 		}),
 	})
 	if err != nil {
-		log.Error(err, "[RunCephClusterConnectionWatcherController] unable to create controller")
+		log.Error("unable to create controller", logger.Err(err))
 		return nil, err
 	}
 
 	err = c.Watch(source.Kind(mgr.GetCache(), &v1alpha1.CephClusterConnection{}, handler.TypedFuncs[*v1alpha1.CephClusterConnection, reconcile.Request]{
 		CreateFunc: func(_ context.Context, e event.TypedCreateEvent[*v1alpha1.CephClusterConnection], q workqueue.TypedRateLimitingInterface[reconcile.Request]) {
-			log.Info(fmt.Sprintf("[CreateFunc] get event for CephClusterConnection %q. Add to the queue", e.Object.GetName()))
+			log.Named("create").Info(fmt.Sprintf("get event for CephClusterConnection %q. Add to the queue", e.Object.GetName()))
 			request := reconcile.Request{NamespacedName: types.NamespacedName{Namespace: e.Object.GetNamespace(), Name: e.Object.GetName()}}
 			q.Add(request)
 		},
 		UpdateFunc: func(_ context.Context, e event.TypedUpdateEvent[*v1alpha1.CephClusterConnection], q workqueue.TypedRateLimitingInterface[reconcile.Request]) {
-			log.Info(fmt.Sprintf("[UpdateFunc] get event for CephClusterConnection %q. Check if it should be reconciled", e.ObjectNew.GetName()))
+			log := log.Named("update")
+
+			log.Info(fmt.Sprintf("get event for CephClusterConnection %q. Check if it should be reconciled", e.ObjectNew.GetName()))
 
 			oldCephClusterConnection := e.ObjectOld
 			newCephClusterConnection := e.ObjectNew
 
-			log.Trace(fmt.Sprintf("[UpdateFunc] oldCephClusterConnection: %+v", oldCephClusterConnection))
-			log.Trace(fmt.Sprintf("[UpdateFunc] newCephClusterConnection: %+v", newCephClusterConnection))
+			log.Trace(fmt.Sprintf("oldCephClusterConnection: %+v", oldCephClusterConnection))
+			log.Trace(fmt.Sprintf("newCephClusterConnection: %+v", newCephClusterConnection))
 
 			if reflect.DeepEqual(oldCephClusterConnection.Spec, newCephClusterConnection.Spec) && newCephClusterConnection.DeletionTimestamp == nil {
-				log.Info(fmt.Sprintf("[UpdateFunc] an update event for the CephClusterConnection %s has no Spec field updates. It will not be reconciled", newCephClusterConnection.Name))
+				log.Info(fmt.Sprintf("an update event for the CephClusterConnection %s has no Spec field updates. It will not be reconciled", newCephClusterConnection.Name))
 				return
 			}
 
-			log.Info(fmt.Sprintf("[UpdateFunc] the CephClusterConnection %q will be reconciled. Add to the queue", newCephClusterConnection.Name))
+			log.Info(fmt.Sprintf("the CephClusterConnection %q will be reconciled. Add to the queue", newCephClusterConnection.Name))
 			request := reconcile.Request{NamespacedName: types.NamespacedName{Namespace: newCephClusterConnection.Namespace, Name: newCephClusterConnection.Name}}
 			q.Add(request)
 		},
@@ -148,7 +154,7 @@ func RunCephClusterConnectionWatcherController(
 	)
 
 	if err != nil {
-		log.Error(err, "[RunCephClusterConnectionWatcherController] unable to watch the events")
+		log.Error("unable to watch the events", logger.Err(err))
 		return nil, err
 	}
 
@@ -156,19 +162,21 @@ func RunCephClusterConnectionWatcherController(
 }
 
 func RunCephClusterConnectionEventReconcile(ctx context.Context, cl client.Client, log logger.Logger, cephClusterConnection *v1alpha1.CephClusterConnection, controllerNamespace string) (shouldRequeue bool, msg string, err error) {
+	log = log.Named("RunCephClusterConnectionEventReconcile")
+
 	valid, msg := validateCephClusterConnectionSpec(cephClusterConnection)
 	if !valid {
 		err = fmt.Errorf("[RunCephClusterConnectionEventReconcile] CephClusterConnection %s has invalid spec: %s", cephClusterConnection.Name, msg)
 		return false, msg, err
 	}
-	log.Debug(fmt.Sprintf("[RunCephClusterConnectionEventReconcile] CephClusterConnection %s has valid spec", cephClusterConnection.Name))
+	log.Debug(fmt.Sprintf("CephClusterConnection %s has valid spec", cephClusterConnection.Name))
 
 	added, err := addFinalizerIfNotExists(ctx, cl, cephClusterConnection, CephClusterConnectionControllerFinalizerName)
 	if err != nil {
 		err = fmt.Errorf("[RunCephClusterConnectionEventReconcile] unable to add a finalizer %s to the CephClusterConnection %s: %w", CephClusterConnectionControllerFinalizerName, cephClusterConnection.Name, err)
 		return true, err.Error(), err
 	}
-	log.Debug(fmt.Sprintf("[RunCephClusterConnectionEventReconcile] finalizer %s was added to the CephClusterConnection %s: %t", CephClusterConnectionControllerFinalizerName, cephClusterConnection.Name, added))
+	log.Debug(fmt.Sprintf("finalizer %s was added to the CephClusterConnection %s: %t", CephClusterConnectionControllerFinalizerName, cephClusterConnection.Name, added))
 
 	configMapList := &corev1.ConfigMapList{}
 	err = cl.List(ctx, configMapList, client.InNamespace(controllerNamespace))
@@ -202,6 +210,6 @@ func RunCephClusterConnectionEventReconcile(ctx context.Context, cl client.Clien
 		}
 	}
 
-	log.Debug(fmt.Sprintf("[RunCephClusterConnectionEventReconcile] finish all reconciliations for CephClusterConnection %q.", cephClusterConnection.Name))
+	log.Debug(fmt.Sprintf("finish all reconciliations for CephClusterConnection %q.", cephClusterConnection.Name))
 	return false, msg, nil
 }

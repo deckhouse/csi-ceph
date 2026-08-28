@@ -30,7 +30,7 @@ import (
 	v1alpha1 "github.com/deckhouse/csi-ceph/api/v1alpha1"
 	"github.com/deckhouse/csi-ceph/images/controller/pkg/controller"
 	"github.com/deckhouse/csi-ceph/images/controller/pkg/internal"
-	"github.com/deckhouse/csi-ceph/images/controller/pkg/logger"
+	"github.com/deckhouse/sds-common-lib/logger"
 )
 
 var _ = Describe(controller.CephClusterConnectionCtrlName, func() {
@@ -58,7 +58,7 @@ var _ = Describe(controller.CephClusterConnectionCtrlName, func() {
 	var (
 		ctx               = context.Background()
 		cl                = NewFakeClient()
-		log               = logger.Logger{}
+		log               = logger.NewNop()
 		firstMonitors     = []string{"mon1", "mon2", "mon3"}
 		firstMonitorsNew  = []string{"mon4", "mon5", "mon6"}
 		secondMonitors    = []string{"secondmon1", "secondmon2", "secondmon3"}
