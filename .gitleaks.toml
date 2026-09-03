@@ -12,4 +12,7 @@ regexes = [
   # between f7ace07 and f9fc369, which replaced it with "<your-ceph-auth-key>". It stays
   # in the history that the full-history scan walks.
   '''AQDiVXVmBJVRLxAAg65PhODrtwbwSWrjJwssUg==''',
+  # An earlier sample key of the same kind, added to docs/README*.md by the quickstart
+  # guide in 2059b62 and dropped again in e23ce327. Absent from main, still in history.
+  '''AQDbc7phl\+eeGRAAaWL9y71mnUiRHKRFOWMPCQ==''',
 ]
