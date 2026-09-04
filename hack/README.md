@@ -2,74 +2,14 @@
 
 Эта папка содержит вспомогательные скрипты для разработки и поддержки проекта.
 
-## generate_release_notes.py
+## Релизные заметки
 
-Скрипт для автоматической генерации файлов релизных заметок из файлов changelog.
-
-### Описание
-
-Скрипт парсит YAML файлы из папки `CHANGELOG/` и создает два markdown файла:
-
-- `docs/RELEASE_NOTES.md` - английская версия релизных заметок
-- `docs/RELEASE_NOTES.ru.md` - русская версия релизных заметок
-
-### Использование
-
-```bash
-# Из корневой папки проекта
-python3 hack/generate_release_notes.py
-```
-
-### Требования
-
-- Python 3.6+
-- PyYAML (`pip install PyYAML`)
-
-### Формат входных файлов
-
-Скрипт ожидает YAML файлы в папке `CHANGELOG/` со следующей структурой:
-
-**Английские файлы** (например, `0.2.4.yml`):
-
-```yaml
-Changes:
-  - Added additional mountings for containerd v2 support
-  - Fixed security issue in authentication
-```
-
-**Русские файлы** (например, `0.2.4.ru.yml`):
-
-```yaml
-Изменения:
-  - Добавлена дополнительные монтирования для поддержки containerd v2
-  - Исправлена проблема безопасности в аутентификации
-```
-
-### Формат выходных файлов
-
-Скрипт создает markdown файлы в формате:
-
-```markdown
----
-title: "Release Notes"
----
-
-## v0.2.4
-
-* Added additional mountings for containerd v2 support
-* Fixed security issue in authentication
-
-## v0.2.3
-
-* Previous release changes...
-```
-
-### Особенности
-
-- Скрипт автоматически удаляет существующие файлы `docs/RELEASE_NOTES.md` и `docs/RELEASE_NOTES.ru.md` перед созданием новых
-- Версии сортируются в обратном порядке (новые версии первыми)
-- Поддерживается как список изменений, так и одиночное изменение
-- Скрипт обрабатывает ошибки и выводит информативные сообщения
+Скрипта здесь больше нет. Release notes новых версий описываются парой файлов
+`.release-notes/<тег>.yaml` и `<тег>.ru.yaml` (схема — в `.release-notes/README.md`), а
+страницы `docs/RELEASE_NOTES.md` и `docs/RELEASE_NOTES.ru.md` собирает образ
+`docs-generator` общим рендерером `sds-common-lib/cmd/release-notes-docs`; версия рендерера
+закреплена в `.werf/bundle.yaml`. Каталог `CHANGELOG/` остаётся историей релизов, выпущенных
+до перехода, и рендерится на той же странице по-прежнему.
 
 ## git_commits_after_tag.py
 
