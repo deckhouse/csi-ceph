@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"os"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/google/go-cmp/cmp"
@@ -35,6 +36,7 @@ import (
 	"github.com/deckhouse/csi-ceph/images/controller/pkg/config"
 	"github.com/deckhouse/csi-ceph/images/controller/pkg/internal"
 	"github.com/deckhouse/sds-common-lib/conditions"
+	"github.com/deckhouse/sds-common-lib/fsreserve"
 	"github.com/deckhouse/sds-common-lib/logger"
 )
 
@@ -99,7 +101,11 @@ func shouldReconcileStorageClassByUpdateFunc(log logger.Logger, scList *v1.Stora
 	for _, oldSC := range scList.Items {
 		if oldSC.Name == cephSC.Name {
 			if slices.Contains(allowedProvisioners, oldSC.Provisioner) {
-				newSC := updateStorageClass(cephSC, &oldSC, controllerNamespace, clusterID, ignoredLabelPrefixes)
+				newSC, err := updateStorageClass(cephSC, &oldSC, controllerNamespace, clusterID, ignoredLabelPrefixes)
+				if err != nil {
+					return false, err
+				}
+
 				diff, err := GetSCDiff(&oldSC, newSC)
 				if err != nil {
 					return false, err
@@ -143,7 +149,11 @@ func reconcileStorageClassCreateFunc(
 	log.Debug(fmt.Sprintf("starts for CephStorageClass %q", cephSC.Name))
 
 	log.Debug(fmt.Sprintf("starts storage class configuration for the CephStorageClass, name: %s", cephSC.Name))
-	newSC := ConfigureStorageClass(cephSC, controllerNamespace, clusterID, ignoredLabelPrefixes)
+	newSC, err := ConfigureStorageClass(cephSC, controllerNamespace, clusterID, ignoredLabelPrefixes)
+	if err != nil {
+		err = fmt.Errorf("[reconcileStorageClassCreateFunc] unable to configure a Storage Class for the CephStorageClass %s: %w", cephSC.Name, err)
+		return false, err.Error(), err
+	}
 
 	log.Debug(fmt.Sprintf("successfully configurated storage class for the CephStorageClass, name: %s", cephSC.Name))
 	log.Trace(fmt.Sprintf("storage class: %+v", newSC))
@@ -194,7 +204,12 @@ func reconcileStorageClassUpdateFunc(
 	log.Debug(fmt.Sprintf("successfully found a storage class for the CephStorageClass, name: %s", cephSC.Name))
 	log.Trace(fmt.Sprintf("storage class: %+v", oldSC))
 
-	newSC := updateStorageClass(cephSC, oldSC, controllerNamespace, clusterID, ignoredLabelPrefixes)
+	newSC, err := updateStorageClass(cephSC, oldSC, controllerNamespace, clusterID, ignoredLabelPrefixes)
+	if err != nil {
+		err = fmt.Errorf("[reconcileStorageClassUpdateFunc] unable to configure a Storage Class for the CephStorageClass %s: %w", cephSC.Name, err)
+		return true, err.Error(), err
+	}
+
 	log.Debug(fmt.Sprintf("successfully configurated storage class for the CephStorageClass, name: %s", cephSC.Name))
 	log.Trace(fmt.Sprintf("new storage class: %+v", newSC))
 	log.Trace(fmt.Sprintf("old storage class: %+v", oldSC))
@@ -256,13 +271,17 @@ func reconcileStorageClassDeleteFunc(
 	return false, "", nil
 }
 
-func ConfigureStorageClass(cephSC *storagev1alpha1.CephStorageClass, controllerNamespace, clusterID string, ignoredLabelPrefixes []string) *v1.StorageClass {
+func ConfigureStorageClass(cephSC *storagev1alpha1.CephStorageClass, controllerNamespace, clusterID string, ignoredLabelPrefixes []string) (*v1.StorageClass, error) {
 	provisioner := GetStorageClassProvisioner(cephSC.Spec.Type)
 	allowVolumeExpansion := true
 	reclaimPolicy := corev1.PersistentVolumeReclaimPolicy(cephSC.Spec.ReclaimPolicy)
 	volumeBindingMode := v1.VolumeBindingImmediate
 
-	params := GetStoragecClassParams(cephSC, controllerNamespace, clusterID)
+	params, err := GetStoragecClassParams(cephSC, controllerNamespace, clusterID)
+	if err != nil {
+		return nil, err
+	}
+
 	sc := &v1.StorageClass{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       StorageClassKind,
@@ -290,7 +309,7 @@ func ConfigureStorageClass(cephSC *storagev1alpha1.CephStorageClass, controllerN
 	sc.Labels = filterLabelsForStorageClass(cephSC.Labels, ignoredLabelPrefixes)
 	sc.Labels[internal.StorageManagedLabelKey] = CephStorageClassCtrlName
 
-	return sc
+	return sc, nil
 }
 
 // filterLabelsForStorageClass returns a fresh map containing all labels from src
@@ -335,7 +354,7 @@ func GetStorageClassProvisioner(cephStorageClasstype string) string {
 	return provisioner
 }
 
-func GetStoragecClassParams(cephSC *storagev1alpha1.CephStorageClass, controllerNamespace, clusterID string) map[string]string {
+func GetStoragecClassParams(cephSC *storagev1alpha1.CephStorageClass, controllerNamespace, clusterID string) (map[string]string, error) {
 	// Generate secret name
 	secretName := internal.CephClusterConnectionSecretPrefix + cephSC.Spec.ClusterConnectionName
 
@@ -360,6 +379,19 @@ func GetStoragecClassParams(cephSC *storagev1alpha1.CephStorageClass, controller
 			// krbd map must use msgr1 when messenger CRC is off (see legacyMsgrOption).
 			params["mapOptions"] = legacyMsgrOption
 		}
+
+		// A CSI driver never sees the annotations of a StorageClass, so the
+		// share of the filesystem to keep for the superuser travels as a
+		// parameter. ceph-csi copies the parameters into the volume context,
+		// where our patch to mountVolumeToStagePath reads it. Only RBD volumes
+		// are formatted by the driver, so this is meaningless for CephFS.
+		reservedPercent, err := fsreserve.FromMap(cephSC.Annotations)
+		if err != nil {
+			return nil, err
+		}
+		if reservedPercent != fsreserve.Default {
+			params[fsreserve.ParameterKey] = strconv.Itoa(reservedPercent)
+		}
 	}
 
 	if cephSC.Spec.Type == storagev1alpha1.CephStorageClassTypeCephFS {
@@ -370,7 +402,7 @@ func GetStoragecClassParams(cephSC *storagev1alpha1.CephStorageClass, controller
 		}
 	}
 
-	return params
+	return params, nil
 }
 
 // updateCephStorageClassStatus records the outcome of a reconcile pass.
@@ -587,14 +619,17 @@ func getClusterID(ctx context.Context, cl client.Client, cephSC *storagev1alpha1
 	return clusterID, nil
 }
 
-func updateStorageClass(cephSC *storagev1alpha1.CephStorageClass, oldSC *v1.StorageClass, controllerNamespace, clusterID string, ignoredLabelPrefixes []string) *v1.StorageClass {
-	newSC := ConfigureStorageClass(cephSC, controllerNamespace, clusterID, ignoredLabelPrefixes)
+func updateStorageClass(cephSC *storagev1alpha1.CephStorageClass, oldSC *v1.StorageClass, controllerNamespace, clusterID string, ignoredLabelPrefixes []string) (*v1.StorageClass, error) {
+	newSC, err := ConfigureStorageClass(cephSC, controllerNamespace, clusterID, ignoredLabelPrefixes)
+	if err != nil {
+		return nil, err
+	}
 
 	if oldSC.Annotations != nil {
 		newSC.Annotations = oldSC.Annotations
 	}
 
-	return newSC
+	return newSC, nil
 }
 
 // VolumeSnaphotClass

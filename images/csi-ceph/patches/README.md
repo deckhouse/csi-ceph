@@ -31,3 +31,19 @@ Fix CVE: bump golang.org/x/net to v0.56.0 (CVE-2026-46600) and golang.org/x/text
 ## 008-Fix-CVE.patch
 
 Fix CVE: bump google.golang.org/grpc to v1.82.1 (GHSA-hrxh-6v49-42gf, xDS RBAC and HTTP/2 vulnerabilities), the version patch 001 had pinned; pulls google.golang.org/protobuf to v1.36.11, go.opentelemetry.io/otel (+ metric, trace) to v1.43.0, golang.org/x/oauth2 to v0.36.0 and google.golang.org/genproto/googleapis/rpc (re-vendored)
+
+## 009-Reserve-filesystem-space-for-the-superuser.patch
+
+Honour the `storage.deckhouse.io/ext4-reserved-percent` StorageClass parameter
+when formatting an RBD image with ext4: append `-m<percent>` to the arguments
+ceph-csi picked itself.
+
+Upstream already offers `mkfsOptions`, but it **replaces** the whole argument
+list, including the choice between `assume_storage_prezeroed=1` and
+`lazy_itable_init=1,lazy_journal_init=1` that `getMkfsArgs()` makes from what
+the node supports — a choice the controller cannot make on the node's behalf.
+Appending keeps it, and `mkfs.ext4` honours the last `-m` on the command line.
+
+The annotation key is spelled out here instead of coming from
+`sds-common-lib/fsreserve`, because this file is upstream code that cannot
+import our modules. Keep the two in sync.

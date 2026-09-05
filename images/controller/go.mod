@@ -1,9 +1,10 @@
 module github.com/deckhouse/csi-ceph/images/controller
 
 go 1.27.0
+
 require (
 	github.com/deckhouse/csi-ceph/api v0.0.0-20250314071238-6a7df30c52cc
-	github.com/deckhouse/sds-common-lib v0.15.0
+	github.com/deckhouse/sds-common-lib v0.17.0
 	github.com/google/go-cmp v0.7.0
 	github.com/kubernetes-csi/external-snapshotter/client/v8 v8.2.0
 	github.com/onsi/ginkgo/v2 v2.23.4

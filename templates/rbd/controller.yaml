@@ -49,6 +49,12 @@ memory: 50Mi
 - name: ceph-csi-config
   configMap:
     name: ceph-csi-config
+    # Created by the controller when the first CephClusterConnection appears,
+    # so it does not exist on a fresh install: a required mount would keep every
+    # CSI Pod in ContainerCreating until someone declares a cluster, and would
+    # take the whole driver down for minutes whenever the ConfigMap is replaced.
+    # kubelet fills the volume in once the ConfigMap shows up.
+    optional: true
     items:
       - key: config.json
         path: config.json
@@ -261,6 +267,12 @@ memory: 50Mi
 - name: ceph-csi-config
   configMap:
     name: ceph-csi-config
+    # Created by the controller when the first CephClusterConnection appears,
+    # so it does not exist on a fresh install: a required mount would keep every
+    # CSI Pod in ContainerCreating until someone declares a cluster, and would
+    # take the whole driver down for minutes whenever the ConfigMap is replaced.
+    # kubelet fills the volume in once the ConfigMap shows up.
+    optional: true
     items:
       - key: config.json
         path: config.json

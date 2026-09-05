@@ -70,7 +70,10 @@ func TestGetStoragecClassParamsMsCrcData(t *testing.T) {
 				t.Setenv(config.MsCrcDataEnvName, "")
 			}
 
-			rbdParams := controller.GetStoragecClassParams(rbdSC, "d8-csi-ceph", "cluster-1")
+			rbdParams, err := controller.GetStoragecClassParams(rbdSC, "d8-csi-ceph", "cluster-1")
+			if err != nil {
+				t.Fatalf("building the RBD parameters: %v", err)
+			}
 			if got := rbdParams["mapOptions"]; got != tc.wantRBDMap {
 				t.Errorf("RBD mapOptions = %q, want %q", got, tc.wantRBDMap)
 			}
@@ -78,7 +81,10 @@ func TestGetStoragecClassParamsMsCrcData(t *testing.T) {
 				t.Errorf("RBD params should never carry kernelMountOptions, got %q", rbdParams["kernelMountOptions"])
 			}
 
-			fsParams := controller.GetStoragecClassParams(cephFSSC, "d8-csi-ceph", "cluster-1")
+			fsParams, err := controller.GetStoragecClassParams(cephFSSC, "d8-csi-ceph", "cluster-1")
+			if err != nil {
+				t.Fatalf("building the CephFS parameters: %v", err)
+			}
 			if got := fsParams["kernelMountOptions"]; got != tc.wantCephFSOpt {
 				t.Errorf("CephFS kernelMountOptions = %q, want %q", got, tc.wantCephFSOpt)
 			}

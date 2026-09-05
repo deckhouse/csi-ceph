@@ -1,0 +1,19 @@
+diff --git a/internal/rbd/nodeserver.go b/internal/rbd/nodeserver.go
+index 9c5208832..261208736 100644
+--- a/internal/rbd/nodeserver.go
++++ b/internal/rbd/nodeserver.go
+@@ -891,6 +891,14 @@ func (ns *NodeServer) mountVolumeToStagePath(
+ 			if fileEncryption {
+ 				args = append(args, "-Oencrypt")
+ 			}
++			// Deckhouse: the StorageClass may ask for a share of the filesystem
++			// to be kept for the superuser. Append rather than replace, so the
++			// node-dependent choice getMkfsArgs() made between
++			// assume_storage_prezeroed and lazy_*_init survives; mkfs.ext4
++			// honours the last -m on the command line.
++			if percent := volumeCtx["storage.deckhouse.io/ext4-reserved-percent"]; percent != "" {
++				args = append(args, "-m"+percent)
++			}
+ 		case "xfs":
+ 			// always disable reflink
+ 			// TODO: make enabling an option, see ceph/ceph-csi#1256

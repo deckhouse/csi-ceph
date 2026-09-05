@@ -546,7 +546,10 @@ func TestIdentifyReconcileFuncForStorageClass_StatusDrivenRetry(t *testing.T) {
 
 			// The StorageClass exactly as a successful reconcile pass would
 			// have left it, so nothing but the status can drive the verdict.
-			existing := ConfigureStorageClass(cephSC, controllerNamespace, clusterID, nil)
+			existing, err := ConfigureStorageClass(cephSC, controllerNamespace, clusterID, nil)
+			if err != nil {
+				t.Fatalf("configuring the storage class: %v", err)
+			}
 			scList := &v1.StorageClassList{Items: []v1.StorageClass{*existing}}
 
 			got, err := IdentifyReconcileFuncForStorageClass(log, scList, cephSC, controllerNamespace, clusterID, nil)

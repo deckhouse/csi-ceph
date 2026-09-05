@@ -77,3 +77,18 @@ For a user that needs access to both CephFS `myfs` and RBD pool `rbd`, combine t
         caps mon = "allow r fsname=myfs,profile rbd"
         caps osd = "allow rw tag cephfs metadata=myfs, allow rw tag cephfs data=myfs,profile rbd pool=rbd"
 ```
+## How much of a volume is reserved for the superuser?
+
+Nothing, by default: an RBD image formatted with ext4 gets `-m0`, so the whole volume is available to the workload.
+
+Where the classic 5% ext4 reserve is wanted — for example to keep a filesystem writable for a privileged process after a workload has filled it — annotate the `CephStorageClass` with the percentage to reserve:
+
+```shell
+d8 k annotate cephstorageclass <name> storage.deckhouse.io/ext4-reserved-percent=5
+```
+
+The value is a whole number of percent between 0 and 50; an invalid one puts the CephStorageClass into the `Failed` phase with the reason in its conditions, instead of breaking volume creation later.
+
+The reserve applies only to volumes created after the annotation was set — filesystems that already exist keep the reserve they were created with. It is meaningful for RBD only: CephFS volumes are subdirectories of an existing filesystem and are never formatted, so the annotation is ignored on a CephFS class. Nor does it apply to a volume whose `defaultFSType` is XFS, which keeps no blocks for the superuser.
+
+Changing the annotation makes the controller recreate the StorageClass, because `parameters` of an existing StorageClass are immutable in Kubernetes. Existing volumes and PVCs are not affected.
