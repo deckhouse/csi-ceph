@@ -77,6 +77,33 @@ func IdentifyReconcileFuncForStorageClass(log logger.Logger, scList *v1.StorageC
 	return "", nil
 }
 
+// shouldEnqueueCephStorageClassUpdate reports whether an update of a
+// CephStorageClass can change the StorageClass built from it, and so has to
+// reach the reconciler.
+//
+// The annotations belong in this list. The share of the filesystem a class asks
+// to keep for the superuser is read from them (fsreserve.AnnotationKey) and
+// lands in the StorageClass parameters, so putting that annotation on a class
+// that already exists - or taking it off - is a change like any other. While
+// only the spec and the labels were compared here, such an edit was dropped
+// before it ever reached the reconciler, and the value made it into the
+// parameters only if something else happened to touch the spec or the labels
+// afterwards.
+//
+// Comparing the whole annotation map rather than the one key costs an
+// occasional reconcile that finds nothing to do - the reconciler rebuilds the
+// StorageClass and acts only on a real diff - and keeps the next parameter read
+// from an annotation from having to remember this place.
+func shouldEnqueueCephStorageClassUpdate(oldCephSC, newCephSC *storagev1alpha1.CephStorageClass) bool {
+	if newCephSC.DeletionTimestamp != nil {
+		return true
+	}
+
+	return !cmp.Equal(oldCephSC.Spec, newCephSC.Spec) ||
+		!cmp.Equal(oldCephSC.Labels, newCephSC.Labels) ||
+		!cmp.Equal(oldCephSC.Annotations, newCephSC.Annotations)
+}
+
 func shouldReconcileStorageClassByCreateFunc(scList *v1.StorageClassList, cephSC *storagev1alpha1.CephStorageClass) bool {
 	if cephSC.DeletionTimestamp != nil {
 		return false

@@ -19,7 +19,6 @@ package controller
 import (
 	"context"
 	"fmt"
-	"reflect"
 	"time"
 
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v8/apis/volumesnapshot/v1"
@@ -165,10 +164,8 @@ func RunCephStorageClassWatcherController(
 			oldCephSC := e.ObjectOld
 			newCephSC := e.ObjectNew
 
-			if reflect.DeepEqual(oldCephSC.Spec, newCephSC.Spec) &&
-				reflect.DeepEqual(oldCephSC.Labels, newCephSC.Labels) &&
-				newCephSC.DeletionTimestamp == nil {
-				log.Info(fmt.Sprintf("an update event for the CephStorageClass %s has no Spec or Labels updates. It will not be reconciled", newCephSC.Name))
+			if !shouldEnqueueCephStorageClassUpdate(oldCephSC, newCephSC) {
+				log.Info(fmt.Sprintf("an update event for the CephStorageClass %s changes nothing the StorageClass is built from. It will not be reconciled", newCephSC.Name))
 				return
 			}
 
