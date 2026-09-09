@@ -1,6 +1,6 @@
 module github.com/deckhouse/csi-ceph/images/webhooks
 
-go 1.27.0
+go 1.27.1
 require (
 	github.com/deckhouse/sds-common-lib v0.15.0
 	github.com/slok/kubewebhook/v2 v2.7.0
