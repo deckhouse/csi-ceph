@@ -1,0 +1,26 @@
+date: "2026-09-10"
+
+summary: "An RBD StorageClass can now keep a share of the filesystem for the superuser, the module controller exports its metrics to Prometheus, and the Ceph CSI driver is updated to v3.16.3."
+
+highlights:
+  - "A `CephStorageClass` can ask for a percentage of every new ext4 volume to be reserved for the superuser through the `storage.deckhouse.io/ext4-reserved-percent` annotation."
+  - "The module controller publishes its metrics — reconcile counts and durations, workqueue depth, client-go latency — and Prometheus scrapes them through a `ServiceMonitor`."
+  - "Ceph CSI is updated from v3.15.1 to v3.16.3."
+
+new_features:
+  - "`CephStorageClass` accepts the `storage.deckhouse.io/ext4-reserved-percent` annotation: a whole number of percent between 0 and 50 that `mkfs.ext4` keeps for the superuser. It works for `type: RBD` classes whose volumes are formatted with ext4 and is ignored for CephFS and for XFS volumes; nothing is reserved by default. A value out of range or not a number puts the `CephStorageClass` into the `Failed` phase with the reason in its conditions instead of failing volume creation later."
+  - "The controller metrics are exported to Prometheus: a `ServiceMonitor` for the `csi-ceph-controller` job scrapes them through a kube-rbac-proxy, while the controller itself keeps the endpoint on loopback."
+
+improvements:
+  - "The controller logs at the `info` level by default instead of `debug`, so a quiet cluster no longer fills the log with per-reconcile detail; `LOG_LEVEL=debug` brings the previous verbosity back."
+
+fixes:
+  - "An edit to the annotations of a `CephStorageClass` is reconciled right away. Previously only changes to `spec` and to the labels reached the reconciler, so an annotation-driven parameter took effect only once something else touched the resource."
+  - "The CSI Pods no longer wait in `ContainerCreating` on a fresh install until the first `CephClusterConnection` appears: the `ceph-csi-config` ConfigMap the controller creates is now mounted as optional, and replacing it no longer takes the driver down for minutes."
+
+dependencies:
+  - name: ceph-csi
+    from: "3.15.1"
+    to: "3.16.3"
+    changelog_url: "https://github.com/ceph/ceph-csi/releases/tag/v3.16.3"
+    notes: "The stack of our patches is rebuilt on top of the new tag: the fixes that landed upstream are dropped, and the remaining dependency updates that close 2026 advisories are collapsed into a single patch."
