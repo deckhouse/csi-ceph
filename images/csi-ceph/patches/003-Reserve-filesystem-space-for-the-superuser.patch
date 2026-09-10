@@ -1,8 +1,8 @@
 diff --git a/internal/rbd/nodeserver.go b/internal/rbd/nodeserver.go
-index 9c5208832..261208736 100644
+index b54d217bc..c3e8cc5eb 100644
 --- a/internal/rbd/nodeserver.go
 +++ b/internal/rbd/nodeserver.go
-@@ -891,6 +891,14 @@ func (ns *NodeServer) mountVolumeToStagePath(
+@@ -930,6 +930,14 @@ func (ns *NodeServer) mountVolumeToStagePath(
  			if fileEncryption {
  				args = append(args, "-Oencrypt")
  			}

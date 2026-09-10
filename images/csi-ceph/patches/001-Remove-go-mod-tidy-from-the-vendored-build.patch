@@ -1,0 +1,13 @@
+diff --git a/Makefile b/Makefile
+index 2f910e85a..51331e78d 100644
+--- a/Makefile
++++ b/Makefile
+@@ -170,7 +170,7 @@ commitlint:
+ 
+ .PHONY: cephcsi
+ cephcsi: check-env
+-	if [ ! -d ./vendor ]; then (go mod tidy && go mod vendor); fi
++	if [ ! -d ./vendor ]; then (go mod vendor); fi
+ 	GOOS=linux go build $(GO_TAGS) -mod vendor -a -ldflags '$(LDFLAGS)' -o _output/cephcsi ./cmd/
+ 
+ e2e.test: check-env
