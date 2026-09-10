@@ -600,7 +600,7 @@ func validateCephStorageClassSpec(cephSC *storagev1alpha1.CephStorageClass) (boo
 	case storagev1alpha1.CephStorageClassTypeRBD:
 		if cephSC.Spec.RBD == nil {
 			validationPassed = false
-			failedMsgBuilder.WriteString(fmt.Sprintf("CephStorageClass type is %s but the spec.rbd field is empty; ", storagev1alpha1.CephStorageClassTypeRBD))
+			fmt.Fprintf(&failedMsgBuilder, "CephStorageClass type is %s but the spec.rbd field is empty; ", storagev1alpha1.CephStorageClassTypeRBD)
 		} else {
 			if cephSC.Spec.RBD.DefaultFSType == "" {
 				validationPassed = false
@@ -615,14 +615,14 @@ func validateCephStorageClassSpec(cephSC *storagev1alpha1.CephStorageClass) (boo
 	case storagev1alpha1.CephStorageClassTypeCephFS:
 		if cephSC.Spec.CephFS == nil {
 			validationPassed = false
-			failedMsgBuilder.WriteString(fmt.Sprintf("CephStorageClass type is %s but the spec.cephfs field is empty; ", storagev1alpha1.CephStorageClassTypeRBD))
+			fmt.Fprintf(&failedMsgBuilder, "CephStorageClass type is %s but the spec.cephfs field is empty; ", storagev1alpha1.CephStorageClassTypeRBD)
 		} else if cephSC.Spec.CephFS.FSName == "" {
 			validationPassed = false
 			failedMsgBuilder.WriteString("the spec.cephfs.fsName field is empty; ")
 		}
 	default:
 		validationPassed = false
-		failedMsgBuilder.WriteString(fmt.Sprintf("the spec.type field is not valid: %s. Allowed values: %s, %s", cephSC.Spec.Type, storagev1alpha1.CephStorageClassTypeRBD, storagev1alpha1.CephStorageClassTypeCephFS))
+		fmt.Fprintf(&failedMsgBuilder, "the spec.type field is not valid: %s. Allowed values: %s, %s", cephSC.Spec.Type, storagev1alpha1.CephStorageClassTypeRBD, storagev1alpha1.CephStorageClassTypeCephFS)
 	}
 
 	return validationPassed, failedMsgBuilder.String()
