@@ -185,7 +185,6 @@ func RunCephStorageClassWatcherController(
 }
 
 func RunStorageClassEventReconcile(ctx context.Context, cl client.Client, log logger.Logger, scList *v1.StorageClassList, vsClassList *snapshotv1.VolumeSnapshotClassList, cephSC *v1alpha1.CephStorageClass, controllerNamespace string, ignoredLabelPrefixes []string) (bool, string, error) {
-	log = log.Named("RunStorageClassEventReconcile")
 
 	log.Debug(fmt.Sprintf("starts reconciliataion of CephStorageClass, name: %s", cephSC.Name))
 

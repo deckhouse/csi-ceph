@@ -33,7 +33,7 @@ import (
 // If it doesn't exist, creates an empty one with config.json containing an empty array.
 // reader is used for Get operations (bypasses cache), writer is used for Create operations.
 func EnsureConfigMapExists(ctx context.Context, reader client.Reader, writer client.Writer, namespace string, log logger.Logger) error {
-	log = log.Named("EnsureConfigMapExists")
+	log = log.Named("configmap")
 
 	configMapName := internal.CSICephConfigMapName
 	configMap := &corev1.ConfigMap{}

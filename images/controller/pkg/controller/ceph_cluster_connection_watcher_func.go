@@ -192,7 +192,7 @@ func generateClusterConfig(cephClusterConnection *v1alpha1.CephClusterConnection
 }
 
 func createConfigMap(ctx context.Context, cl client.Client, log logger.Logger, cephClusterConnection *v1alpha1.CephClusterConnection, controllerNamespace, configMapName string) (shouldRequeue bool, msg string, err error) {
-	log = log.Named("createConfigMap")
+	log = log.Named("configmap").Named("create")
 
 	log.Debug(fmt.Sprintf("starts creation of ConfigMap %s for CephClusterConnection %s", configMapName, cephClusterConnection.Name))
 
@@ -246,7 +246,7 @@ func generateNewConfigMap(clusterConfig v1alpha1.ClusterConfig, controllerNamesp
 var errUpdateIncompleted = errors.New("update was not completed yet, should requeue")
 
 func updateConfigMapIfNeeded(ctx context.Context, cl client.Client, log logger.Logger, configMap *corev1.ConfigMap, cephClusterConnection *v1alpha1.CephClusterConnection, updateAction string, controllerNamespace string) error {
-	log = log.Named("updateConfigMapIfNeeded")
+	log = log.Named("configmap").Named("update")
 
 	log.Debug(fmt.Sprintf("starts for the ConfigMap %s/%s", configMap.Namespace, configMap.Name))
 	log.Trace(fmt.Sprintf("ConfigMap: %+v", configMap))
@@ -329,7 +329,7 @@ func findClusterConfigByClusterID(clusterConfigs []v1alpha1.ClusterConfig, clust
 }
 
 func updateClusterConfigsIfNeeded(log logger.Logger, clusterConfigs []v1alpha1.ClusterConfig, cephClusterConnection *v1alpha1.CephClusterConnection, updateAction string, controllerNamespace string) ([]v1alpha1.ClusterConfig, bool) {
-	log = log.Named("updateClusterConfigsIfNeeded")
+	log = log.Named("cluster-configs").Named("update")
 
 	updated := false
 
@@ -395,7 +395,7 @@ func reconcileSecret(ctx context.Context, cl client.Client, log logger.Logger, s
 }
 
 func createSecret(ctx context.Context, cl client.Client, log logger.Logger, cephClusterConnection *v1alpha1.CephClusterConnection, controllerNamespace, secretName string) (shouldRequeue bool, msg string, err error) {
-	log = log.Named("createSecret")
+	log = log.Named("secret").Named("create")
 
 	log.Debug(fmt.Sprintf("starts creation of Secret %s for CephClusterConnection %s", secretName, cephClusterConnection.Name))
 
@@ -457,13 +457,13 @@ func removeFinalizerAndDeleteSecret(ctx context.Context, cl client.Client, log l
 		return true, err.Error(), err
 	}
 
-	log.Named("deleteSecret").Debug(fmt.Sprintf("successfully deleted Secret %s", secret.Name))
+	log.Named("secret").Named("delete").Debug(fmt.Sprintf("successfully deleted Secret %s", secret.Name))
 
 	return false, fmt.Sprintf("[deleteSecret] Successfully deleted Secret %s", secret.Name), nil
 }
 
 func updateSecretIfNeeded(ctx context.Context, cl client.Client, log logger.Logger, oldSecret *corev1.Secret, cephClusterConnection *v1alpha1.CephClusterConnection) error {
-	log = log.Named("updateSecretIfNeeded")
+	log = log.Named("secret").Named("update")
 
 	log.Debug(fmt.Sprintf("starts for the Secret %s/%s", oldSecret.Namespace, oldSecret.Name))
 

@@ -119,7 +119,7 @@ func shouldReconcileStorageClassByCreateFunc(scList *v1.StorageClassList, cephSC
 }
 
 func shouldReconcileStorageClassByUpdateFunc(log logger.Logger, scList *v1.StorageClassList, cephSC *storagev1alpha1.CephStorageClass, controllerNamespace, clusterID string, ignoredLabelPrefixes []string) (bool, error) {
-	log = log.Named("shouldReconcileStorageClassByUpdateFunc")
+	log = log.Named("storageclass").Named("update")
 
 	if cephSC.DeletionTimestamp != nil {
 		return false, nil
@@ -171,7 +171,7 @@ func reconcileStorageClassCreateFunc(
 	controllerNamespace, clusterID string,
 	ignoredLabelPrefixes []string,
 ) (shouldRequeue bool, msg string, err error) {
-	log = log.Named("reconcileStorageClassCreateFunc")
+	log = log.Named("storageclass").Named("create")
 
 	log.Debug(fmt.Sprintf("starts for CephStorageClass %q", cephSC.Name))
 
@@ -211,7 +211,7 @@ func reconcileStorageClassUpdateFunc(
 	controllerNamespace, clusterID string,
 	ignoredLabelPrefixes []string,
 ) (shouldRequeue bool, msg string, err error) {
-	log = log.Named("reconcileStorageClassUpdateFunc")
+	log = log.Named("storageclass").Named("update")
 
 	log.Debug(fmt.Sprintf("starts for CephStorageClass %q", cephSC.Name))
 
@@ -259,7 +259,7 @@ func reconcileStorageClassDeleteFunc(
 	scList *v1.StorageClassList,
 	cephSC *storagev1alpha1.CephStorageClass,
 ) (shouldRequeue bool, msg string, err error) {
-	log = log.Named("reconcileStorageClassDeleteFunc")
+	log = log.Named("storageclass").Named("delete")
 
 	log.Debug(fmt.Sprintf("starts for CephStorageClass %q", cephSC.Name))
 
@@ -661,7 +661,7 @@ func updateStorageClass(cephSC *storagev1alpha1.CephStorageClass, oldSC *v1.Stor
 
 // VolumeSnaphotClass
 func IdentifyReconcileFuncForVSClass(log logger.Logger, vsClassList *snapshotv1.VolumeSnapshotClassList, cephSC *storagev1alpha1.CephStorageClass, clusterID, controllerNamespace string) (reconcileType string, oldVSClass, newVSClass *snapshotv1.VolumeSnapshotClass) {
-	log = log.Named("IdentifyReconcileFuncForVSClass")
+	log = log.Named("volumesnapshotclass")
 
 	oldVSClass = findVSClass(vsClassList, cephSC.Name)
 
@@ -710,7 +710,7 @@ func shouldReconcileVSClassByUpdateFunc(log logger.Logger, oldVSClass, newVSClas
 
 	diff := CompareVSClasses(oldVSClass, newVSClass)
 	if diff != "" {
-		log.Named("shouldReconcileVSClassByUpdateFunc").Debug(fmt.Sprintf("a volume snapshot class %s should be updated. Diff: %s", oldVSClass.Name, diff))
+		log.Named("volumesnapshotclass").Named("update").Debug(fmt.Sprintf("a volume snapshot class %s should be updated. Diff: %s", oldVSClass.Name, diff))
 		return true
 	}
 
@@ -787,7 +787,7 @@ func reconcileVolumeSnapshotClassCreateFunc(
 	log logger.Logger,
 	newVSClass *snapshotv1.VolumeSnapshotClass,
 ) (bool, error) {
-	log = log.Named("reconcileVolumeSnapshotClassCreateFunc")
+	log = log.Named("volumesnapshotclass").Named("create")
 
 	log.Debug(fmt.Sprintf("starts for VolumeSnapshotClass %q", newVSClass.Name))
 	log.Trace(fmt.Sprintf("volume snapshot class: %+v", newVSClass))
@@ -810,7 +810,7 @@ func reconcileVolumeSnapshotClassUpdateFunc(
 	oldVSClass *snapshotv1.VolumeSnapshotClass,
 	newVSClass *snapshotv1.VolumeSnapshotClass,
 ) (bool, error) {
-	log = log.Named("reconcileVolumeSnapshotClassUpdateFunc")
+	log = log.Named("volumesnapshotclass").Named("update")
 
 	log.Debug(fmt.Sprintf("starts for VolumeSnapshotClass %q", newVSClass.Name))
 
@@ -833,7 +833,7 @@ func reconcileVolumeSnapshotClassDeleteFunc(
 	oldVSClass *snapshotv1.VolumeSnapshotClass,
 	cephSC *storagev1alpha1.CephStorageClass,
 ) (bool, error) {
-	log = log.Named("reconcileVolumeSnapshotClassDeleteFunc")
+	log = log.Named("volumesnapshotclass").Named("delete")
 
 	log.Debug(fmt.Sprintf("starts for VolumeSnapshotClass %q", cephSC.Name))
 

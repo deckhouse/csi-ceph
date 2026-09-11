@@ -162,7 +162,6 @@ func RunCephClusterConnectionWatcherController(
 }
 
 func RunCephClusterConnectionEventReconcile(ctx context.Context, cl client.Client, log logger.Logger, cephClusterConnection *v1alpha1.CephClusterConnection, controllerNamespace string) (shouldRequeue bool, msg string, err error) {
-	log = log.Named("RunCephClusterConnectionEventReconcile")
 
 	valid, msg := validateCephClusterConnectionSpec(cephClusterConnection)
 	if !valid {
