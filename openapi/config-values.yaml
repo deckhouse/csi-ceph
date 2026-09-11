@@ -20,7 +20,7 @@ properties:
       - DEBUG
       - TRACE
     description: Module log level
-    default: DEBUG
+    default: INFO
   cephfsProvisionerWorkers:
     type: integer
     default: 10
