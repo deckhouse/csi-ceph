@@ -1,0 +1,210 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  labels:
+    backup.deckhouse.io/cluster-config: "true"
+    heritage: deckhouse
+    module: csi-ceph
+  name: cephstorageclasses.storage.deckhouse.io
+spec:
+  group: storage.deckhouse.io
+  names:
+    kind: CephStorageClass
+    plural: cephstorageclasses
+    singular: cephstorageclass
+  preserveUnknownFields: false
+  scope: Cluster
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .status.phase
+      name: Phase
+      type: string
+    - jsonPath: .status.conditions[?(@.type=="Ready")].status
+      name: Ready
+      type: string
+    - jsonPath: .status.reason
+      name: Reason
+      priority: 1
+      type: string
+    - description: The age of this resource
+      jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: CephStorageClass is a Kubernetes Custom Resource that defines
+          a configuration for a Kubernetes Storage class.
+        properties:
+          spec:
+            description: Defines the StorageClass configuration.
+            properties:
+              cephFS:
+                description: CephFS specific parameters.
+                properties:
+                  fsName:
+                    description: Name of the CephFS file system.
+                    type: string
+                    x-kubernetes-validations:
+                    - message: Value is immutable.
+                      rule: self == oldSelf || oldSelf == ""
+                type: object
+              clusterAuthenticationName:
+                description: Name of the CephClusterAuthentication custom resource.
+                minLength: 1
+                type: string
+              clusterConnectionName:
+                description: Name of the CephClusterConnection custom resource.
+                minLength: 1
+                type: string
+                x-kubernetes-validations:
+                - message: Value is immutable.
+                  rule: self == oldSelf
+              rbd:
+                description: Rados Block Device specific parameters.
+                properties:
+                  defaultFSType:
+                    default: ext4
+                    description: Default file system type for the Rados Block Device.
+                    type: string
+                    x-kubernetes-validations:
+                    - message: Value is immutable.
+                      rule: self == oldSelf || oldSelf == ""
+                  pool:
+                    description: Name of the RBD pool.
+                    type: string
+                    x-kubernetes-validations:
+                    - message: Value is immutable.
+                      rule: self == oldSelf || oldSelf == ""
+                type: object
+              reclaimPolicy:
+                description: |-
+                  The storage class's reclaim policy. Might be:
+                  - Delete (If the Persistent Volume Claim is deleted, deletes the Persistent Volume and its associated storage as well)
+                  - Retain (If the Persistent Volume Claim is deleted, remains the Persistent Volume and its associated storage)
+                enum:
+                - Delete
+                - Retain
+                type: string
+                x-kubernetes-validations:
+                - message: Value is immutable.
+                  rule: self == oldSelf
+              type:
+                description: |-
+                  The type of the storage class. Might be:
+                  - CephFS
+                  - RBD (Rados Block Device)
+                enum:
+                - CephFS
+                - RBD
+                type: string
+                x-kubernetes-validations:
+                - message: Value is immutable.
+                  rule: self == oldSelf
+            required:
+            - clusterConnectionName
+            - reclaimPolicy
+            - type
+            type: object
+            x-kubernetes-validations:
+            - message: Field 'cephFS.fsName' is required for 'CephFS' type.
+              rule: self.type != "CephFS" || (has(self.cephFS) && has(self.cephFS.fsName)
+                && self.cephFS.fsName != "")
+            - message: Field 'rbd' is forbidden for 'CephFS' type.
+              rule: self.type != "CephFS" || !has(self.rbd) || !has(self.rbd.pool)
+                || self.rbd.pool == ""
+            - message: Field 'rbd.pool' is required for 'RBD' type.
+              rule: self.type != "RBD" || (has(self.rbd) && has(self.rbd.pool) &&
+                self.rbd.pool != "")
+            - message: Field 'cephFS' is forbidden for 'RBD' type.
+              rule: self.type != "RBD" || !has(self.cephFS) || !has(self.cephFS.fsName)
+                || self.cephFS.fsName == ""
+          status:
+            description: Displays current information about the Storage Class.
+            properties:
+              conditions:
+                description: 'The latest observations of the resource state. Condition
+                  type: `Ready`.'
+                items:
+                  description: Condition contains details for one aspect of the current
+                    state of this API Resource.
+                  properties:
+                    lastTransitionTime:
+                      description: |-
+                        Timestamp of the last status transition for this condition. It is not bumped
+                        when only the reason or the message changes.
+                      format: date-time
+                      type: string
+                    message:
+                      description: Human-readable explanation of the current status.
+                      maxLength: 32768
+                      type: string
+                    observedGeneration:
+                      description: The value of `metadata.generation` this condition
+                        was set against.
+                      format: int64
+                      minimum: 0
+                      type: integer
+                    reason:
+                      description: |-
+                        Machine-readable reason for the current status, suitable for log filtering
+                        and alerting.
+                      maxLength: 1024
+                      minLength: 1
+                      pattern: ^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$
+                      type: string
+                    status:
+                      description: Current status of the condition.
+                      enum:
+                      - "True"
+                      - "False"
+                      - Unknown
+                      type: string
+                    type:
+                      description: |-
+                        Condition type. `Ready` is `True` once the StorageClass and the
+                        VolumeSnapshotClass are in place and `False` when a reconcile pass failed.
+                        The condition is absent until the controller has processed the resource for
+                        the first time.
+                      maxLength: 316
+                      pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$
+                      type: string
+                  required:
+                  - lastTransitionTime
+                  - message
+                  - reason
+                  - status
+                  - type
+                  type: object
+                type: array
+                x-kubernetes-list-map-keys:
+                - type
+                x-kubernetes-list-type: map
+              observedGeneration:
+                description: |-
+                  The value of `metadata.generation` the controller has last acted on. When it trails
+                  `metadata.generation`, the controller has not yet processed the latest spec, and the
+                  conditions below still describe the previous one.
+                format: int64
+                type: integer
+              phase:
+                description: |-
+                  The Storage class current state. Might be:
+                  - Failed (if the controller received incorrect resource configuration or some errors occurred during the operation)
+                  - Created (if everything went fine)
+                enum:
+                - Failed
+                - Created
+                type: string
+              reason:
+                description: Additional information about the current state of the
+                  Storage Class.
+                type: string
+            type: object
+        required:
+        - spec
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}

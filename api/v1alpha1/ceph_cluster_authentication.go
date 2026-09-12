@@ -20,8 +20,18 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+// Ceph cluster authentication parameters.
 // +k8s:deepcopy-gen=true
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+// +kubebuilder:object:root=true
+// +kubebuilder:resource:scope=Cluster
+// +kubebuilder:subresource:status
+// +kubebuilder:metadata:labels={"heritage=deckhouse","module=csi-ceph","backup.deckhouse.io/cluster-config=true"}
+// +kubebuilder:printcolumn:name="Deprecated",type="string",JSONPath=".status.conditions[?(@.type==\"Deprecated\")].status"
+// +kubebuilder:printcolumn:name="Reason",type="string",JSONPath=".status.reason",priority=1
+// +kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp",description="The age of this resource"
+// +crd-enricher:crd:minimal=true
+// +crd-enricher:crd:preserveUnknownFields=false
 type CephClusterAuthentication struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -31,6 +41,7 @@ type CephClusterAuthentication struct {
 
 // +k8s:deepcopy-gen=true
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+// +kubebuilder:object:root=true
 type CephClusterAuthenticationList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata"`
@@ -39,33 +50,42 @@ type CephClusterAuthenticationList struct {
 
 // +k8s:deepcopy-gen=true
 type CephClusterAuthenticationSpec struct {
-	UserID  string `json:"userID"`
+	// Username without `client.`.
+	UserID string `json:"userID"`
+
+	// Ceph auth key corresponding to the `userID`.
 	UserKey string `json:"userKey"`
 }
 
+// Displays current information about the resources managed by the CephClusterAuthentication custom resource.
 // +k8s:deepcopy-gen=true
 type CephClusterAuthenticationStatus struct {
-	// Phase is a coarse summary derived from Conditions, kept for
-	// compatibility with the printer column and existing tooling.
-	// Conditions are the source of truth.
+	// Not published for this resource kind. This resource is deprecated and the controller
+	// does not reconcile it towards a desired state, so there is no phase to report — see
+	// the `Deprecated` condition instead. The field is retained for compatibility.
+	// +kubebuilder:validation:Enum=Failed;Created
 	Phase string `json:"phase,omitempty"`
 
-	// Reason mirrors the message of the most significant condition.
+	// Additional information about the resources managed by the CephClusterAuthentication custom resource.
 	Reason string `json:"reason,omitempty"`
 
-	// ObservedGeneration is the most recent metadata.generation the
-	// controller has acted on.
+	// The value of `metadata.generation` the controller has last acted on.
 	// +optional
 	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
 
-	// Conditions holds the latest observations of the resource state.
-	// Condition type: Deprecated.
+	// The latest observations of the resource state. Condition type: `Deprecated`.
 	//
-	// This kind publishes no Ready condition: the controller does not
-	// reconcile it towards a desired state, it only marks it as superseded
-	// by CephClusterConnection.
+	// No `Ready` condition is published: the controller does not reconcile this resource
+	// towards a desired state, it only marks it as superseded by CephClusterConnection.
 	// +optional
 	// +listType=map
 	// +listMapKey=type
+	// +crd-enricher:raw:items.description=Condition contains details for one aspect of the current state of this API Resource.
+	// +crd-enricher:raw:items.properties.type.description="Condition type. `Deprecated` is `True` for every CephClusterAuthentication:\nthe kind is superseded by CephClusterConnection, which carries the\nauthentication fields itself."
+	// +crd-enricher:raw:items.properties.status.description=Current status of the condition.
+	// +crd-enricher:raw:items.properties.observedGeneration.description=The value of `metadata.generation` this condition was set against.
+	// +crd-enricher:raw:items.properties.lastTransitionTime.description=Timestamp of the last status transition for this condition.
+	// +crd-enricher:raw:items.properties.reason.description="Machine-readable reason for the current status, suitable for log filtering\nand alerting."
+	// +crd-enricher:raw:items.properties.message.description=Human-readable explanation of the current status.
 	Conditions []metav1.Condition `json:"conditions,omitempty"`
 }

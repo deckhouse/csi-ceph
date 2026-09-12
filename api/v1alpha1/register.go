@@ -14,6 +14,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// The CRD manifests in crds/ are generated from the types in this package; see
+// hack/generate_crds.sh for what runs and why the tools are pinned in
+// hack/tools/go.mod rather than in api/go.mod.
+//
+//go:generate bash ../../hack/generate_crds.sh
+
+// +groupName=storage.deckhouse.io
 package v1alpha1
 
 import (

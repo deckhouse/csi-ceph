@@ -18,8 +18,13 @@ package v1alpha1
 
 import metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+// CephMetadataBackup is a Kubernetes custom resource that stores backup of Kubernetes resources.
 // +k8s:deepcopy-gen=true
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+// +kubebuilder:object:root=true
+// +kubebuilder:resource:scope=Cluster,shortName=cephmdb
+// +kubebuilder:metadata:labels={"heritage=deckhouse","module=csi-ceph","backup.deckhouse.io/cluster-config=true"}
+// +crd-enricher:crd:minimal=true
 type CephMetadataBackup struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -28,6 +33,7 @@ type CephMetadataBackup struct {
 
 // +k8s:deepcopy-gen=true
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+// +kubebuilder:object:root=true
 type CephMetadataBackupList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata"`
@@ -36,5 +42,7 @@ type CephMetadataBackupList struct {
 
 // +k8s:deepcopy-gen=true
 type CephMetadataBackupSpec struct {
+	// Data is a base64 encoded Kubernetes resource.
+	// +optional
 	Data string `json:"data"`
 }
