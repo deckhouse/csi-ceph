@@ -162,7 +162,6 @@ func RunCephClusterConnectionWatcherController(
 }
 
 func RunCephClusterConnectionEventReconcile(ctx context.Context, cl client.Client, log logger.Logger, cephClusterConnection *v1alpha1.CephClusterConnection, controllerNamespace string) (shouldRequeue bool, msg string, err error) {
-
 	valid, msg := validateCephClusterConnectionSpec(cephClusterConnection)
 	if !valid {
 		err = fmt.Errorf("[RunCephClusterConnectionEventReconcile] CephClusterConnection %s has invalid spec: %s", cephClusterConnection.Name, msg)
