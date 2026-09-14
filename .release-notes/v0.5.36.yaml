@@ -1,0 +1,16 @@
+date: "2026-09-14"
+
+summary: "A small release: the module logs at `INFO` by default, and the `golang.org/x/crypto` pin no longer shows up as a critical finding in scans of the hooks image."
+
+highlights:
+  - "The default `logLevel` is now `INFO` instead of `DEBUG`, so a cluster that never set it explicitly gets far less log volume from the module."
+  - "The `golang.org/x/crypto` pin is raised to v0.57.0, which clears CVE-2026-56854, CVE-2026-56855 and CVE-2026-78662 from scans of the module's hooks image."
+
+improvements:
+  - "The default `logLevel` is now `INFO` instead of `DEBUG`, which is what a cluster that never set it explicitly will get."
+
+security:
+  - "The `golang.org/x/crypto` pin is raised from v0.53.0 to v0.57.0 in every component, which takes CVE-2026-56854, CVE-2026-56855 and CVE-2026-78662 out of scans of the module's hooks image. None of the three was reachable: the vulnerable `x/crypto/ssh` package is not compiled into any binary the module ships, so this clears the finding rather than an exposure."
+
+upgrade_notes:
+  - "Nothing has to be done by hand. A cluster that relied on the previous default verbosity should set `logLevel: DEBUG` in the module configuration explicitly, because the default is now `INFO`."
