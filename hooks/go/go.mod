@@ -1,7 +1,6 @@
 module github.com/deckhouse/csi-ceph/hooks/go
 
 go 1.27.1
-
 require (
 	github.com/deckhouse/csi-ceph/api v0.0.0-20251016081727-8de00d43187a
 	github.com/deckhouse/sds-common-lib v0.10.0
