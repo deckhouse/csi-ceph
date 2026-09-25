@@ -55,8 +55,6 @@ spec:
                   No `Ready` condition is published: the controller does not reconcile this resource
                   towards a desired state, it only marks it as superseded by CephClusterConnection.
                 items:
-                  description: Condition contains details for one aspect of the current
-                    state of this API Resource.
                   properties:
                     lastTransitionTime:
                       description: Timestamp of the last status transition for this

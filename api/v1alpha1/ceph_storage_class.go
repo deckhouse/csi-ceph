@@ -139,7 +139,7 @@ type CephStorageClassStatus struct {
 	// +optional
 	// +listType=map
 	// +listMapKey=type
-	// +crd-enricher:raw:items.description=Condition contains details for one aspect of the current state of this API Resource.
+	// +crd-enricher:unset:items.description
 	// +crd-enricher:raw:items.properties.type.description="Condition type. `Ready` is `True` once the StorageClass and the\nVolumeSnapshotClass are in place and `False` when a reconcile pass failed.\nThe condition is absent until the controller has processed the resource for\nthe first time."
 	// +crd-enricher:raw:items.properties.status.description=Current status of the condition.
 	// +crd-enricher:raw:items.properties.observedGeneration.description=The value of `metadata.generation` this condition was set against.

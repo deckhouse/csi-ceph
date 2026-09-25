@@ -80,7 +80,7 @@ type CephClusterAuthenticationStatus struct {
 	// +optional
 	// +listType=map
 	// +listMapKey=type
-	// +crd-enricher:raw:items.description=Condition contains details for one aspect of the current state of this API Resource.
+	// +crd-enricher:unset:items.description
 	// +crd-enricher:raw:items.properties.type.description="Condition type. `Deprecated` is `True` for every CephClusterAuthentication:\nthe kind is superseded by CephClusterConnection, which carries the\nauthentication fields itself."
 	// +crd-enricher:raw:items.properties.status.description=Current status of the condition.
 	// +crd-enricher:raw:items.properties.observedGeneration.description=The value of `metadata.generation` this condition was set against.

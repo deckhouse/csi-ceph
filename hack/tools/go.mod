@@ -8,8 +8,10 @@
 // a generated artifact, so the generator is part of their definition and a
 // floating version would make the committed manifests depend on when they were
 // last rendered. controller-tools v0.18.0 matches the other storage modules that
-// already generate their CRDs; crd-enricher v0.0.2 is the current release. Bump
-// with, from this directory:
+// already generate their CRDs. crd-enricher is pinned to the deckhouse commit
+// that added unset:<key> and the strict flag (deckhouse#22406): no release tag
+// carries them yet, so move to the tag once one is cut. Bump with, from this
+// directory:
 //
 //	go get -tool sigs.k8s.io/controller-tools/cmd/controller-gen@vX.Y.Z
 //	go get -tool github.com/deckhouse/deckhouse/pkg/crd-enricher/cmd/crd-enricher@vX.Y.Z
@@ -19,13 +21,14 @@
 module csi-ceph-codegen-tools
 
 go 1.27.1
+
 tool (
 	github.com/deckhouse/deckhouse/pkg/crd-enricher/cmd/crd-enricher
 	sigs.k8s.io/controller-tools/cmd/controller-gen
 )
 
 require (
-	github.com/deckhouse/deckhouse/pkg/crd-enricher v0.0.2 // indirect
+	github.com/deckhouse/deckhouse/pkg/crd-enricher v0.0.3-0.20260825165152-c9d98f54c23d // indirect
 	github.com/fatih/color v1.18.0 // indirect
 	github.com/fxamacker/cbor/v2 v2.7.0 // indirect
 	github.com/go-logr/logr v1.4.2 // indirect
