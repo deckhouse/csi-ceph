@@ -1,8 +1,8 @@
 diff --git a/internal/rbd/nodeserver.go b/internal/rbd/nodeserver.go
-index b54d217bc..c3e8cc5eb 100644
+index d762f8d..19ca301 100644
 --- a/internal/rbd/nodeserver.go
 +++ b/internal/rbd/nodeserver.go
-@@ -930,6 +930,14 @@ func (ns *NodeServer) mountVolumeToStagePath(
+@@ -1133,6 +1133,14 @@ func (ns *NodeServer) mountVolumeToStagePath(
  			if fileEncryption {
  				args = append(args, "-Oencrypt")
  			}
@@ -14,6 +14,6 @@ index b54d217bc..c3e8cc5eb 100644
 +			if percent := volumeCtx["storage.deckhouse.io/ext4-reserved-percent"]; percent != "" {
 +				args = append(args, "-m"+percent)
 +			}
- 		case "xfs":
+ 		case xfsFilesystem:
  			// always disable reflink
  			// TODO: make enabling an option, see ceph/ceph-csi#1256

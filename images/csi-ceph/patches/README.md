@@ -9,23 +9,6 @@ whenever that version changes.
 Drop `go mod tidy` from the `cephcsi` make target: the build is offline and
 vendored, and tidy would try to reach the module proxy.
 
-## 002-Fix-CVE.patch
-
-Fix CVE: bump the dependencies that carry 2026 advisories and re-vendor —
-golang.org/x/crypto to v0.57.0, golang.org/x/net to v0.59.0, golang.org/x/sys
-to v0.48.0, golang.org/x/text to v0.42.0, golang.org/x/sync to v0.23.0,
-golang.org/x/term to v0.46.0, golang.org/x/oauth2 to v0.37.0,
-google.golang.org/grpc to v1.83.2, google.golang.org/protobuf to v1.36.12 and
-go.opentelemetry.io/otel (+ metric, trace) to v1.46.0. Pulls
-github.com/go-jose/go-jose/v4 v4.1.4, github.com/go-logr/logr v1.4.4,
-github.com/stretchr/testify v1.12.1, go.yaml.in/yaml/v3 v3.0.5,
-google.golang.org/genproto/googleapis/rpc and raises the `go` directive to
-1.26.0.
-
-`go.opentelemetry.io/contrib/.../otelgrpc` deliberately stays at the tag's
-v0.60.0: newer releases dropped `otelgrpc.UnaryClientInterceptor`, which the
-vendored `kubernetes-csi/csi-lib-utils` still calls.
-
 ## 003-Reserve-filesystem-space-for-the-superuser.patch
 
 Honour the `storage.deckhouse.io/ext4-reserved-percent` StorageClass parameter
