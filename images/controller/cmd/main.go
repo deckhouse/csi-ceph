@@ -30,6 +30,7 @@ import (
 	apiruntime "k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
@@ -95,6 +96,12 @@ func main() {
 	cacheOpt := cache.Options{
 		DefaultNamespaces: map[string]cache.Config{
 			cfgParams.ControllerNamespace: {},
+		},
+		// The connection controller caches every PersistentVolume and
+		// VolumeAttachment of the cluster, those of other drivers included.
+		ByObject: map[client.Object]cache.ByObject{
+			&v1.PersistentVolume{}:  {Transform: cache.TransformStripManagedFields()},
+			&sv1.VolumeAttachment{}: {Transform: cache.TransformStripManagedFields()},
 		},
 	}
 

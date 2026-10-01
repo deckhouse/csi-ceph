@@ -28,9 +28,6 @@ const (
 	PhaseFailed  = "Failed"
 	PhaseCreated = "Created"
 
-	UpdateConfigMapActionUpdate = "update"
-	UpdateConfigMapActionDelete = "delete"
-
 	CSISnapshotterSecretNameKey      = "csi.storage.k8s.io/snapshotter-secret-name"
 	CSISnapshotterSecretNamespaceKey = "csi.storage.k8s.io/snapshotter-secret-namespace"
 )

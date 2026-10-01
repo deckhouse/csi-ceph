@@ -86,7 +86,7 @@ func TestEveryDeclaredConditionTypeIsWritten(t *testing.T) {
 		cc.Name = "cc"
 		cl := newStatusTestClient(t, cc)
 
-		if err := updateCephClusterConnectionStatus(ctx, cl, cc, nil, "created"); err != nil {
+		if err := updateCephClusterConnectionStatus(ctx, cl, cc, nil, "created", clusterConfigConflictCondition(cc.Generation, "")); err != nil {
 			t.Fatalf("updating status: %v", err)
 		}
 

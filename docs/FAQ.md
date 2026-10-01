@@ -92,3 +92,36 @@ The value is a whole number of percent between 0 and 50; an invalid one puts the
 The reserve applies only to volumes created after the annotation was set — filesystems that already exist keep the reserve they were created with. It is meaningful for RBD only: CephFS volumes are subdirectories of an existing filesystem and are never formatted, so the annotation is ignored on a CephFS class. Nor does it apply to a volume whose `defaultFSType` is XFS, which keeps no blocks for the superuser.
 
 Changing the annotation makes the controller recreate the StorageClass, because `parameters` of an existing StorageClass are immutable in Kubernetes. Existing volumes and PVCs are not affected.
+
+## Why is a CephClusterConnection not deleted?
+
+A `CephClusterConnection` holds the Secret with the user its volumes were created with, and Kubernetes reads that Secret to attach, detach, mount, expand and delete these volumes. Deleting the connection earlier would leave them stuck, for example a volume that can no longer be detached from its node. So the connection and its Secret stay until no PersistentVolume needs them. Its `Ready` condition is `False` with the reason `PersistentVolumesExist`, gives the number of such PersistentVolumes and names up to ten of them:
+
+```shell
+d8 k get cephclusterconnection <name> -o jsonpath='{.status.conditions[?(@.type=="Ready")].message}'
+```
+
+A PersistentVolume holds the connection while it is attached to a node, while it is `Bound` or not yet claimed, and while it is `Released` or `Failed` with the `Delete` reclaim policy, until the volume is deleted. A `Released` or `Failed` PersistentVolume with the `Retain` reclaim policy that is attached nowhere does not hold it: delete such a PersistentVolume by hand once its data is no longer needed, as it can no longer be used without the connection.
+
+Snapshots hold the connection too: the Secret is needed to delete a snapshot, so a `VolumeSnapshotContent` with the `Delete` deletion policy holds the connection until it is deleted. When only snapshots are left, the reason is `VolumeSnapshotContentsExist` and the message names up to ten `VolumeSnapshotContent`s. Delete their `VolumeSnapshot`s for the connection to go.
+
+## What does the ClusterConfigConflict condition of a CephClusterConnection mean?
+
+ceph-csi keeps one entry per Ceph cluster in its configuration, and that entry holds the user of one `CephClusterConnection` for RBD and the subvolume group of one for CephFS. When several connections point at the same cluster, some volumes can need what the entry does not hold: RBD volumes created before csi-ceph started putting the detach secret into the PersistentVolume, if their connection has another user, and CephFS volumes lying in another subvolume group. Such an RBD volume fails to detach from its node; such a CephFS volume can still be mounted but no longer deleted, expanded or snapshotted.
+
+`ClusterConfigConflict=True` on a connection names these volumes and the connection whose settings the entry holds. Find all affected connections with:
+
+```shell
+d8 k get cephclusterconnection -o jsonpath='{range .items[*]}{.metadata.name}{"\t"}{.status.conditions[?(@.type=="ClusterConfigConflict")].status}{"\t"}{.status.conditions[?(@.type=="ClusterConfigConflict")].message}{"\n"}{end}' | awk -F'\t' '$2 == "True"'
+```
+
+The entry keeps the settings of the connection whose volumes depend on it, so the condition stays until the listed volumes are gone. Volumes created from now on do not depend on the entry for RBD. For CephFS, keep one subvolume group per Ceph cluster across its connections.
+
+The secret of an existing PersistentVolume cannot be changed: `spec.csi` of a PersistentVolume is immutable. For the listed RBD volumes to detach, give the Ceph user of the connection the entry holds access to their pools. `ceph auth caps` replaces all the caps of a user, so read the current ones first and repeat them:
+
+```shell
+ceph auth get client.<user of the connection the entry holds>
+ceph auth caps client.<user> mon '<current mon caps>' osd '<current osd caps>, profile rbd pool=<pool of the listed volumes>'
+```
+
+A listed volume whose data is no longer needed can be deleted instead.

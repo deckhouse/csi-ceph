@@ -23,9 +23,13 @@ import (
 	"fmt"
 	"reflect"
 	"slices"
+	"strconv"
 	"strings"
 
+	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v8/apis/volumesnapshot/v1"
 	corev1 "k8s.io/api/core/v1"
+	storagev1 "k8s.io/api/storage/v1"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -76,13 +80,15 @@ func validateCephClusterConnectionSpec(cephClusterConnection *v1alpha1.CephClust
 // it and kept for the printer column and for tooling that predates conditions.
 //
 // reconcileErr is the error the pass returned, or nil on success. msg is the
-// human-readable summary the pass produced, which may be empty.
+// human-readable summary the pass produced, which may be empty. extra are the
+// other conditions the pass evaluated, written in the same update.
 func updateCephClusterConnectionStatus(
 	ctx context.Context,
 	cl client.Client,
 	cephClusterConnection *v1alpha1.CephClusterConnection,
 	reconcileErr error,
 	msg string,
+	extra ...metav1.Condition,
 ) error {
 	// The generation that was actually reconciled. Taken from the object the
 	// caller reconciled rather than from the one read inside UpdateStatus: if
@@ -94,6 +100,10 @@ func updateCephClusterConnectionStatus(
 	if cond.Message == "" {
 		cond.Message = msg
 	}
+	var inUse *secretInUseError
+	if errors.As(reconcileErr, &inUse) {
+		cond.Reason = inUse.reason()
+	}
 
 	return conditions.UpdateStatus(ctx, cl, cephClusterConnection, func(cc *v1alpha1.CephClusterConnection) {
 		if cc.Status == nil {
@@ -101,12 +111,51 @@ func updateCephClusterConnectionStatus(
 		}
 		cc.Status.ObservedGeneration = generation
 		conditions.Set(&cc.Status.Conditions, cond)
+		for _, c := range extra {
+			conditions.Set(&cc.Status.Conditions, c)
+		}
 		cc.Status.Phase = phaseFromReady(cc.Status.Conditions)
 		cc.Status.Reason = msg
 	})
 }
 
-func reconcileConfigMap(ctx context.Context, cl client.Client, log logger.Logger, configMapList *corev1.ConfigMapList, cephClusterConnection *v1alpha1.CephClusterConnection, configMapNamespace, configMapName, controllerNamespace string) (shouldRequeue bool, msg string, err error) {
+// clusterConfigConflictCondition builds the ClusterConfigConflict condition
+// from the message generateSharedClusterConfig gave for a connection, empty
+// when the config.json entry serves all its volumes.
+func clusterConfigConflictCondition(generation int64, message string) metav1.Condition {
+	if message == "" {
+		return metav1.Condition{
+			Type:               v1alpha1.ConditionTypeClusterConfigConflict,
+			Status:             metav1.ConditionFalse,
+			Reason:             v1alpha1.ReasonServedByClusterConfig,
+			Message:            "the config.json entry of the cluster serves every volume of this connection",
+			ObservedGeneration: generation,
+		}
+	}
+	return metav1.Condition{
+		Type:               v1alpha1.ConditionTypeClusterConfigConflict,
+		Status:             metav1.ConditionTrue,
+		Reason:             v1alpha1.ReasonVolumesNeedOtherSettings,
+		Message:            conditions.TruncateMessage(message),
+		ObservedGeneration: generation,
+	}
+}
+
+// publishClusterConfigConflict writes the ClusterConfigConflict condition of
+// the CephClusterConnection name, which shares the config.json entry of the
+// connection being reconciled: whose settings the entry holds is decided for
+// all of them at once.
+func publishClusterConfigConflict(ctx context.Context, cl client.Client, name, message string) error {
+	connection := &v1alpha1.CephClusterConnection{ObjectMeta: metav1.ObjectMeta{Name: name}}
+	return conditions.UpdateStatus(ctx, cl, connection, func(cc *v1alpha1.CephClusterConnection) {
+		if cc.Status == nil {
+			cc.Status = &v1alpha1.CephClusterConnectionStatus{}
+		}
+		conditions.Set(&cc.Status.Conditions, clusterConfigConflictCondition(cc.Generation, message))
+	})
+}
+
+func reconcileConfigMap(ctx context.Context, cl client.Client, log logger.Logger, configMapList *corev1.ConfigMapList, cephClusterConnection *v1alpha1.CephClusterConnection, desiredClusterConfig *v1alpha1.ClusterConfig, configMapNamespace, configMapName string) (shouldRequeue bool, msg string, err error) {
 	var configMap *corev1.ConfigMap
 	for _, cm := range configMapList.Items {
 		if cm.Name == configMapName {
@@ -115,24 +164,15 @@ func reconcileConfigMap(ctx context.Context, cl client.Client, log logger.Logger
 		}
 	}
 
-	if configMap == nil && cephClusterConnection.DeletionTimestamp == nil {
-		return createConfigMap(ctx, cl, log, cephClusterConnection, configMapNamespace, configMapName)
-	}
-
 	if configMap == nil {
-		if cephClusterConnection.DeletionTimestamp == nil {
-			return createConfigMap(ctx, cl, log, cephClusterConnection, configMapNamespace, configMapName)
+		if desiredClusterConfig != nil {
+			return createConfigMap(ctx, cl, log, *desiredClusterConfig, configMapNamespace, configMapName)
 		}
 		log.Info("CephClusterConnection is being deleted and Config map not found.")
 		return false, "", nil
 	}
 
-	updateAction := internal.UpdateConfigMapActionUpdate
-	if cephClusterConnection.DeletionTimestamp != nil {
-		updateAction = internal.UpdateConfigMapActionDelete
-	}
-
-	err = updateConfigMapIfNeeded(ctx, cl, log, configMap, cephClusterConnection, updateAction, controllerNamespace)
+	err = updateConfigMapIfNeeded(ctx, cl, log, configMap, cephClusterConnection.Spec.ClusterID, desiredClusterConfig)
 	if err != nil {
 		if errors.Is(err, errUpdateIncompleted) {
 			return true, "", nil
@@ -191,27 +231,345 @@ func generateClusterConfig(cephClusterConnection *v1alpha1.CephClusterConnection
 	return clusterConfig
 }
 
-func createConfigMap(ctx context.Context, cl client.Client, log logger.Logger, cephClusterConnection *v1alpha1.CephClusterConnection, controllerNamespace, configMapName string) (shouldRequeue bool, msg string, err error) {
+// getDesiredClusterConfig returns the config.json entry for the clusterID of
+// cephClusterConnection, or nil when no connection is left for that clusterID
+// and the entry has to go, along with the conflicts of generateSharedClusterConfig.
+// current is the entry config.json holds now, nil when there is none.
+func getDesiredClusterConfig(ctx context.Context, cl client.Client, log logger.Logger, cephClusterConnection *v1alpha1.CephClusterConnection, current *v1alpha1.ClusterConfig, usage volumeUsage, controllerNamespace string) (*v1alpha1.ClusterConfig, map[string]string, error) {
+	connectionList := &v1alpha1.CephClusterConnectionList{}
+	if err := cl.List(ctx, connectionList); err != nil {
+		return nil, nil, fmt.Errorf("[getDesiredClusterConfig] unable to list CephClusterConnections: %w", err)
+	}
+
+	storageClassList := &v1alpha1.CephStorageClassList{}
+	if err := cl.List(ctx, storageClassList); err != nil {
+		return nil, nil, fmt.Errorf("[getDesiredClusterConfig] unable to list CephStorageClasses: %w", err)
+	}
+
+	clusterConfig, conflicts := generateSharedClusterConfig(log, cephClusterConnection, connectionList.Items, storageClassList.Items, current, usage, controllerNamespace)
+	return clusterConfig, conflicts, nil
+}
+
+// generateSharedClusterConfig builds the config.json entry that every
+// CephClusterConnection with the clusterID of cephClusterConnection shares:
+// ceph-csi keys that file by clusterID alone. Each driver gets the secret and
+// settings of one connection, chosen by pickClusterConnection, so that the
+// entry no longer depends on which connection was reconciled last. The
+// monitors are those of all these connections, as the entry serves the
+// volumes of each of them.
+//
+// It also returns, for every connection the entry is built from, the message
+// of its ClusterConfigConflict condition: empty when the entry serves all its
+// volumes.
+func generateSharedClusterConfig(log logger.Logger, cephClusterConnection *v1alpha1.CephClusterConnection, connections []v1alpha1.CephClusterConnection, storageClasses []v1alpha1.CephStorageClass, current *v1alpha1.ClusterConfig, usage volumeUsage, controllerNamespace string) (*v1alpha1.ClusterConfig, map[string]string) {
+	clusterID := cephClusterConnection.Spec.ClusterID
+
+	// The cache may not have caught up with the object this pass was started
+	// for, so that object replaces its listed copy, even when it is itself
+	// left out.
+	seen := make(map[string]bool, len(connections)+1)
+	candidates := make([]v1alpha1.CephClusterConnection, 0, len(connections)+1)
+	for _, connection := range append([]v1alpha1.CephClusterConnection{*cephClusterConnection}, connections...) {
+		if seen[connection.Name] {
+			continue
+		}
+		seen[connection.Name] = true
+
+		if connection.Spec.ClusterID != clusterID {
+			continue
+		}
+		// A connection being deleted stays until no volume needs its secret,
+		// and ceph-csi needs the monitors of the entry for these volumes.
+		if connection.DeletionTimestamp != nil && !usage.secretNeeded(controllerNamespace, internal.CephClusterConnectionSecretPrefix+connection.Name) {
+			continue
+		}
+		if valid, _ := validateCephClusterConnectionSpec(&connection); !valid {
+			continue
+		}
+		candidates = append(candidates, connection)
+	}
+
+	if len(candidates) == 0 {
+		return nil, nil
+	}
+
+	slices.SortFunc(candidates, func(a, b v1alpha1.CephClusterConnection) int { return strings.Compare(a.Name, b.Name) })
+
+	rbdConnection := pickClusterConnection(clusterID, candidates, storageClasses, current, usage, v1alpha1.CephStorageClassTypeRBD, controllerNamespace)
+	cephFSConnection := pickClusterConnection(clusterID, candidates, storageClasses, current, usage, v1alpha1.CephStorageClassTypeCephFS, controllerNamespace)
+
+	clusterConfig := generateClusterConfig(rbdConnection, controllerNamespace)
+	clusterConfig.CephFS = generateClusterConfig(cephFSConnection, controllerNamespace).CephFS
+	clusterConfig.Monitors = sharedMonitors(rbdConnection, candidates)
+
+	rbdConflicts := configConflicts(usage, clusterID, v1alpha1.CephStorageClassTypeRBD, controllerNamespace, rbdConnection, candidates)
+	cephFSConflicts := configConflicts(usage, clusterID, v1alpha1.CephStorageClassTypeCephFS, controllerNamespace, cephFSConnection, candidates)
+
+	conflicts := make(map[string]string, len(candidates))
+	for i := range candidates {
+		name := candidates[i].Name
+
+		var parts []string
+		if pvNames := rbdConflicts[name]; len(pvNames) > 0 {
+			parts = append(parts, fmt.Sprintf("%d RBD PersistentVolumes %v need another user than the one of the CephClusterConnection %s, which the entry holds, and fail to detach", len(pvNames), listedNames(pvNames), rbdConnection.Name))
+		}
+		if pvNames := cephFSConflicts[name]; len(pvNames) > 0 {
+			parts = append(parts, fmt.Sprintf("%d CephFS PersistentVolumes %v need another subvolume group than %s of the CephClusterConnection %s, which the entry holds, and can no longer be deleted, expanded or snapshotted", len(pvNames), listedNames(pvNames), subvolumeGroupOf(cephFSConnection), cephFSConnection.Name))
+		}
+
+		conflicts[name] = ""
+		if len(parts) > 0 {
+			conflicts[name] = fmt.Sprintf("config.json has one entry for the cluster %s: %s", clusterID, strings.Join(parts, "; "))
+			log.Debug(fmt.Sprintf("the CephClusterConnection %s: %s", name, conflicts[name]))
+		}
+	}
+
+	return &clusterConfig, conflicts
+}
+
+// sharedMonitors returns the monitors of first, followed by those of the
+// other candidates that first does not list, so that one connection with an
+// outdated list does not cut the volumes of the others off the cluster.
+func sharedMonitors(first *v1alpha1.CephClusterConnection, candidates []v1alpha1.CephClusterConnection) []string {
+	monitors := slices.Clone(first.Spec.Monitors)
+	for i := range candidates {
+		for _, monitor := range candidates[i].Spec.Monitors {
+			if !slices.Contains(monitors, monitor) {
+				monitors = append(monitors, monitor)
+			}
+		}
+	}
+	return monitors
+}
+
+// pickClusterConnection returns the connection whose settings the
+// storageClassType driver takes from config.json, in this order:
+//   - the one the current entry holds, if existing volumes depend on it: the
+//     volumes that work with the entry keep working, and an upgrade from the
+//     time the entry followed the connection reconciled last moves nothing;
+//   - the first of the name-sorted candidates that existing volumes depend on
+//     (see volumesUsingConfig);
+//   - the first one a CephStorageClass of storageClassType refers to, a
+//     CephStorageClass being deleted included;
+//   - the first one.
+func pickClusterConnection(clusterID string, candidates []v1alpha1.CephClusterConnection, storageClasses []v1alpha1.CephStorageClass, current *v1alpha1.ClusterConfig, usage volumeUsage, storageClassType, controllerNamespace string) *v1alpha1.CephClusterConnection {
+	dependents := volumesUsingConfig(usage, clusterID, storageClassType, controllerNamespace)
+	if held := heldConnectionName(current, storageClassType, controllerNamespace); held != "" {
+		for i := range candidates {
+			if candidates[i].Name == held && dependents.dependOn(&candidates[i]) {
+				return &candidates[i]
+			}
+		}
+	}
+	for i := range candidates {
+		if dependents.dependOn(&candidates[i]) {
+			return &candidates[i]
+		}
+	}
+
+	for i := range candidates {
+		if slices.ContainsFunc(storageClasses, func(storageClass v1alpha1.CephStorageClass) bool {
+			return storageClass.Spec.Type == storageClassType && storageClass.Spec.ClusterConnectionName == candidates[i].Name
+		}) {
+			return &candidates[i]
+		}
+	}
+
+	return &candidates[0]
+}
+
+// heldConnectionName returns the connection whose secret the
+// storageClassType part of entry names, or an empty name.
+func heldConnectionName(entry *v1alpha1.ClusterConfig, storageClassType, controllerNamespace string) string {
+	if entry == nil {
+		return ""
+	}
+	ref := entry.RBD.ControllerPublishSecretRef
+	if storageClassType == v1alpha1.CephStorageClassTypeCephFS {
+		ref = entry.CephFS.ControllerPublishSecretRef
+	}
+	if ref.Namespace != controllerNamespace {
+		return ""
+	}
+	name, _ := strings.CutPrefix(ref.Name, internal.CephClusterConnectionSecretPrefix)
+	if name == ref.Name {
+		return ""
+	}
+	return name
+}
+
+// currentClusterConfig returns the entry for clusterID that the ConfigMap
+// configMapName of configMapList holds, or nil.
+func currentClusterConfig(configMapList *corev1.ConfigMapList, configMapName, clusterID string) *v1alpha1.ClusterConfig {
+	for i := range configMapList.Items {
+		if configMapList.Items[i].Name != configMapName {
+			continue
+		}
+		clusterConfigs, err := getClusterConfigsFromConfigMap(&configMapList.Items[i])
+		if err != nil {
+			return nil
+		}
+		if idx, ok := findClusterConfigByClusterID(clusterConfigs, clusterID); ok {
+			return &clusterConfigs[idx]
+		}
+	}
+	return nil
+}
+
+// configConflicts returns, by the name of the candidate they were created
+// through, the sorted names of the storageClassType volumes that read
+// config.json and need another user (RBD) or subvolume group (CephFS) than
+// the one of chosen, which the entry holds.
+func configConflicts(usage volumeUsage, clusterID, storageClassType, controllerNamespace string, chosen *v1alpha1.CephClusterConnection, candidates []v1alpha1.CephClusterConnection) map[string][]string {
+	held := configSettingOf(chosen, storageClassType)
+
+	conflicts := map[string][]string{}
+	forEachVolumeUsingConfig(usage, clusterID, storageClassType, controllerNamespace, func(pv *corev1.PersistentVolume, subvolumeGroup, connectionName string) {
+		i := slices.IndexFunc(candidates, func(c v1alpha1.CephClusterConnection) bool { return c.Name == connectionName })
+		if i < 0 {
+			return
+		}
+		needed := subvolumeGroup
+		if needed == "" {
+			needed = configSettingOf(&candidates[i], storageClassType)
+		}
+		if needed != held {
+			conflicts[connectionName] = append(conflicts[connectionName], pv.Name)
+		}
+	})
+
+	for _, pvNames := range conflicts {
+		slices.Sort(pvNames)
+	}
+	return conflicts
+}
+
+// configSettingOf returns what the storageClassType volumes of connection take
+// from config.json: the user for RBD, the subvolume group for CephFS.
+func configSettingOf(connection *v1alpha1.CephClusterConnection, storageClassType string) string {
+	if storageClassType == v1alpha1.CephStorageClassTypeCephFS {
+		return subvolumeGroupOf(connection)
+	}
+	return connection.Spec.UserID
+}
+
+// subvolumeGroupOf returns the subvolume group ceph-csi uses with the entry of
+// connection, which is csi when the entry names none.
+func subvolumeGroupOf(connection *v1alpha1.CephClusterConnection) string {
+	if connection.Spec.CephFS != nil && connection.Spec.CephFS.SubvolumeGroup != "" {
+		return connection.Spec.CephFS.SubvolumeGroup
+	}
+	return cephCSIDefaultSubvolumeGroup
+}
+
+// configDependents is what the volumes that read config.json depend on there.
+type configDependents struct {
+	// connections are the connections whose secret the node-stage secret of
+	// such a volume is.
+	connections map[string]bool
+	// subvolumeGroups are the groups the CephFS subvolumes lie in.
+	subvolumeGroups map[string]bool
+}
+
+func (d configDependents) dependOn(connection *v1alpha1.CephClusterConnection) bool {
+	return d.connections[connection.Name] || d.subvolumeGroups[subvolumeGroupOf(connection)]
+}
+
+// volumesUsingConfig returns what the storageClassType volumes of clusterID
+// that read config.json depend on there: the subvolume group a CephFS volume
+// lies in, and otherwise the connection a volume was created through (see
+// forEachVolumeUsingConfig).
+func volumesUsingConfig(usage volumeUsage, clusterID, storageClassType, controllerNamespace string) configDependents {
+	dependents := configDependents{connections: map[string]bool{}, subvolumeGroups: map[string]bool{}}
+	forEachVolumeUsingConfig(usage, clusterID, storageClassType, controllerNamespace, func(_ *corev1.PersistentVolume, subvolumeGroup, connectionName string) {
+		switch {
+		case subvolumeGroup != "":
+			dependents.subvolumeGroups[subvolumeGroup] = true
+		case connectionName != "":
+			dependents.connections[connectionName] = true
+		}
+	})
+	return dependents
+}
+
+// forEachVolumeUsingConfig calls visit for every storageClassType volume of
+// clusterID that reads config.json and will still have its secrets read (see
+// pvsNeedingSecret): a kept volume attached nowhere makes no CSI call that
+// would read the entry, so it neither pins the entry nor conflicts with it.
+// RBD volumes without a controller-publish
+// secret of their own, provisioned before the StorageClass carried one, take
+// the user from there. Every CephFS volume but a static one takes the
+// subvolume group from there, and visit gets the group its subvolumePath lies
+// in, which is the one the entry held when the volume was created and not
+// necessarily the one of the connection it was created through; it gets an
+// empty group when the path does not tell. visit also gets the connection the
+// volume was created through, the one whose secret its node-stage secret is,
+// or an empty name when there is none.
+func forEachVolumeUsingConfig(usage volumeUsage, clusterID, storageClassType, controllerNamespace string, visit func(pv *corev1.PersistentVolume, subvolumeGroup, connectionName string)) {
+	driver := GetStorageClassProvisioner(storageClassType)
+
+	pvs := usage.pvs
+	for i := range pvs {
+		csi := pvs[i].Spec.CSI
+		if csi == nil || csi.Driver != driver || csi.VolumeAttributes["clusterID"] != clusterID || !usage.needsSecrets(&pvs[i]) {
+			continue
+		}
+
+		var subvolumeGroup string
+		switch storageClassType {
+		case v1alpha1.CephStorageClassTypeRBD:
+			if csi.ControllerPublishSecretRef != nil {
+				continue
+			}
+		case v1alpha1.CephStorageClassTypeCephFS:
+			if static, _ := strconv.ParseBool(csi.VolumeAttributes["staticVolume"]); static {
+				continue
+			}
+			subvolumeGroup, _ = subvolumeGroupOfPath(csi.VolumeAttributes["subvolumePath"])
+		}
+
+		var connectionName string
+		if csi.NodeStageSecretRef != nil && csi.NodeStageSecretRef.Namespace == controllerNamespace {
+			connectionName, _ = strings.CutPrefix(csi.NodeStageSecretRef.Name, internal.CephClusterConnectionSecretPrefix)
+			if connectionName == csi.NodeStageSecretRef.Name {
+				connectionName = ""
+			}
+		}
+
+		visit(&pvs[i], subvolumeGroup, connectionName)
+	}
+}
+
+// subvolumeGroupOfPath returns the group of a CephFS subvolume path, which
+// ceph fs subvolume getpath gives as /volumes/<group>/<subvolume>/<uuid>.
+func subvolumeGroupOfPath(path string) (string, bool) {
+	parts := strings.Split(strings.TrimPrefix(path, "/"), "/")
+	if len(parts) < 3 || parts[0] != "volumes" || parts[1] == "" {
+		return "", false
+	}
+	return parts[1], true
+}
+
+func createConfigMap(ctx context.Context, cl client.Client, log logger.Logger, clusterConfig v1alpha1.ClusterConfig, controllerNamespace, configMapName string) (shouldRequeue bool, msg string, err error) {
 	log = log.Named("configmap").Named("create")
 
-	log.Debug(fmt.Sprintf("starts creation of ConfigMap %s for CephClusterConnection %s", configMapName, cephClusterConnection.Name))
+	log.Debug(fmt.Sprintf("starts creation of ConfigMap %s for the cluster %s", configMapName, clusterConfig.ClusterID))
 
-	newClusterConfig := generateClusterConfig(cephClusterConnection, controllerNamespace)
-	newConfigMap, err := generateNewConfigMap(newClusterConfig, controllerNamespace, configMapName)
+	newConfigMap, err := generateNewConfigMap(clusterConfig, controllerNamespace, configMapName)
 	if err != nil {
-		err = fmt.Errorf("[createConfigMap] unable to generate the ConfigMap %s for CephClusterConnection %s: %w", configMapName, cephClusterConnection.Name, err)
+		err = fmt.Errorf("[createConfigMap] unable to generate the ConfigMap %s for the cluster %s: %w", configMapName, clusterConfig.ClusterID, err)
 		return true, err.Error(), err
 	}
-	log.Debug(fmt.Sprintf("successfully generate the ConfigMap %s for the CephClusterConnection %s", configMapName, cephClusterConnection.Name))
+	log.Debug(fmt.Sprintf("successfully generate the ConfigMap %s for the cluster %s", configMapName, clusterConfig.ClusterID))
 	log.Trace(fmt.Sprintf("ConfigMap: %+v", newConfigMap))
 
 	err = cl.Create(ctx, newConfigMap)
 	if err != nil {
-		err = fmt.Errorf("[createConfigMap] unable to create a ConfigMap %s for CephClusterConnection %s: %w", newConfigMap.Name, cephClusterConnection.Name, err)
+		err = fmt.Errorf("[createConfigMap] unable to create a ConfigMap %s for the cluster %s: %w", newConfigMap.Name, clusterConfig.ClusterID, err)
 		return true, err.Error(), err
 	}
 
-	log.Debug(fmt.Sprintf("successfully created ConfigMap %s for the CephClusterConnection %s", newConfigMap.Name, cephClusterConnection.Name))
+	log.Debug(fmt.Sprintf("successfully created ConfigMap %s for the cluster %s", newConfigMap.Name, clusterConfig.ClusterID))
 	return false, fmt.Sprintf("Successfully created ConfigMap %s", newConfigMap.Name), nil
 }
 
@@ -245,12 +603,12 @@ func generateNewConfigMap(clusterConfig v1alpha1.ClusterConfig, controllerNamesp
 
 var errUpdateIncompleted = errors.New("update was not completed yet, should requeue")
 
-func updateConfigMapIfNeeded(ctx context.Context, cl client.Client, log logger.Logger, configMap *corev1.ConfigMap, cephClusterConnection *v1alpha1.CephClusterConnection, updateAction string, controllerNamespace string) error {
+func updateConfigMapIfNeeded(ctx context.Context, cl client.Client, log logger.Logger, configMap *corev1.ConfigMap, clusterID string, desiredClusterConfig *v1alpha1.ClusterConfig) error {
 	log = log.Named("configmap").Named("update")
 
 	log.Debug(fmt.Sprintf("starts for the ConfigMap %s/%s", configMap.Namespace, configMap.Name))
 	log.Trace(fmt.Sprintf("ConfigMap: %+v", configMap))
-	log.Trace(fmt.Sprintf("update action: %s", updateAction))
+	log.Trace(fmt.Sprintf("desired cluster config for the cluster %s: %+v", clusterID, desiredClusterConfig))
 
 	if configMap.DeletionTimestamp != nil {
 		// delete finalizers
@@ -275,7 +633,7 @@ func updateConfigMapIfNeeded(ctx context.Context, cl client.Client, log logger.L
 
 	log.Trace(fmt.Sprintf("clusterConfigs: %+v", clusterConfigs))
 
-	clusterConfigs, updated := updateClusterConfigsIfNeeded(log, clusterConfigs, cephClusterConnection, updateAction, controllerNamespace)
+	clusterConfigs, updated := updateClusterConfigsIfNeeded(log, clusterConfigs, clusterID, desiredClusterConfig)
 	if updated {
 		needUpdate = true
 	}
@@ -328,26 +686,25 @@ func findClusterConfigByClusterID(clusterConfigs []v1alpha1.ClusterConfig, clust
 	return -1, false
 }
 
-func updateClusterConfigsIfNeeded(log logger.Logger, clusterConfigs []v1alpha1.ClusterConfig, cephClusterConnection *v1alpha1.CephClusterConnection, updateAction string, controllerNamespace string) ([]v1alpha1.ClusterConfig, bool) {
+func updateClusterConfigsIfNeeded(log logger.Logger, clusterConfigs []v1alpha1.ClusterConfig, clusterID string, desiredClusterConfig *v1alpha1.ClusterConfig) ([]v1alpha1.ClusterConfig, bool) {
 	log = log.Named("cluster-configs").Named("update")
 
 	updated := false
 
-	clusterConfigIndex, clusterConfigExists := findClusterConfigByClusterID(clusterConfigs, cephClusterConnection.Spec.ClusterID)
+	clusterConfigIndex, clusterConfigExists := findClusterConfigByClusterID(clusterConfigs, clusterID)
 	log.Debug(fmt.Sprintf("find cluster config by cluster ID: %d, %t. Index: %d", clusterConfigIndex, clusterConfigExists, clusterConfigIndex))
 
-	switch updateAction {
-	case internal.UpdateConfigMapActionDelete:
+	if desiredClusterConfig == nil {
 		if clusterConfigExists {
-			log.Debug(fmt.Sprintf("clusterConfigExists %t and updateAction == internal.UpdateConfigMapActionDelete. Delete clusterConfig", clusterConfigExists))
+			log.Debug(fmt.Sprintf("clusterConfigExists %t and no CephClusterConnection is left for it. Delete clusterConfig", clusterConfigExists))
 			clusterConfigs = append(clusterConfigs[:clusterConfigIndex], clusterConfigs[clusterConfigIndex+1:]...)
 			updated = true
 		} else {
 			log.Debug(fmt.Sprintf("clusterConfigExists %t. No need to delete clusterConfig", clusterConfigExists))
 		}
-	default:
-		newClusterConfig := generateClusterConfig(cephClusterConnection, controllerNamespace)
-		log.Trace(fmt.Sprintf("updateAction %s, newClusterConfig: %+v", updateAction, newClusterConfig))
+	} else {
+		newClusterConfig := *desiredClusterConfig
+		log.Trace(fmt.Sprintf("newClusterConfig: %+v", newClusterConfig))
 
 		if clusterConfigExists {
 			log.Trace(fmt.Sprintf("existedClusterConfig: %+v", clusterConfigs[clusterConfigIndex]))
@@ -369,7 +726,7 @@ func updateClusterConfigsIfNeeded(log logger.Logger, clusterConfigs []v1alpha1.C
 }
 
 // Secret
-func reconcileSecret(ctx context.Context, cl client.Client, log logger.Logger, secretList *corev1.SecretList, cephClusterConnection *v1alpha1.CephClusterConnection, secretNamespace, secretName string) (shouldRequeue bool, msg string, err error) {
+func reconcileSecret(ctx context.Context, cl client.Client, log logger.Logger, secretList *corev1.SecretList, cephClusterConnection *v1alpha1.CephClusterConnection, usage volumeUsage, secretNamespace, secretName string) (shouldRequeue bool, msg string, err error) {
 	var secret *corev1.Secret
 	for _, s := range secretList.Items {
 		if s.Name == secretName {
@@ -379,6 +736,9 @@ func reconcileSecret(ctx context.Context, cl client.Client, log logger.Logger, s
 	}
 
 	if cephClusterConnection.DeletionTimestamp != nil {
+		if inUse := usage.secretInUse(secretNamespace, secretName, cephClusterConnection.Name); inUse != nil {
+			return true, inUse.Error(), inUse
+		}
 		return removeFinalizerAndDeleteSecret(ctx, cl, log, secret, CephClusterConnectionControllerFinalizerName)
 	}
 
@@ -437,6 +797,171 @@ func generateNewSecret(cephClusterConnection *v1alpha1.CephClusterConnection, co
 	}
 
 	return secret
+}
+
+// volumeUsage is the snapshot of the PersistentVolumes one reconcile pass
+// works from, with the names of those a VolumeAttachment refers to, and of
+// the VolumeSnapshotContents, none when their CRD is not installed.
+type volumeUsage struct {
+	pvs              []corev1.PersistentVolume
+	attached         map[string]bool
+	snapshotContents []snapshotv1.VolumeSnapshotContent
+}
+
+func listVolumeUsage(ctx context.Context, cl client.Reader) (volumeUsage, error) {
+	pvList := &corev1.PersistentVolumeList{}
+	if err := cl.List(ctx, pvList); err != nil {
+		return volumeUsage{}, fmt.Errorf("[listVolumeUsage] unable to list PersistentVolumes: %w", err)
+	}
+
+	attachmentList := &storagev1.VolumeAttachmentList{}
+	if err := cl.List(ctx, attachmentList); err != nil {
+		return volumeUsage{}, fmt.Errorf("[listVolumeUsage] unable to list VolumeAttachments: %w", err)
+	}
+
+	attached := make(map[string]bool, len(attachmentList.Items))
+	for _, attachment := range attachmentList.Items {
+		if name := attachment.Spec.Source.PersistentVolumeName; name != nil {
+			attached[*name] = true
+		}
+	}
+
+	// The snapshot CRDs are optional (see VolumeSnapshotClassCRDExists).
+	contentList := &snapshotv1.VolumeSnapshotContentList{}
+	if err := cl.List(ctx, contentList); err != nil && !meta.IsNoMatchError(err) {
+		return volumeUsage{}, fmt.Errorf("[listVolumeUsage] unable to list VolumeSnapshotContents: %w", err)
+	}
+
+	return volumeUsage{pvs: pvList.Items, attached: attached, snapshotContents: contentList.Items}, nil
+}
+
+// snapshotContentsNeedingSecret returns the sorted names of the
+// VolumeSnapshotContents whose deletion secret annotations of the
+// external-snapshotter name the secret and whose snapshot is deleted with
+// them: the csi-snapshotter reads that secret to delete the snapshot, and a
+// content whose secret is gone keeps its finalizer, and its VolumeSnapshot,
+// for good.
+func (u volumeUsage) snapshotContentsNeedingSecret(secretNamespace, secretName string) []string {
+	var names []string
+	for _, content := range u.snapshotContents {
+		if content.Annotations[snapshotDeletionSecretNameAnnotation] == secretName &&
+			content.Annotations[snapshotDeletionSecretNamespaceAnnotation] == secretNamespace &&
+			content.Spec.DeletionPolicy == snapshotv1.VolumeSnapshotContentDelete {
+			names = append(names, content.Name)
+		}
+	}
+
+	slices.Sort(names)
+	return names
+}
+
+// secretNeeded reports whether a PersistentVolume or a VolumeSnapshotContent
+// still needs the secret.
+func (u volumeUsage) secretNeeded(secretNamespace, secretName string) bool {
+	return len(u.pvsNeedingSecret(secretNamespace, secretName)) > 0 || len(u.snapshotContentsNeedingSecret(secretNamespace, secretName)) > 0
+}
+
+// secretInUse returns the error that holds the deletion of the
+// CephClusterConnection connectionName while PersistentVolumes or
+// VolumeSnapshotContents still need its secret, or nil.
+func (u volumeUsage) secretInUse(secretNamespace, secretName, connectionName string) *secretInUseError {
+	pvNames := u.pvsNeedingSecret(secretNamespace, secretName)
+	contentNames := u.snapshotContentsNeedingSecret(secretNamespace, secretName)
+	if len(pvNames) == 0 && len(contentNames) == 0 {
+		return nil
+	}
+
+	var users []string
+	if len(pvNames) > 0 {
+		users = append(users, fmt.Sprintf("%d PersistentVolumes %v", len(pvNames), listedNames(pvNames)))
+	}
+	if len(contentNames) > 0 {
+		users = append(users, fmt.Sprintf("%d VolumeSnapshotContents %v", len(contentNames), listedNames(contentNames)))
+	}
+	return &secretInUseError{
+		message:     fmt.Sprintf("the Secret %s/%s is still used by %s; the CephClusterConnection %s is deleted once they are gone", secretNamespace, secretName, strings.Join(users, " and "), connectionName),
+		volumesHold: len(pvNames) > 0,
+	}
+}
+
+// pvsNeedingSecret returns the sorted names of the PersistentVolumes that
+// name the secret in any of their CSI secret references or in the deletion
+// secret annotations of the external-provisioner, and that will still have it
+// read:
+//   - one a VolumeAttachment refers to: the external-attacher reads its
+//     controller-publish secret to detach it, and a detach that cannot read
+//     the secret never finishes;
+//   - one Released or Failed with the Delete reclaim policy: the
+//     external-provisioner reads its deletion secret to delete it;
+//   - any other one, Bound or not claimed yet, which can still be attached,
+//     staged, expanded or deleted.
+//
+// A Released or Failed volume that is kept and attached nowhere has no CSI
+// call left that reads its secrets, so it does not hold the secret.
+func (u volumeUsage) pvsNeedingSecret(secretNamespace, secretName string) []string {
+	isSecret := func(ref *corev1.SecretReference) bool {
+		return ref != nil && ref.Name == secretName && ref.Namespace == secretNamespace
+	}
+
+	var names []string
+	for _, pv := range u.pvs {
+		used := pv.Annotations[provisionerDeletionSecretNameAnnotation] == secretName && pv.Annotations[provisionerDeletionSecretNamespaceAnnotation] == secretNamespace
+		if csi := pv.Spec.CSI; csi != nil {
+			used = used ||
+				isSecret(csi.ControllerPublishSecretRef) ||
+				isSecret(csi.NodeStageSecretRef) ||
+				isSecret(csi.NodePublishSecretRef) ||
+				isSecret(csi.ControllerExpandSecretRef) ||
+				isSecret(csi.NodeExpandSecretRef)
+		}
+		if used && u.needsSecrets(&pv) {
+			names = append(names, pv.Name)
+		}
+	}
+
+	slices.Sort(names)
+	return names
+}
+
+// secretInUseError holds the deletion of a CephClusterConnection while
+// PersistentVolumes or VolumeSnapshotContents still need its secret. It gives
+// the Ready condition its own reason, which consumers such as sds-elastic read
+// to tell this wait from a failure.
+type secretInUseError struct {
+	message string
+	// volumesHold is false when only VolumeSnapshotContents need the secret.
+	volumesHold bool
+}
+
+func (e *secretInUseError) Error() string { return e.message }
+
+// reason returns the reason of the Ready condition for this wait.
+func (e *secretInUseError) reason() string {
+	if e.volumesHold {
+		return v1alpha1.ReasonPersistentVolumesExist
+	}
+	return v1alpha1.ReasonVolumeSnapshotContentsExist
+}
+
+// listedNames returns the names a status message lists out of the sorted
+// names.
+func listedNames(names []string) []string {
+	if len(names) > maxListedNames {
+		return names[:maxListedNames]
+	}
+	return names
+}
+
+func (u volumeUsage) needsSecrets(pv *corev1.PersistentVolume) bool {
+	if u.attached[pv.Name] {
+		return true
+	}
+	switch pv.Status.Phase {
+	case corev1.VolumeReleased, corev1.VolumeFailed:
+		return pv.Spec.PersistentVolumeReclaimPolicy == corev1.PersistentVolumeReclaimDelete
+	default:
+		return true
+	}
 }
 
 func removeFinalizerAndDeleteSecret(ctx context.Context, cl client.Client, log logger.Logger, secret *corev1.Secret, finalizerName string) (shouldRequeue bool, msg string, err error) {

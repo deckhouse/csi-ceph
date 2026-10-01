@@ -18,7 +18,10 @@
   "clusterRoleRules" (list
     (dict "apiGroups" (list "storage.deckhouse.io") "resources" (list "cephstorageclasses" "cephstorageclasses/status" "cephclusterconnections" "cephclusterconnections/status" "cephclusterauthentications" "cephclusterauthentications/status") "verbs" (list "get" "list" "create" "watch" "update"))
     (dict "apiGroups" (list "storage.k8s.io") "resources" (list "storageclasses") "verbs" (list "create" "delete" "list" "get" "watch" "update"))
+    (dict "apiGroups" (list "storage.k8s.io") "resources" (list "volumeattachments") "verbs" (list "list" "get" "watch"))
+    (dict "apiGroups" (list "") "resources" (list "persistentvolumes") "verbs" (list "list" "get" "watch"))
     (dict "apiGroups" (list "snapshot.storage.k8s.io") "resources" (list "volumesnapshotclasses") "verbs" (list "create" "delete" "list" "get" "watch" "update"))
+    (dict "apiGroups" (list "snapshot.storage.k8s.io") "resources" (list "volumesnapshotcontents") "verbs" (list "list" "get" "watch"))
   )
 }}
 {{ include "helm_lib_module_controller_rbac" (list . $rbacConfig) }}

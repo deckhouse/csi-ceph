@@ -402,6 +402,13 @@ func GetStoragecClassParams(cephSC *storagev1alpha1.CephStorageClass, controller
 		params["imageFeatures"] = defaultImageFeatures
 		params["csi.storage.k8s.io/fstype"] = cephSC.Spec.RBD.DefaultFSType
 		params["pool"] = cephSC.Spec.RBD.Pool
+		// The external-provisioner copies these into the PV, and the
+		// external-attacher then passes that secret to ControllerUnpublish.
+		// Without it ceph-csi falls back to the one secret config.json holds
+		// per clusterID, which belongs to another CephClusterConnection when
+		// several of them point at the same cluster.
+		params["csi.storage.k8s.io/controller-publish-secret-name"] = secretName
+		params["csi.storage.k8s.io/controller-publish-secret-namespace"] = controllerNamespace
 		if crcDisabled {
 			// krbd map must use msgr1 when messenger CRC is off (see legacyMsgrOption).
 			params["mapOptions"] = legacyMsgrOption

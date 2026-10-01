@@ -45,6 +45,23 @@ const (
 	// should be migrated away from. It is only published on
 	// CephClusterAuthentication, which CephClusterConnection replaced.
 	ConditionTypeDeprecated = "Deprecated"
+
+	// ConditionTypeClusterConfigConflict reports whether the volumes created
+	// through a CephClusterConnection can rely on the config.json entry of its
+	// clusterID. ceph-csi keeps one entry per clusterID, and it serves the
+	// user of one connection to RBD and the subvolume group of one connection
+	// to CephFS:
+	//
+	//   - True  some volumes of this connection need another user or
+	//     subvolume group than the entry holds: an RBD volume then fails to
+	//     detach, a CephFS one can no longer be deleted, expanded or
+	//     snapshotted; the message names them;
+	//   - False every volume of this connection is served by the entry.
+	//
+	// Only volumes that read the entry count: RBD volumes provisioned without
+	// a controller-publish secret of their own, and CephFS volumes that are
+	// not static.
+	ConditionTypeClusterConfigConflict = "ClusterConfigConflict"
 )
 
 // The condition types each kind publishes.
@@ -57,6 +74,7 @@ const (
 var (
 	CephClusterConnectionConditionTypes = []string{
 		ConditionTypeReady,
+		ConditionTypeClusterConfigConflict,
 	}
 	CephStorageClassConditionTypes = []string{
 		ConditionTypeReady,
@@ -76,4 +94,21 @@ var (
 const (
 	// ReasonSupersededByCephClusterConnection is set on Deprecated=True.
 	ReasonSupersededByCephClusterConnection = "SupersededByCephClusterConnection"
+
+	// ReasonPersistentVolumesExist is set on Ready=False of a
+	// CephClusterConnection being deleted while PersistentVolumes still need
+	// its secret. The deletion goes on by itself once they are gone.
+	ReasonPersistentVolumesExist = "PersistentVolumesExist"
+
+	// ReasonVolumeSnapshotContentsExist is set on Ready=False of a
+	// CephClusterConnection being deleted while no PersistentVolume but
+	// VolumeSnapshotContents still need its secret to delete their snapshots.
+	// The deletion goes on by itself once they are gone.
+	ReasonVolumeSnapshotContentsExist = "VolumeSnapshotContentsExist"
+
+	// ReasonVolumesNeedOtherSettings is set on ClusterConfigConflict=True.
+	ReasonVolumesNeedOtherSettings = "VolumesNeedOtherSettings"
+
+	// ReasonServedByClusterConfig is set on ClusterConfigConflict=False.
+	ReasonServedByClusterConfig = "ServedByClusterConfig"
 )

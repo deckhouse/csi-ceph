@@ -18,12 +18,16 @@ package controller
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"reflect"
+	"slices"
+	"strings"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/util/workqueue"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -45,6 +49,16 @@ const (
 	CephClusterConnectionCtrlName                = "d8-ceph-cluster-connection-controller"
 	CephClusterConnectionControllerFinalizerName = "storage.deckhouse.io/ceph-cluster-connection-controller"
 	CephClusterConnectionSubvolumeGroupConfigKey = "subvolumeGroup"
+
+	provisionerDeletionSecretNameAnnotation      = "volume.kubernetes.io/provisioner-deletion-secret-name"
+	provisionerDeletionSecretNamespaceAnnotation = "volume.kubernetes.io/provisioner-deletion-secret-namespace"
+
+	snapshotDeletionSecretNameAnnotation      = "snapshot.storage.kubernetes.io/deletion-secret-name"
+	snapshotDeletionSecretNamespaceAnnotation = "snapshot.storage.kubernetes.io/deletion-secret-namespace"
+
+	maxListedNames = 10
+
+	cephCSIDefaultSubvolumeGroup = "csi"
 )
 
 func RunCephClusterConnectionWatcherController(
@@ -83,10 +97,18 @@ func RunCephClusterConnectionWatcherController(
 				return reconcile.Result{}, nil
 			}
 
-			shouldRequeue, msg, err := RunCephClusterConnectionEventReconcile(ctx, cl, log, cephClusterConnection, cfg.ControllerNamespace)
-			if err != nil {
+			shouldRequeue, msg, conflicts, err := reconcileCephClusterConnection(ctx, cl, apiReader, log, cephClusterConnection, cfg.ControllerNamespace)
+			// Waiting for volumes and snapshots is how every deletion of a
+			// connection in use goes, and it is retried every few seconds until
+			// they are gone.
+			var inUse *secretInUseError
+			waitsForVolumes := errors.As(err, &inUse)
+			switch {
+			case waitsForVolumes:
+				log.Info(fmt.Sprintf("the CephClusterConnection %s waits for the objects that need its secret: %s", cephClusterConnection.Name, err))
+			case err != nil:
 				log.Error(fmt.Sprintf("an error occurred while reconciles the CephClusterConnection, name: %s", cephClusterConnection.Name), logger.Err(err))
-			} else {
+			default:
 				log.Info(fmt.Sprintf("CephClusterConnection %s has been reconciled with message: %s", cephClusterConnection.Name, msg))
 			}
 
@@ -97,7 +119,11 @@ func RunCephClusterConnectionWatcherController(
 			// the write is tolerated.
 			if shouldPublishStatus(cephClusterConnection, err, shouldRequeue) {
 				log.Debug(fmt.Sprintf("update the CephClusterConnection %s status with message: %s", cephClusterConnection.Name, msg))
-				upErr := updateCephClusterConnectionStatus(ctx, cl, cephClusterConnection, err, msg)
+				var extra []metav1.Condition
+				if message, ok := conflicts[cephClusterConnection.Name]; ok {
+					extra = append(extra, clusterConfigConflictCondition(cephClusterConnection.Generation, message))
+				}
+				upErr := updateCephClusterConnectionStatus(ctx, cl, cephClusterConnection, err, msg, extra...)
 				switch {
 				case k8serr.IsNotFound(upErr):
 					log.Debug(fmt.Sprintf("the CephClusterConnection %s is gone, its status was not written", cephClusterConnection.Name))
@@ -107,8 +133,24 @@ func RunCephClusterConnectionWatcherController(
 				}
 			}
 
+			// The other connections of the clusterID get their verdict from this
+			// pass too, as the entry they share was just decided for all of them.
+			for name, message := range conflicts {
+				if name == cephClusterConnection.Name {
+					continue
+				}
+				if cErr := publishClusterConfigConflict(ctx, cl, name, message); cErr != nil && !k8serr.IsNotFound(cErr) {
+					log.Error(fmt.Sprintf("unable to update the ClusterConfigConflict condition of the CephClusterConnection %s", name), logger.Err(cErr))
+					shouldRequeue = true
+				}
+			}
+
 			if shouldRequeue {
-				log.Warn(fmt.Sprintf("reconciler will requeue the request, name: %s", request.Name))
+				if waitsForVolumes {
+					log.Debug(fmt.Sprintf("reconciler will requeue the request, name: %s", request.Name))
+				} else {
+					log.Warn(fmt.Sprintf("reconciler will requeue the request, name: %s", request.Name))
+				}
 				return reconcile.Result{
 					RequeueAfter: cfg.RequeueStorageClassInterval * time.Second,
 				}, nil
@@ -158,21 +200,115 @@ func RunCephClusterConnectionWatcherController(
 		return nil, err
 	}
 
+	// The CephStorageClasses decide whose secret the shared config.json entry
+	// of a clusterID carries, so their connections are reconciled again when
+	// they appear or go away. Their connection and type are immutable.
+	err = c.Watch(source.Kind(mgr.GetCache(), &v1alpha1.CephStorageClass{}, cephStorageClassConnectionHandler()))
+	if err != nil {
+		log.Error("unable to watch the CephStorageClass events", logger.Err(err))
+		return nil, err
+	}
+
+	// A volume that changes phase or goes away can release a connection
+	// being deleted and resolve its ClusterConfigConflict; a successful pass
+	// is not requeued, so nothing else would bring its connection back.
+	err = c.Watch(source.Kind(mgr.GetCache(), &corev1.PersistentVolume{}, persistentVolumeConnectionHandler(cfg.ControllerNamespace)))
+	if err != nil {
+		log.Error("unable to watch the PersistentVolume events", logger.Err(err))
+		return nil, err
+	}
+
 	return c, nil
 }
 
+func persistentVolumeConnectionHandler(controllerNamespace string) handler.TypedEventHandler[*corev1.PersistentVolume, reconcile.Request] {
+	enqueueConnectionsOf := func(pv *corev1.PersistentVolume, q workqueue.TypedRateLimitingInterface[reconcile.Request]) {
+		for _, name := range connectionsOfPersistentVolume(pv, controllerNamespace) {
+			q.Add(reconcile.Request{NamespacedName: types.NamespacedName{Name: name}})
+		}
+	}
+
+	return handler.TypedFuncs[*corev1.PersistentVolume, reconcile.Request]{
+		UpdateFunc: func(_ context.Context, e event.TypedUpdateEvent[*corev1.PersistentVolume], q workqueue.TypedRateLimitingInterface[reconcile.Request]) {
+			if e.ObjectOld.Status.Phase != e.ObjectNew.Status.Phase {
+				enqueueConnectionsOf(e.ObjectNew, q)
+			}
+		},
+		DeleteFunc: func(_ context.Context, e event.TypedDeleteEvent[*corev1.PersistentVolume], q workqueue.TypedRateLimitingInterface[reconcile.Request]) {
+			enqueueConnectionsOf(e.Object, q)
+		},
+	}
+}
+
+// connectionsOfPersistentVolume returns the sorted names of the
+// CephClusterConnections whose secret pv names, in a CSI secret reference or
+// in the deletion secret annotations of the external-provisioner.
+func connectionsOfPersistentVolume(pv *corev1.PersistentVolume, controllerNamespace string) []string {
+	refs := []*corev1.SecretReference{{
+		Name:      pv.Annotations[provisionerDeletionSecretNameAnnotation],
+		Namespace: pv.Annotations[provisionerDeletionSecretNamespaceAnnotation],
+	}}
+	if csi := pv.Spec.CSI; csi != nil {
+		refs = append(refs, csi.ControllerPublishSecretRef, csi.NodeStageSecretRef, csi.NodePublishSecretRef, csi.ControllerExpandSecretRef, csi.NodeExpandSecretRef)
+	}
+
+	var names []string
+	for _, ref := range refs {
+		if ref == nil || ref.Namespace != controllerNamespace {
+			continue
+		}
+		if name, ok := strings.CutPrefix(ref.Name, internal.CephClusterConnectionSecretPrefix); ok && name != "" && !slices.Contains(names, name) {
+			names = append(names, name)
+		}
+	}
+	slices.Sort(names)
+	return names
+}
+
+func cephStorageClassConnectionHandler() handler.TypedEventHandler[*v1alpha1.CephStorageClass, reconcile.Request] {
+	enqueueConnectionOf := func(cephSC *v1alpha1.CephStorageClass, q workqueue.TypedRateLimitingInterface[reconcile.Request]) {
+		if cephSC.Spec.ClusterConnectionName == "" {
+			return
+		}
+		q.Add(reconcile.Request{NamespacedName: types.NamespacedName{Name: cephSC.Spec.ClusterConnectionName}})
+	}
+
+	return handler.TypedFuncs[*v1alpha1.CephStorageClass, reconcile.Request]{
+		CreateFunc: func(_ context.Context, e event.TypedCreateEvent[*v1alpha1.CephStorageClass], q workqueue.TypedRateLimitingInterface[reconcile.Request]) {
+			enqueueConnectionOf(e.Object, q)
+		},
+		DeleteFunc: func(_ context.Context, e event.TypedDeleteEvent[*v1alpha1.CephStorageClass], q workqueue.TypedRateLimitingInterface[reconcile.Request]) {
+			enqueueConnectionOf(e.Object, q)
+		},
+	}
+}
+
 func RunCephClusterConnectionEventReconcile(ctx context.Context, cl client.Client, log logger.Logger, cephClusterConnection *v1alpha1.CephClusterConnection, controllerNamespace string) (shouldRequeue bool, msg string, err error) {
+	shouldRequeue, msg, _, err = reconcileCephClusterConnection(ctx, cl, cl, log, cephClusterConnection, controllerNamespace)
+	return shouldRequeue, msg, err
+}
+
+// reconcileCephClusterConnection also returns, once the config.json entry of
+// the clusterID is in place, the ClusterConfigConflict messages of every
+// connection the entry was built from, keyed by name.
+//
+// When the cache shows no volume or snapshot holding the secret of a
+// connection being deleted, it reads the PersistentVolumes, VolumeAttachments
+// and VolumeSnapshotContents again through liveReader: the pass may delete
+// the secret, and a volume or snapshot the cache has not seen yet would be
+// left with a secret that no longer exists.
+func reconcileCephClusterConnection(ctx context.Context, cl client.Client, liveReader client.Reader, log logger.Logger, cephClusterConnection *v1alpha1.CephClusterConnection, controllerNamespace string) (shouldRequeue bool, msg string, conflicts map[string]string, err error) {
 	valid, msg := validateCephClusterConnectionSpec(cephClusterConnection)
 	if !valid {
 		err = fmt.Errorf("[RunCephClusterConnectionEventReconcile] CephClusterConnection %s has invalid spec: %s", cephClusterConnection.Name, msg)
-		return false, msg, err
+		return false, msg, conflicts, err
 	}
 	log.Debug(fmt.Sprintf("CephClusterConnection %s has valid spec", cephClusterConnection.Name))
 
 	added, err := addFinalizerIfNotExists(ctx, cl, cephClusterConnection, CephClusterConnectionControllerFinalizerName)
 	if err != nil {
 		err = fmt.Errorf("[RunCephClusterConnectionEventReconcile] unable to add a finalizer %s to the CephClusterConnection %s: %w", CephClusterConnectionControllerFinalizerName, cephClusterConnection.Name, err)
-		return true, err.Error(), err
+		return true, err.Error(), conflicts, err
 	}
 	log.Debug(fmt.Sprintf("finalizer %s was added to the CephClusterConnection %s: %t", CephClusterConnectionControllerFinalizerName, cephClusterConnection.Name, added))
 
@@ -180,34 +316,61 @@ func RunCephClusterConnectionEventReconcile(ctx context.Context, cl client.Clien
 	err = cl.List(ctx, configMapList, client.InNamespace(controllerNamespace))
 	if err != nil {
 		err = fmt.Errorf("[RunCephClusterConnectionEventReconcile] unable to list ConfigMaps in namespace %s: %w", controllerNamespace, err)
-		return true, err.Error(), err
+		return true, err.Error(), conflicts, err
 	}
 
-	shouldRequeue, msg, err = reconcileConfigMap(ctx, cl, log, configMapList, cephClusterConnection, controllerNamespace, internal.CSICephConfigMapName, controllerNamespace)
-	if err != nil || shouldRequeue {
-		return shouldRequeue, msg, err
+	// One snapshot of the volumes for the whole pass: the config.json entry
+	// and the secret of a connection being deleted must agree on whether a
+	// volume still needs that secret, or the entry may keep naming a secret
+	// this pass has just deleted.
+	usage, err := listVolumeUsage(ctx, cl)
+	if err != nil {
+		err = fmt.Errorf("[RunCephClusterConnectionEventReconcile] %w", err)
+		return true, err.Error(), conflicts, err
 	}
+	// Only a pass that would delete the secret needs to see past the cache;
+	// one the cache already holds back waits for the volumes anyway.
+	secretName := internal.CephClusterConnectionSecretPrefix + cephClusterConnection.Name
+	if cephClusterConnection.DeletionTimestamp != nil && !usage.secretNeeded(controllerNamespace, secretName) {
+		usage, err = listVolumeUsage(ctx, liveReader)
+		if err != nil {
+			err = fmt.Errorf("[RunCephClusterConnectionEventReconcile] %w", err)
+			return true, err.Error(), conflicts, err
+		}
+	}
+
+	current := currentClusterConfig(configMapList, internal.CSICephConfigMapName, cephClusterConnection.Spec.ClusterID)
+	desiredClusterConfig, entryConflicts, err := getDesiredClusterConfig(ctx, cl, log, cephClusterConnection, current, usage, controllerNamespace)
+	if err != nil {
+		return true, err.Error(), conflicts, err
+	}
+
+	shouldRequeue, msg, err = reconcileConfigMap(ctx, cl, log, configMapList, cephClusterConnection, desiredClusterConfig, controllerNamespace, internal.CSICephConfigMapName)
+	if err != nil || shouldRequeue {
+		return shouldRequeue, msg, conflicts, err
+	}
+	conflicts = entryConflicts
 
 	secretList := &corev1.SecretList{}
 	err = cl.List(ctx, secretList, client.InNamespace(controllerNamespace))
 	if err != nil {
 		err = fmt.Errorf("[RunCephClusterConnectionEventReconcile] unable to list Secrets in namespace %s: %w", controllerNamespace, err)
-		return true, err.Error(), err
+		return true, err.Error(), conflicts, err
 	}
 
-	shouldRequeue, msg, err = reconcileSecret(ctx, cl, log, secretList, cephClusterConnection, controllerNamespace, internal.CephClusterConnectionSecretPrefix+cephClusterConnection.Name)
+	shouldRequeue, msg, err = reconcileSecret(ctx, cl, log, secretList, cephClusterConnection, usage, controllerNamespace, secretName)
 	if err != nil || shouldRequeue {
-		return shouldRequeue, msg, err
+		return shouldRequeue, msg, conflicts, err
 	}
 
 	if cephClusterConnection.DeletionTimestamp != nil {
 		err = removeFinalizerIfExists(ctx, cl, cephClusterConnection, CephClusterConnectionControllerFinalizerName)
 		if err != nil {
 			err = fmt.Errorf("[RunCephClusterConnectionEventReconcile] unable to remove finalizer from the CephClusterConnection %s: %w", cephClusterConnection.Name, err)
-			return true, err.Error(), err
+			return true, err.Error(), conflicts, err
 		}
 	}
 
 	log.Debug(fmt.Sprintf("finish all reconciliations for CephClusterConnection %q.", cephClusterConnection.Name))
-	return false, msg, nil
+	return false, msg, conflicts, nil
 }
