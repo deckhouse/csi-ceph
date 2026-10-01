@@ -1,0 +1,36 @@
+date: "2026-10-01"
+
+summary: "Several `CephClusterConnection`s to the same Ceph cluster no longer break each other's volumes: RBD volumes detach with the secret of their own connection, a connection is not deleted while volumes or snapshots still need it, and a new condition reports the volumes the shared ceph-csi configuration cannot serve. Ceph CSI is updated to v3.18.0."
+
+highlights:
+  - "RBD volumes detach with the secret of their own `CephClusterConnection`. Before, with two connections to the same Ceph cluster, a detach could run as the user of the other connection, fail with `Operation not permitted` and leave the `VolumeAttachment` behind, blocking the next attach of the volume with `Multi-Attach`."
+  - "A `CephClusterConnection` being deleted keeps its Secret and finalizer while PersistentVolumes or `VolumeSnapshotContent`s still need them, and says so in its `Ready` condition with the reason `PersistentVolumesExist` or `VolumeSnapshotContentsExist`."
+  - "The new `ClusterConfigConflict` condition of `CephClusterConnection` names the volumes that need a Ceph user or a CephFS subvolume group other than the one the shared ceph-csi configuration of their cluster holds."
+
+new_features:
+  - "`CephClusterConnection` has the `ClusterConfigConflict` condition. ceph-csi keeps one configuration entry per Ceph cluster with the user of one connection for RBD and the subvolume group of one connection for CephFS. The condition is `True` with the reason `VolumesNeedOtherSettings` when volumes created through the connection need another user or group than that entry holds, names up to ten such PersistentVolumes and the connection whose settings the entry holds, and is `False` with the reason `ServedByClusterConfig` otherwise. It is set on every connection that shares a Ceph cluster and is updated when the listed volumes change phase or are deleted. Affected are RBD volumes provisioned before this release whose connection has another user (they cannot detach) and CephFS volumes in another subvolume group (they can be mounted but not deleted, expanded or snapshotted)."
+  - "On DKP 1.78 and later the module ships its access roles in the capability/scope RBACv2 scheme: `d8:system-capability:csi-ceph:view` and `d8:system-capability:csi-ceph:edit` for the `CephClusterConnection`, `CephClusterAuthentication`, `CephStorageClass` and `CephMetadataBackup` resources. On earlier DKP versions the `d8:manage:permission:module:csi-ceph:view` and `d8:manage:permission:module:csi-ceph:edit` roles are rendered unchanged."
+
+improvements:
+  - "The module controller no longer keeps `managedFields` of PersistentVolumes and `VolumeAttachment`s in its cache, which holds those of every CSI driver in the cluster, so its memory use grows less with the number of volumes."
+
+fixes:
+  - "Every RBD StorageClass now carries the `csi.storage.k8s.io/controller-publish-secret-name` and `csi.storage.k8s.io/controller-publish-secret-namespace` parameters, so each new RBD PersistentVolume names the Secret of its own `CephClusterConnection` for detach. Before, ceph-csi took the detach Secret from the one configuration entry per Ceph cluster, which the controller overwrote with the connection reconciled last; with two connections to one cluster, for example one for RBD and one for CephFS whose user has no access to the RBD pools, detach failed and the volume could not be attached on another node. For RBD volumes provisioned before the upgrade, which still rely on that entry, the entry keeps the connection whose volumes depend on it, and deleting one connection of a cluster no longer drops the entry the others need."
+  - "Deleting a `CephClusterConnection` no longer leaves its volumes stuck. Before, its Secret was deleted at once, and a volume it had provisioned could then no longer be detached, expanded or deleted. The connection now stays until no PersistentVolume needs its Secret (attached to a node, `Bound` or not yet claimed, or `Released`/`Failed` with the `Delete` reclaim policy) and no `VolumeSnapshotContent` with the `Delete` deletion policy refers to it. Its `Ready` condition is `False` with the reason `PersistentVolumesExist` or, when only snapshots are left, `VolumeSnapshotContentsExist`, and the message names up to ten of them. A `Released` or `Failed` PersistentVolume with the `Retain` policy that is attached nowhere does not hold the connection, so an `ElasticCluster` teardown in sds-elastic is not blocked by such a volume. The connection goes as soon as its last volume or snapshot is gone."
+  - "The CephFS subvolume group of the shared ceph-csi configuration entry no longer moves to the group of another `CephClusterConnection` once a second connection to the same cluster creates its first CephFS volume. Before, the CephFS volumes created earlier could then no longer be deleted or expanded. The group now follows the `subvolumePath` of the existing volumes, and the monitors of the entry are those of all connections to the cluster."
+
+upgrade_notes:
+  - "The controller recreates every existing RBD StorageClass once to add the controller-publish secret parameters; `parameters` of a StorageClass are immutable in Kubernetes. Existing PersistentVolumes and PVCs are not affected: only volumes provisioned after the upgrade carry the detach Secret, and older RBD volumes keep detaching through the shared ceph-csi configuration entry."
+  - "After the upgrade, check `ClusterConfigConflict` on clusters with several `CephClusterConnection`s to the same Ceph cluster; the FAQ gives the command that lists the affected connections and explains how to let the listed RBD volumes detach by granting the user of the connection the entry holds access to their pools."
+  - "Deleting a `CephClusterConnection` now waits for the PersistentVolumes and `VolumeSnapshotContent`s that need its Secret. Delete them, or the `VolumeSnapshot`s of the listed contents, for the deletion to finish. The controller is granted read access to PersistentVolumes, `VolumeAttachment`s and `VolumeSnapshotContent`s for this."
+  - "On DKP 1.78 and later the `d8:manage:permission:module:csi-ceph:*` ClusterRoles are replaced by `d8:system-capability:csi-ceph:*`. Access granted through the Deckhouse role aggregation keeps working; a binding created by hand to one of the old role names has to be moved to the new name."
+
+docs:
+  - "The FAQ explains why a `CephClusterConnection` is not deleted and which PersistentVolumes and `VolumeSnapshotContent`s hold it, and what the `ClusterConfigConflict` condition means, how to find the affected connections and how to let the listed RBD volumes detach."
+
+dependencies:
+  - name: ceph-csi
+    from: "3.16.3"
+    to: "3.18.0"
+    changelog_url: "https://github.com/ceph/ceph-csi/releases/tag/v3.18.0"
+    notes: "Upstream already ships the dependency updates that our CVE patch carried, so that patch is dropped; the two functional patches, including the ext4 superuser reserve, are rebased without changes in behaviour."
