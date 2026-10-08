@@ -81,9 +81,46 @@ shell:
     - cp _output/cephcsi /{{ $.ImageName }}
 
 ---
-image: {{ .ModuleNamePrefix }}{{ .ImageName }}
+image: {{ .ModuleNamePrefix }}{{ .ImageName }}-runtime-artifact
 from: {{ index $.Images "builder/distroless" }}
+final: false
+shell:
+  setup:
+    - |
+      pm install --rootDir /relocate \
+        gnu-glibc \
+        coreutils \
+        util-linux \
+        e2fsprogs \
+        xfsprogs \
+        kmod \
+        libfuse \
+        librbd \
+        libcephfs \
+        rbd \
+        cephfs
+    - mkdir -p /relocate/etc
+    - if [ -x /relocate/sbin/ldconfig ]; then chroot /relocate /sbin/ldconfig; fi
+    # The ceph client packages pull python transitively (ceph-common), which
+    # bundles pip + setuptools. Those are build-time tools, unused at runtime in
+    # the CSI node plugin, and their metadata trips the CVE scanner (e.g. pip
+    # CVE-2026-6357 / CVE-2026-3219). Remove them.
+    - |
+      rm -rf /relocate/usr/lib/python*/site-packages/pip \
+             /relocate/usr/lib/python*/site-packages/pip-*.dist-info \
+             /relocate/usr/lib/python*/site-packages/setuptools \
+             /relocate/usr/lib/python*/site-packages/setuptools-*.dist-info \
+             /relocate/usr/lib/python*/site-packages/pkg_resources \
+             /relocate/usr/bin/pip /relocate/usr/bin/pip3 /relocate/usr/bin/pip3.* 2>/dev/null || true
+
+---
+image: {{ .ModuleNamePrefix }}{{ .ImageName }}
+from: {{ index $.Images "base/distroless" }}
 import:
+  - image: {{ .ModuleNamePrefix }}{{ .ImageName }}-runtime-artifact
+    add: /relocate
+    to: /
+    before: setup
   - image: {{ .ModuleNamePrefix }}{{ .ImageName }}-golang-artifact
     add: /{{ $.ImageName }}
     to: /{{ $.ImageName }}
@@ -105,32 +142,6 @@ import:
     before: setup
 git:
 {{- include "image mount points" . }}
-shell:
-  setup:
-    - |
-      pm install \
-        gnu-glibc \
-        coreutils \
-        util-linux \
-        e2fsprogs \
-        xfsprogs \
-        kmod \
-        libfuse \
-        librbd \
-        libcephfs \
-        rbd \
-        cephfs
-    # The ceph client packages pull python transitively (ceph-common), which
-    # bundles pip + setuptools. Those are build-time tools, unused at runtime in
-    # the CSI node plugin, and their metadata trips the CVE scanner (e.g. pip
-    # CVE-2026-6357 / CVE-2026-3219). Remove them.
-    - |
-      rm -rf /usr/lib/python*/site-packages/pip \
-             /usr/lib/python*/site-packages/pip-*.dist-info \
-             /usr/lib/python*/site-packages/setuptools \
-             /usr/lib/python*/site-packages/setuptools-*.dist-info \
-             /usr/lib/python*/site-packages/pkg_resources \
-             /usr/bin/pip /usr/bin/pip3 /usr/bin/pip3.* 2>/dev/null || true
 imageSpec:
   config:
     entrypoint: ["/{{ $.ImageName }}"]
