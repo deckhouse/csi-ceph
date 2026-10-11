@@ -25,7 +25,7 @@ memory: 50Mi
 
 {{- define "rbd_csi_controller_args" }}
 - "--type=controller"
-- "--v=5"
+- "--v={{ include "csi_ceph_klog_verbosity" . }}"
 - "--drivername=$(DRIVER_NAME)"
 - "--drivernamespace=$(DRIVER_NAMESPACE)"
 {{- end }}
@@ -110,6 +110,7 @@ memory: 50Mi
 {{- define "rbd_csi_additional_containers" }}
 {{- $csiDriverName := index . 0 }}
 {{- $csiControllerImage := index . 1 }}
+{{- $context := index . 2 }}
 - name: rbdplugin
   image: {{ $csiControllerImage }}
   args:
@@ -118,7 +119,7 @@ memory: 50Mi
     - "--controllerserver=true"
     - "--pidlimit=-1"
     - "--endpoint=$(CSI_ENDPOINT)"
-    - "--v=5"
+    - "--v={{ include "csi_ceph_klog_verbosity" $context }}"
     - "--drivername=$(DRIVER_NAME)"
     - "--rbdhardmaxclonedepth=8"
     - "--rbdsoftmaxclonedepth=4"
@@ -193,7 +194,7 @@ memory: 50Mi
 - "--nodeserver=true"
 - "--pidlimit=-1"
 - "--endpoint=$(CSI_ENDPOINT)"
-- "--v=5"
+- "--v={{ include "csi_ceph_klog_verbosity" . }}"
 - "--drivername=$(DRIVER_NAME)"
 {{- end }}
 
@@ -317,7 +318,7 @@ memory: 50Mi
 {{- $_ := set $csiControllerConfig "additionalControllerVolumes" (include "rbd_csi_controller_volumes" . | fromYamlArray) }}
 {{- $_ := set $csiControllerConfig "additionalControllerVolumeMounts" (include "rbd_csi_controller_volume_mounts" . | fromYamlArray) }}
 {{- $_ := set $csiControllerConfig "additionalControllerVPA" (include "additional_controller_vpa" . | fromYamlArray) }}
-{{- $_ := set $csiControllerConfig "additionalContainers" (include "rbd_csi_additional_containers" (list $csiDriverName $csiControllerImage) | fromYamlArray) }}
+{{- $_ := set $csiControllerConfig "additionalContainers" (include "rbd_csi_additional_containers" (list $csiDriverName $csiControllerImage .) | fromYamlArray) }}
 {{- $_ := set $csiControllerConfig "runAsRootUser" false }}
 {{- $_ := set $csiControllerConfig "additionalPullSecrets" (include "additional_pull_secrets" . | fromYamlArray) }}
 {{- $_ := set $csiControllerConfig "provisionerWorkers" $rbdProvisionerWorkers }}

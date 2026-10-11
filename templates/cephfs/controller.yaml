@@ -19,7 +19,7 @@
 - "--controllerserver=true"
 - "--pidlimit=-1"
 - "--endpoint=$(CSI_ENDPOINT)"
-- "--v=5"
+- "--v={{ include "csi_ceph_klog_verbosity" . }}"
 - "--drivername=$(DRIVER_NAME)"
 {{- end }}
 
@@ -125,7 +125,7 @@
 - "--nodeserver=true"
 - "--pidlimit=-1"
 - "--endpoint=$(CSI_ENDPOINT)"
-- "--v=5"
+- "--v={{ include "csi_ceph_klog_verbosity" . }}"
 - "--drivername=$(DRIVER_NAME)"
 {{- end }}
 
