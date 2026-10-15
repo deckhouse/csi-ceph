@@ -71,7 +71,7 @@ secrets:
 
 shell:
   install:
-    - pm install make gnu-gcc gnu-glibc-devel git pkgconf ceph-devel librbd libcephfs{{ if ne .SVACE_ENABLED "false" }} svace rsync ssh-static{{ end }}
+    - pm install make gcc glibc-devel libatomic-devel git pkgconf ceph-devel librbd libcephfs{{ if ne .SVACE_ENABLED "false" }} svace rsync openssh{{ end }}
   setup:
     - export GOPROXY=$(cat /run/secrets/GOPROXY)
     - cd /src/ceph-csi
@@ -87,10 +87,21 @@ final: false
 shell:
   setup:
     - |
-      pm install --rootDir /relocate \
-        gnu-glibc \
+      pm install -n --rootDir /relocate \
+        glibc \
         coreutils \
         util-linux \
+        mount \
+        umount \
+        blkid \
+        blockdev \
+        findmnt \
+        losetup \
+        lsblk \
+        wipefs \
+        fstrim \
+        sfdisk \
+        partx \
         e2fsprogs \
         xfsprogs \
         kmod \
@@ -124,21 +135,6 @@ import:
   - image: {{ .ModuleNamePrefix }}{{ .ImageName }}-golang-artifact
     add: /{{ $.ImageName }}
     to: /{{ $.ImageName }}
-    before: setup
-  # libcephfs (loaded by cephcsi) -> libboost_charconv -> libquadmath.so.0.
-  # libquadmath ships only inside the heavy gnu-gcc compiler package and has no
-  # standalone runtime package in the container-base catalog, so `pm install`
-  # cannot resolve it and cephcsi fails at startup with
-  # "libquadmath.so.0: cannot open shared object file". The glibc build stage
-  # already has gnu-gcc installed, so copy just the runtime lib (and its SONAME
-  # symlink) from there.
-  - image: {{ .ModuleNamePrefix }}{{ .ImageName }}-golang-artifact
-    add: /usr/lib64/libquadmath.so.0.0.0
-    to: /usr/lib64/libquadmath.so.0.0.0
-    before: setup
-  - image: {{ .ModuleNamePrefix }}{{ .ImageName }}-golang-artifact
-    add: /usr/lib64/libquadmath.so.0
-    to: /usr/lib64/libquadmath.so.0
     before: setup
 git:
 {{- include "image mount points" . }}
