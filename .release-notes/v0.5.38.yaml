@@ -1,0 +1,12 @@
+date: "2026-10-19"
+
+summary: "The ceph-csi drivers and the CSI sidecars log at the verbosity set by the module `logLevel` instead of always at trace level."
+
+highlights:
+  - "The ceph-csi RBD and CephFS plugins and the CSI sidecars of the module take their klog verbosity from `logLevel` in the ModuleConfig of `csi-ceph`. With the default `INFO` they run with `--v=2` instead of `--v=5`, so their logs shrink considerably."
+
+improvements:
+  - "The klog verbosity of the ceph-csi RBD and CephFS plugins (controller and node) and of the CSI sidecars follows `logLevel`: `ERROR` gives `--v=0`, `WARN` `--v=1`, `INFO` (the default) `--v=2`, `DEBUG` `--v=4` and `TRACE` `--v=5`. Before, all of them ran with `--v=5` whatever `logLevel` said."
+
+upgrade_notes:
+  - "The ceph-csi and CSI sidecar Pods restart once to pick up the new arguments. To keep the previous trace-level logs, set `logLevel: TRACE` in the ModuleConfig of `csi-ceph`."
