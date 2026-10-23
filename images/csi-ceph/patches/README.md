@@ -24,3 +24,8 @@ Appending keeps it, and `mkfs.ext4` honours the last `-m` on the command line.
 The annotation key is spelled out here instead of coming from
 `sds-common-lib/fsreserve`, because this file is upstream code that cannot
 import our modules. Keep the two in sync.
+
+## 004-Fix-CVE.patch
+
+Fix CVE: bump golang.org/x/net to v0.60.0 (CVE-2026-78669) and re-vendor.
+The tag already ships golang.org/x/text v0.42.0.

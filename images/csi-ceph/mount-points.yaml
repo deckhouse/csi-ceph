@@ -2,8 +2,8 @@ dirs:
   - /var/lib/kubelet
   - /csi
   - /dev
-  - /etc/ceph/
-  - /etc/ceph-csi-config/
+  - /etc/ceph
+  - /etc/ceph-csi-config
   - /etc/selinux
   - /lib/modules
   - /run/mount

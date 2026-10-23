@@ -1,6 +1,7 @@
 module github.com/deckhouse/csi-ceph/images/webhooks
 
-go 1.27.2
+go 1.27.3
+
 require (
 	github.com/deckhouse/sds-common-lib v0.15.0
 	github.com/slok/kubewebhook/v2 v2.7.0
@@ -21,8 +22,8 @@ require (
 	github.com/modern-go/reflect2 v1.0.3-0.20250322232337-35a7c28c31ee // indirect
 	github.com/x448/float16 v0.8.4 // indirect
 	go.yaml.in/yaml/v2 v2.4.3 // indirect
-	golang.org/x/net v0.56.0 // indirect
-	golang.org/x/text v0.39.0 // indirect
+	golang.org/x/net v0.60.0 // indirect
+	golang.org/x/text v0.42.0 // indirect
 	gomodules.xyz/jsonpatch/v2 v2.5.0 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect

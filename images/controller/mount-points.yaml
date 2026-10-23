@@ -3,6 +3,6 @@ dirs:
   - /csi
   - /etc/selinux
   - /lib/modules
-  - /etc/ceph-csi-config/
+  - /etc/ceph-csi-config
   - /tmp/csi/keys
-  - /etc/ceph/
+  - /etc/ceph

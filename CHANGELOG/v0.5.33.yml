@@ -1,5 +1,5 @@
 Changes:
-  - Bugfix: the controller is granted patch on events instead of list - a repeated event write is no longer denied by RBAC
+  - "Bugfix: the controller is granted patch on events instead of list - a repeated event write is no longer denied by RBAC"
   - CVE fixes
   - Base images updated to v2.1.2, Go to 1.26.6 and lib-helm to 1.72.14
-  - Internal build changes: CI updated, crds, docs and openapi are shipped in the release image
+  - "Internal build changes: CI updated, crds, docs and openapi are shipped in the release image"

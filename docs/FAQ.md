@@ -77,6 +77,7 @@ For a user that needs access to both CephFS `myfs` and RBD pool `rbd`, combine t
         caps mon = "allow r fsname=myfs,profile rbd"
         caps osd = "allow rw tag cephfs metadata=myfs, allow rw tag cephfs data=myfs,profile rbd pool=rbd"
 ```
+
 ## How much of a volume is reserved for the superuser?
 
 Nothing, by default: an RBD image formatted with ext4 gets `-m0`, so the whole volume is available to the workload.

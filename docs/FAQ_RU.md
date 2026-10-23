@@ -77,6 +77,7 @@ ceph fs subvolumegroup create myfs csi
         caps mon = "allow r fsname=myfs,profile rbd"
         caps osd = "allow rw tag cephfs metadata=myfs, allow rw tag cephfs data=myfs,profile rbd pool=rbd"
 ```
+
 ## Сколько места тома резервируется под суперпользователя?
 
 По умолчанию — нисколько: RBD-образ с ext4 форматируется с `-m0`, весь объём тома доступен нагрузке.
