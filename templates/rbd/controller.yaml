@@ -139,10 +139,9 @@ memory: 50Mi
   - name: CSI_ENDPOINT
     value: "unix:///csi/csi.sock"
   securityContext:
-    privileged: true
     capabilities:
-      add: ["SYS_ADMIN"]
-    allowPrivilegeEscalation: true
+      drop: ["ALL"]
+    allowPrivilegeEscalation: false
     readOnlyRootFilesystem: true
     seccompProfile:
       type: RuntimeDefault
@@ -325,6 +324,7 @@ memory: 50Mi
 {{- $_ := set $csiControllerConfig "additionalCsiControllerPodAnnotations" (dict "checksum/ceph-config" $cephConfigChecksum) }}
 
 {{- $_ := set $csiControllerConfig "livenessProbePort" 4247 }}
+{{- $_ := set $csiControllerConfig "securityPolicyExceptionEnabled" true }}
 
 {{- include "helm_lib_csi_controller_manifests" (list . $csiControllerConfig) }}
 
@@ -349,6 +349,7 @@ memory: 50Mi
 {{- $_ := set $csiNodeConfig "additionalNodeVolumeMounts" (include "rbd_csi_node_volume_mounts" . | fromYamlArray) }}
 {{- $_ := set $csiNodeConfig "additionalPullSecrets" (include "additional_pull_secrets" . | fromYamlArray) }}
 {{- $_ := set $csiNodeConfig "forceCsiNodeAndStaticNodesDepoloy" true }}
+{{- $_ := set $csiNodeConfig "securityPolicyExceptionEnabled" true }}
 {{- $_ := set $csiNodeConfig "additionalCsiNodePodAnnotations" (dict "checksum/ceph-config" $cephConfigChecksum) }}
 
 {{- include "helm_lib_csi_node_manifests" (list . $csiNodeConfig) }}
