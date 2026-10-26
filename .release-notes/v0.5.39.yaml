@@ -1,0 +1,17 @@
+date: "2026-10-26"
+
+summary: "The RBD and CephFS CSI controllers and node plugins come with the `SecurityPolicyException`s that DKP 1.79 requires for system Pods, the RBD controller plugin no longer runs privileged, and the module images no longer carry the reported Go dependency vulnerabilities."
+
+highlights:
+  - "The module ships a `SecurityPolicyException` for each of the RBD and CephFS CSI controllers and node plugins in `d8-csi-ceph`, so these Pods keep starting once DKP 1.79 switches the Pod Security Standards of system namespaces from warning to denial."
+  - "The `rbdplugin` container of the RBD CSI controller runs unprivileged, without `SYS_ADMIN` and with all capabilities dropped."
+
+improvements:
+  - "The RBD and CephFS CSI controller Deployments and node DaemonSets get a `SecurityPolicyException` that describes each privilege they need beyond the restricted profile, and their Pods carry the `security.deckhouse.io/security-policy-exception` label pointing to it. The objects are rendered only when the `SecurityPolicyException` resource is available in the cluster (the `admission-policy-engine-crd` module is enabled); on earlier platforms nothing changes."
+
+security:
+  - "The `rbdplugin` container of the RBD CSI controller no longer runs with `privileged: true` and the `SYS_ADMIN` capability: it drops all capabilities and sets `allowPrivilegeEscalation: false`. The controller only talks to the Ceph cluster and never maps or mounts an image, and upstream ceph-csi runs this container unprivileged as well. The RBD and CephFS node plugins are unchanged."
+  - "Go dependencies of the ceph-csi binary, the module controller, the webhooks and the hooks are updated, which clears CVE-2026-78669, CVE-2026-78659, CVE-2026-78660, CVE-2026-78663, CVE-2026-97032, CVE-2026-56851, CVE-2026-63209 and CVE-2026-85747 from scans of the module images."
+
+upgrade_notes:
+  - "Nothing has to be done by hand. The RBD CSI controller Pods restart once because of the new security context; where the `SecurityPolicyException` resource is available, the RBD and CephFS CSI controller and node plugin Pods restart once as well to get the new label."
