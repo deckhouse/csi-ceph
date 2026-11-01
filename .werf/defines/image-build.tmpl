@@ -1,6 +1,6 @@
 {{- define "image-build.build" }}
 {{-   if eq .SVACE_ENABLED "true" }}
-svace build --init --clear-build-dir {{ .BuildCommand }}
+svace build --init --clear-build-dir --enable-ptrace {{ .BuildCommand }}
 attempt=0
 retries=5
 success=0
