@@ -21,13 +21,14 @@
 module csi-ceph-codegen-tools
 
 go 1.27.3
+
 tool (
 	github.com/deckhouse/deckhouse/pkg/crd-enricher/cmd/crd-enricher
 	sigs.k8s.io/controller-tools/cmd/controller-gen
 )
 
 require (
-	github.com/deckhouse/deckhouse/pkg/crd-enricher v0.0.3-0.20260825165152-c9d98f54c23d // indirect
+	github.com/deckhouse/deckhouse/pkg/crd-enricher v0.0.3-0.20261101060602-bd2c59c6fec4 // indirect
 	github.com/fatih/color v1.18.0 // indirect
 	github.com/fxamacker/cbor/v2 v2.7.0 // indirect
 	github.com/go-logr/logr v1.4.2 // indirect
