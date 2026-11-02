@@ -23,6 +23,8 @@ import (
 	"os"
 
 	storagev1 "k8s.io/api/storage/v1"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 
 	"github.com/deckhouse/csi-ceph/images/webhooks/handlers"
 	"github.com/deckhouse/sds-common-lib/logger"
@@ -54,8 +56,9 @@ func initFlags() config {
 }
 
 const (
-	port          = ":8443"
-	SCValidatorID = "SCValidator"
+	port           = ":8443"
+	SCValidatorID  = "SCValidator"
+	CSCValidatorID = "CSCValidator"
 )
 
 func main() {
@@ -78,8 +81,26 @@ func main() {
 		os.Exit(1)
 	}
 
+	restCfg, err := rest.InClusterConfig()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error reading the in-cluster config: %s", err)
+		os.Exit(1)
+	}
+	cl, err := kubernetes.NewForConfig(restCfg)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error creating the Kubernetes client: %s", err)
+		os.Exit(1)
+	}
+
+	cscValidatingWebhookHandler, err := handlers.GetValidatingWebhookHandler(handlers.CSCValidate(cl), CSCValidatorID, nil, kwhLog)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error creating cscValidatingWebhookHandler: %s", err)
+		os.Exit(1)
+	}
+
 	mux := http.NewServeMux()
 	mux.Handle("/sc-validate", scValidatingWebhookHandler)
+	mux.Handle("/csc-validate", cscValidatingWebhookHandler)
 	mux.HandleFunc("/healthz", httpHandlerHealthz)
 
 	log.Info("listening", "address", port)

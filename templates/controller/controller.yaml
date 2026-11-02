@@ -50,3 +50,12 @@
   "rules" (list (dict "apiGroups" (list "storage.k8s.io") "apiVersions" (list "v1") "operations" (list "*") "resources" (list "storageclasses") "scope" "Cluster"))
 }}
 {{ include "helm_lib_module_validating_webhook_configuration" (list . $webhookConfig) }}
+
+{{- $cscWebhookConfig := dict
+  "name" "csc-validation"
+  "webhookName" "csc-validation"
+  "valuesKey" "csiCeph"
+  "path" "/csc-validate"
+  "rules" (list (dict "apiGroups" (list "storage.deckhouse.io") "apiVersions" (list "v1alpha1") "operations" (list "CREATE") "resources" (list "cephstorageclasses") "scope" "Cluster"))
+}}
+{{ include "helm_lib_module_validating_webhook_configuration" (list . $cscWebhookConfig) }}
