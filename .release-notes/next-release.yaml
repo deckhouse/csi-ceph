@@ -7,6 +7,9 @@ highlights: []
 improvements:
   - "A CephStorageClass can no longer be created under the name of a StorageClass that belongs to another provisioner. The module names its StorageClass after the CephStorageClass, so such a resource used to be created and then stay `Failed`; the webhook now rejects it at creation and names the StorageClass that holds the name."
 
+docs:
+  - "The FAQ explains why an RBD volume fails to map with `map failed: (13) Permission denied` after its Pod moves from a failed node: the Ceph user is not allowed to blocklist the old lock owner. It shows the matching `dmesg` lines, the mon caps the user needs (`profile rbd` or `allow command \"osd blocklist\"`, not the pre-Ceph 16 `osd blacklist`) and how to remove a stuck lock by hand. The RBD caps example says why `profile rbd` is needed in the mon caps."
+
 # Optional sections — delete rather than leave empty.
 # new_features: []
 # improvements: []

@@ -38,6 +38,8 @@ For a single pool named `rbd`, the following permissions are required:
         caps osd = "profile rbd pool=rbd"
 ```
 
+`profile rbd` in the mon caps lets the user add other Ceph clients to the OSD blocklist. A node needs this to map an RBD volume whose previous node went down or was rebooted: the kernel RBD client blocklists the old owner of the volume's exclusive lock before taking the lock. Without it the Pod does not start on the new node, as described in the question about `Permission denied` below. If the mon caps list individual commands instead of the profile, they must include `allow command "osd blocklist"`; the name `osd blacklist` used before Ceph 16 is not enough.
+
 ### CephFS
 
 Before configuring CephFS permissions, ensure that a subvolumegroup `csi` (or another one specified in `Custom resources`) is created in CephFS.
@@ -126,3 +128,43 @@ ceph auth caps client.<user> mon '<current mon caps>' osd '<current osd caps>, p
 ```
 
 A listed volume whose data is no longer needed can be deleted instead.
+
+## Why does an RBD volume fail to map with `Permission denied` after its Pod moved to another node?
+
+An RBD volume is mapped under an exclusive lock held by one node. When a Pod moves from a node that went down or was rebooted, the lock is still held by the Ceph client of that node, so the kernel RBD client on the new node breaks it: it adds the old client to the OSD blocklist, so that the old client can no longer write, and then takes the lock. If the Ceph user of the `CephClusterConnection` is not allowed to blocklist clients, the volume is not mapped and the Pod stays in `ContainerCreating`. Its events show:
+
+```text
+rbd: map failed: (13) Permission denied
+```
+
+and the kernel log (`dmesg`) of the new node shows:
+
+```text
+breaking header lock owned by client<N>
+failed to blocklist client<N>: -13
+failed to acquire lock: -13
+```
+
+Check the caps of the user:
+
+```shell
+ceph auth get client.<user>
+```
+
+The mon caps must include `profile rbd` or `allow command "osd blocklist"`. Caps that allow only `osd blacklist`, the name of the command before Ceph 16, do not let the kernel blocklist a client. `ceph auth caps` replaces all the caps of a user, so repeat the current caps of every type the user has (mon, osd, mgr, mds) and add the missing one to mon:
+
+```shell
+ceph auth caps client.<user> mon '<current mon caps>, profile rbd' osd '<current osd caps>' mgr '<current mgr caps>'
+```
+
+Kubernetes keeps retrying to map the volume, so the Pod starts on its own once the caps are fixed.
+
+If the caps cannot be changed right away, the lock can be removed by hand. Do it only when the old node is powered off or no longer uses the volume: otherwise two nodes write to the same image and corrupt its filesystem. The next move of a Pod from a failed node will fail the same way until the caps are fixed.
+
+```shell
+d8 k get pv <PV name> -o jsonpath='{.spec.csi.volumeAttributes.pool}/{.spec.csi.volumeAttributes.imageName}{"\n"}'
+rbd lock ls <pool>/<image>
+rbd lock rm <pool>/<image> '<ID>' <Locker>
+```
+
+Take `<ID>` and `<Locker>` from the `rbd lock ls` output; the ID of an exclusive lock contains a space, so quote it.
