@@ -82,11 +82,11 @@ func shouldPublishStatus(obj metav1.Object, reconcileErr error, shouldRequeue bo
 // when the StorageClass itself needs no change.
 //
 // "Known to have failed" is the operative part. The caller turns a true here
-// into internal.UpdateReconcile, whose only implementation is
-// recreateStorageClass — a delete followed by a create. An absent Ready
-// condition is not a failure: it is what every object written before this module
-// published conditions looks like, and treating it as one would delete and
-// recreate a StorageClass that is already correct on every upgrade.
+// into internal.UpdateReconcile, which recreates the StorageClass — a delete
+// followed by a create — whenever its spec differs. An absent Ready condition is
+// not a failure: it is what every object written before this module published
+// conditions looks like, and treating it as one would send every StorageClass
+// through that path on every upgrade.
 //
 // The phase is consulted only for those pre-conditions objects, so that ones
 // that did fail before the upgrade are still picked up. Once the condition

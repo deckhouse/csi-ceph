@@ -85,7 +85,7 @@ var _ = Describe("CephStorageClass label propagation filtering", func() {
 		Expect(sc.Labels).To(HaveKeyWithValue("team", "storage"))
 		Expect(sc.Labels).To(HaveKeyWithValue("workload", "prod"))
 		Expect(sc.Labels).To(HaveKeyWithValue("some/team", "infra"))
-		Expect(sc.Labels).To(HaveKeyWithValue(internal.StorageManagedLabelKey, controller.CephStorageClassCtrlName))
+		Expect(sc.Labels).To(HaveKeyWithValue(internal.StorageManagedLabelKey, controller.StorageClassManagedByValue))
 	})
 
 	It("filters labels matching system and user prefixes", func() {
@@ -105,7 +105,7 @@ var _ = Describe("CephStorageClass label propagation filtering", func() {
 		Expect(err).NotTo(HaveOccurred())
 
 		Expect(sc.Labels).To(HaveKeyWithValue("team", "storage"))
-		Expect(sc.Labels).To(HaveKeyWithValue(internal.StorageManagedLabelKey, controller.CephStorageClassCtrlName))
+		Expect(sc.Labels).To(HaveKeyWithValue(internal.StorageManagedLabelKey, controller.StorageClassManagedByValue))
 
 		for _, key := range []string{
 			"app.kubernetes.io/managed-by",
@@ -130,7 +130,7 @@ var _ = Describe("CephStorageClass label propagation filtering", func() {
 		sc, err := controller.ConfigureStorageClass(cephSC, controllerNamespace, clusterID, ignoredPrefixesUnion())
 		Expect(err).NotTo(HaveOccurred())
 
-		Expect(sc.Labels).To(HaveKeyWithValue(internal.StorageManagedLabelKey, controller.CephStorageClassCtrlName))
+		Expect(sc.Labels).To(HaveKeyWithValue(internal.StorageManagedLabelKey, controller.StorageClassManagedByValue))
 		Expect(sc.Labels).To(HaveKeyWithValue("team", "storage"))
 	})
 
@@ -144,7 +144,7 @@ var _ = Describe("CephStorageClass label propagation filtering", func() {
 		Expect(err).NotTo(HaveOccurred())
 
 		Expect(sc.Labels).To(HaveLen(1))
-		Expect(sc.Labels).To(HaveKeyWithValue(internal.StorageManagedLabelKey, controller.CephStorageClassCtrlName))
+		Expect(sc.Labels).To(HaveKeyWithValue(internal.StorageManagedLabelKey, controller.StorageClassManagedByValue))
 	})
 
 	It("treats an empty prefix in the ignored list as a no-op", func() {
@@ -156,7 +156,7 @@ var _ = Describe("CephStorageClass label propagation filtering", func() {
 		Expect(err).NotTo(HaveOccurred())
 
 		Expect(sc.Labels).To(HaveKeyWithValue("team", "storage"))
-		Expect(sc.Labels).To(HaveKeyWithValue(internal.StorageManagedLabelKey, controller.CephStorageClassCtrlName))
+		Expect(sc.Labels).To(HaveKeyWithValue(internal.StorageManagedLabelKey, controller.StorageClassManagedByValue))
 	})
 
 	It("propagates all CephSC labels when no prefixes are provided", func() {
@@ -170,6 +170,6 @@ var _ = Describe("CephStorageClass label propagation filtering", func() {
 
 		Expect(sc.Labels).To(HaveKeyWithValue("argocd.argoproj.io/x", "1"))
 		Expect(sc.Labels).To(HaveKeyWithValue("team", "storage"))
-		Expect(sc.Labels).To(HaveKeyWithValue(internal.StorageManagedLabelKey, controller.CephStorageClassCtrlName))
+		Expect(sc.Labels).To(HaveKeyWithValue(internal.StorageManagedLabelKey, controller.StorageClassManagedByValue))
 	})
 })

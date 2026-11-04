@@ -41,8 +41,11 @@ import (
 )
 
 const (
-	// This value used as a name for the controller AND the value for managed-by label.
 	CephStorageClassCtrlName = "d8-ceph-storage-class-controller"
+
+	// StorageClassManagedByValue is the value of the managed-by label on the
+	// StorageClasses the module creates: the name of the module.
+	StorageClassManagedByValue = "csi-ceph"
 
 	StorageClassKind       = "StorageClass"
 	StorageClassAPIVersion = "storage.k8s.io/v1"

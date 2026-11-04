@@ -241,6 +241,31 @@ func reconcileStorageClassUpdateFunc(
 	log.Trace(fmt.Sprintf("new storage class: %+v", newSC))
 	log.Trace(fmt.Sprintf("old storage class: %+v", oldSC))
 
+	specDiff, err := getSCSpecDiff(oldSC, newSC)
+	if err != nil {
+		err = fmt.Errorf("[reconcileStorageClassUpdateFunc] unable to compare the Storage Class %s: %w", newSC.Name, err)
+		return true, err.Error(), err
+	}
+
+	if specDiff == "" {
+		metadataDiff := getSCMetadataDiff(oldSC, newSC)
+		if metadataDiff == "" {
+			log.Debug(fmt.Sprintf("a Storage Class %s is up to date", newSC.Name))
+			return false, "Successfully updated", nil
+		}
+
+		log.Debug(fmt.Sprintf("a Storage Class %s differs only in metadata: %s", newSC.Name, metadataDiff))
+		err = updateStorageClassMetadata(ctx, cl, oldSC, newSC)
+		if err != nil {
+			err = fmt.Errorf("[reconcileStorageClassUpdateFunc] unable to update the metadata of a Storage Class %s: %w", newSC.Name, err)
+			return true, err.Error(), err
+		}
+
+		log.Info(fmt.Sprintf("the metadata of a Storage Class %s was successfully updated", newSC.Name))
+		return false, "Successfully updated", nil
+	}
+
+	log.Debug(fmt.Sprintf("a Storage Class %s has to be recreated: %s", newSC.Name, specDiff))
 	err = recreateStorageClass(ctx, cl, oldSC, newSC)
 	if err != nil {
 		err = fmt.Errorf("[reconcileStorageClassUpdateFunc] unable to recreate a Storage Class %s: %w", newSC.Name, err)
@@ -334,7 +359,7 @@ func ConfigureStorageClass(cephSC *storagev1alpha1.CephStorageClass, controllerN
 	}
 
 	sc.Labels = filterLabelsForStorageClass(cephSC.Labels, ignoredLabelPrefixes)
-	sc.Labels[internal.StorageManagedLabelKey] = CephStorageClassCtrlName
+	sc.Labels[internal.StorageManagedLabelKey] = StorageClassManagedByValue
 
 	return sc, nil
 }
@@ -493,7 +518,23 @@ func createStorageClassIfNotExists(ctx context.Context, cl client.Client, scList
 	return true, err
 }
 
+// GetSCDiff describes the first difference between the StorageClass in the
+// cluster and the one built from the CephStorageClass, or returns "" when there
+// is none.
 func GetSCDiff(oldSC, newSC *v1.StorageClass) (string, error) {
+	diff, err := getSCSpecDiff(oldSC, newSC)
+	if err != nil || diff != "" {
+		return diff, err
+	}
+
+	return getSCMetadataDiff(oldSC, newSC), nil
+}
+
+// getSCSpecDiff compares the fields outside the metadata. A difference there is
+// applied by recreating the StorageClass: the API server refuses to change
+// parameters, provisioner, reclaimPolicy and volumeBindingMode of an existing
+// one.
+func getSCSpecDiff(oldSC, newSC *v1.StorageClass) (string, error) {
 	if oldSC.Provisioner != newSC.Provisioner {
 		err := fmt.Errorf("CephStorageClass %q: the provisioner field is different in the StorageClass %q", newSC.Name, oldSC.Name)
 		return "", err
@@ -524,22 +565,44 @@ func GetSCDiff(oldSC, newSC *v1.StorageClass) (string, error) {
 		return diff, nil
 	}
 
+	return "", nil
+}
+
+// getSCMetadataDiff compares the metadata the controller manages, which
+// updateStorageClassMetadata applies in place. Finalizers set by others are not
+// a difference: only a missing finalizer of this controller is.
+func getSCMetadataDiff(oldSC, newSC *v1.StorageClass) string {
 	if !cmp.Equal(oldSC.Labels, newSC.Labels) {
-		diff := fmt.Sprintf("Labels: %+v -> %+v", oldSC.Labels, newSC.Labels)
-		return diff, nil
+		return fmt.Sprintf("Labels: %+v -> %+v", oldSC.Labels, newSC.Labels)
 	}
 
 	if !cmp.Equal(oldSC.Annotations, newSC.Annotations) {
-		diff := fmt.Sprintf("Annotations: %+v -> %+v", oldSC.Annotations, newSC.Annotations)
-		return diff, nil
+		return fmt.Sprintf("Annotations: %+v -> %+v", oldSC.Annotations, newSC.Annotations)
 	}
 
-	if !cmp.Equal(oldSC.Finalizers, newSC.Finalizers) {
-		diff := fmt.Sprintf("Finalizers: %+v -> %+v", oldSC.Finalizers, newSC.Finalizers)
-		return diff, nil
+	for _, f := range newSC.Finalizers {
+		if !slices.Contains(oldSC.Finalizers, f) {
+			return fmt.Sprintf("Finalizers: %+v -> %+v", oldSC.Finalizers, newSC.Finalizers)
+		}
 	}
 
-	return "", nil
+	return ""
+}
+
+// updateStorageClassMetadata writes the labels, annotations and finalizers of
+// newSC to the existing StorageClass, keeping the finalizers others have put on
+// it.
+func updateStorageClassMetadata(ctx context.Context, cl client.Client, oldSC, newSC *v1.StorageClass) error {
+	sc := oldSC.DeepCopy()
+	sc.Labels = newSC.Labels
+	sc.Annotations = newSC.Annotations
+	for _, f := range newSC.Finalizers {
+		if !slices.Contains(sc.Finalizers, f) {
+			sc.Finalizers = append(sc.Finalizers, f)
+		}
+	}
+
+	return cl.Update(ctx, sc)
 }
 
 func recreateStorageClass(ctx context.Context, cl client.Client, oldSC, newSC *v1.StorageClass) error {

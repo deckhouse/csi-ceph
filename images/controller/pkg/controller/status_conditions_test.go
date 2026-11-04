@@ -493,10 +493,11 @@ func TestUpdateStatus_ReportsNotFoundForAGoneObject(t *testing.T) {
 // The status-driven retry must not be reachable for an object whose reconcile
 // never failed.
 //
-// The caller turns UpdateReconcile into recreateStorageClass — a delete followed
-// by a create. An object written before this module published conditions carries
-// phase=Created and no condition at all; reading that as "not ready" would delete
-// and recreate every correct StorageClass in the cluster on upgrade.
+// The caller turns UpdateReconcile into an update pass, which recreates a
+// StorageClass whose spec differs. An object written before this module
+// published conditions carries phase=Created and no condition at all; reading
+// that as "not ready" would put every StorageClass in the cluster through that
+// pass on upgrade.
 func TestIdentifyReconcileFuncForStorageClass_StatusDrivenRetry(t *testing.T) {
 	const (
 		controllerNamespace = "d8-csi-ceph"

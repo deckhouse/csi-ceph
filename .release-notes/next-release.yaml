@@ -10,6 +10,10 @@ new_features:
 improvements:
   - "A CephStorageClass can no longer be created under the name of a StorageClass that belongs to another provisioner. The module names its StorageClass after the CephStorageClass, so such a resource used to be created and then stay `Failed`; the webhook now rejects it at creation and names the StorageClass that holds the name."
 
+fixes:
+  - "A change of the labels or annotations of a StorageClass made by the module is now applied to the existing StorageClass instead of deleting and creating it again. Recreating removed the class for a moment, so a PersistentVolumeClaim that arrived in that window failed to provision. A change of the parameters, provisioner, reclaim policy or volume binding mode still recreates the StorageClass."
+  - "The `storage.deckhouse.io/managed-by` label of the StorageClasses the module creates now holds the module name, `csi-ceph`, instead of `d8-ceph-storage-class-controller`. Existing StorageClasses get the new value on the first reconcile after the update, without being recreated. Label selectors and monitoring queries that match the old value have to be updated. The label on other objects of the module, such as VolumeSnapshotClasses and Secrets, keeps its value."
+
 docs:
   - "The FAQ explains why an RBD volume fails to map with `map failed: (13) Permission denied` after its Pod moves from a failed node: the Ceph user is not allowed to blocklist the old lock owner. It shows the matching `dmesg` lines, the mon caps the user needs (`profile rbd` or `allow command \"osd blocklist\"`, not the pre-Ceph 16 `osd blacklist`) and how to remove a stuck lock by hand. The RBD caps example says why `profile rbd` is needed in the mon caps."
 
