@@ -21,14 +21,14 @@ import (
 	"net/http"
 
 	kwhhttp "github.com/slok/kubewebhook/v2/pkg/http"
-	"github.com/slok/kubewebhook/v2/pkg/log"
+	kwhlog "github.com/slok/kubewebhook/v2/pkg/log"
 	"github.com/slok/kubewebhook/v2/pkg/model"
 	kwhmutating "github.com/slok/kubewebhook/v2/pkg/webhook/mutating"
 	kwhvalidating "github.com/slok/kubewebhook/v2/pkg/webhook/validating"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func GetMutatingWebhookHandler(mutationFunc func(ctx context.Context, _ *model.AdmissionReview, obj metav1.Object) (*kwhmutating.MutatorResult, error), mutatorID string, obj metav1.Object, logger log.Logger) (http.Handler, error) {
+func GetMutatingWebhookHandler(mutationFunc func(ctx context.Context, _ *model.AdmissionReview, obj metav1.Object) (*kwhmutating.MutatorResult, error), mutatorID string, obj metav1.Object, logger kwhlog.Logger) (http.Handler, error) {
 	mutatorFunc := kwhmutating.MutatorFunc(mutationFunc)
 
 	mutatingWebhookConfig := kwhmutating.WebhookConfig{
@@ -48,7 +48,7 @@ func GetMutatingWebhookHandler(mutationFunc func(ctx context.Context, _ *model.A
 	return mutationWebhookHandler, err
 }
 
-func GetValidatingWebhookHandler(validationFunc func(ctx context.Context, _ *model.AdmissionReview, obj metav1.Object) (*kwhvalidating.ValidatorResult, error), validatorID string, obj metav1.Object, logger log.Logger) (http.Handler, error) {
+func GetValidatingWebhookHandler(validationFunc func(ctx context.Context, _ *model.AdmissionReview, obj metav1.Object) (*kwhvalidating.ValidatorResult, error), validatorID string, obj metav1.Object, logger kwhlog.Logger) (http.Handler, error) {
 	validatorFunc := kwhvalidating.ValidatorFunc(validationFunc)
 
 	validatingWebhookConfig := kwhvalidating.WebhookConfig{

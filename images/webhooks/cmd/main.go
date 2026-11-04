@@ -72,6 +72,7 @@ func main() {
 		os.Exit(1)
 	}
 	kwhLog := kwhlogger.New(log)
+	handlers.SetLogger(log)
 
 	cfg := initFlags()
 
