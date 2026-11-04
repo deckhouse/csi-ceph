@@ -4,6 +4,9 @@ date: "2026-xx-xx"
 summary: ""
 highlights: []
 
+new_features:
+  - "CephStorageClass and CephClusterConnection now record a Kubernetes Event when their `Ready` condition changes status or reason: a `Warning` when it turns `False`, a `Normal` one when it turns `True` again. The reason of the Event is the reason of the condition, for example `ReconcileFailed` or `PersistentVolumesExist`, so `kubectl describe` shows when a resource broke and when it recovered. A reconcile pass that changes nothing records no Event. Both kinds are cluster-scoped, so their Events are in the `default` namespace, and the controller is granted the right to create them there."
+
 improvements:
   - "A CephStorageClass can no longer be created under the name of a StorageClass that belongs to another provisioner. The module names its StorageClass after the CephStorageClass, so such a resource used to be created and then stay `Failed`; the webhook now rejects it at creation and names the StorageClass that holds the name."
 

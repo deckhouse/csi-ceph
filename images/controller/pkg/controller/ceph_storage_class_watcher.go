@@ -66,6 +66,7 @@ func RunCephStorageClassWatcherController(
 ) (controller.Controller, error) {
 	cl := mgr.GetClient()
 	mapper := mgr.GetRESTMapper()
+	recorder := mgr.GetEventRecorder(CephStorageClassCtrlName)
 
 	reconcileLog := log.Named("reconcile")
 
@@ -124,7 +125,7 @@ func RunCephStorageClassWatcherController(
 			// disappearing under the write is tolerated.
 			if shouldPublishStatus(cephSC, err, shouldRequeue) {
 				log.Debug(fmt.Sprintf("update the CephStorageClass %s status with message: %s", cephSC.Name, msg))
-				upErr := updateCephStorageClassStatus(ctx, cl, cephSC, err, msg)
+				upErr := updateCephStorageClassStatus(ctx, cl, recorder, cephSC, err, msg)
 				switch {
 				case k8serr.IsNotFound(upErr):
 					log.Debug(fmt.Sprintf("the CephStorageClass %s is gone, its status was not written", cephSC.Name))

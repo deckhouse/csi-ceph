@@ -19,12 +19,14 @@ package controller
 import (
 	"context"
 	"errors"
+	"slices"
 	"testing"
 
 	v1 "k8s.io/api/storage/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	apiruntime "k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/tools/events"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
@@ -69,7 +71,7 @@ func TestEveryDeclaredConditionTypeIsWritten(t *testing.T) {
 		sc.Name = "sc"
 		cl := newStatusTestClient(t, sc)
 
-		if err := updateCephStorageClassStatus(ctx, cl, sc, nil, "created"); err != nil {
+		if err := updateCephStorageClassStatus(ctx, cl, nil, sc, nil, "created"); err != nil {
 			t.Fatalf("updating status: %v", err)
 		}
 
@@ -86,7 +88,7 @@ func TestEveryDeclaredConditionTypeIsWritten(t *testing.T) {
 		cc.Name = "cc"
 		cl := newStatusTestClient(t, cc)
 
-		if err := updateCephClusterConnectionStatus(ctx, cl, cc, nil, "created", clusterConfigConflictCondition(cc.Generation, "")); err != nil {
+		if err := updateCephClusterConnectionStatus(ctx, cl, nil, cc, nil, "created", clusterConfigConflictCondition(cc.Generation, "")); err != nil {
 			t.Fatalf("updating status: %v", err)
 		}
 
@@ -222,7 +224,7 @@ func TestUpdateCephStorageClassStatus_Success(t *testing.T) {
 	}
 	cl := newStatusTestClient(t, sc)
 
-	if err := updateCephStorageClassStatus(context.Background(), cl, sc, nil, "Successfully reconciled"); err != nil {
+	if err := updateCephStorageClassStatus(context.Background(), cl, nil, sc, nil, "Successfully reconciled"); err != nil {
 		t.Fatalf("updateCephStorageClassStatus: %v", err)
 	}
 
@@ -259,7 +261,7 @@ func TestUpdateCephStorageClassStatus_Failure(t *testing.T) {
 	cl := newStatusTestClient(t, sc)
 
 	reconcileErr := errors.New("unable to create the StorageClass")
-	if err := updateCephStorageClassStatus(context.Background(), cl, sc, reconcileErr, "some message"); err != nil {
+	if err := updateCephStorageClassStatus(context.Background(), cl, nil, sc, reconcileErr, "some message"); err != nil {
 		t.Fatalf("updateCephStorageClassStatus: %v", err)
 	}
 
@@ -308,7 +310,7 @@ func TestUpdateCephStorageClassStatus_ObservedGenerationIsTheReconciledOne(t *te
 	reconciled := sc.DeepCopy()
 	reconciled.Generation = reconciledGeneration
 
-	if err := updateCephStorageClassStatus(context.Background(), cl, reconciled, nil, "ok"); err != nil {
+	if err := updateCephStorageClassStatus(context.Background(), cl, nil, reconciled, nil, "ok"); err != nil {
 		t.Fatalf("updateCephStorageClassStatus: %v", err)
 	}
 
@@ -342,7 +344,7 @@ func TestUpdateCephStorageClassStatus_SkipsWriteWhenNothingChanges(t *testing.T)
 	}
 	cl := newStatusTestClient(t, sc)
 
-	if err := updateCephStorageClassStatus(context.Background(), cl, sc, nil, "ok"); err != nil {
+	if err := updateCephStorageClassStatus(context.Background(), cl, nil, sc, nil, "ok"); err != nil {
 		t.Fatalf("first update: %v", err)
 	}
 
@@ -351,7 +353,7 @@ func TestUpdateCephStorageClassStatus_SkipsWriteWhenNothingChanges(t *testing.T)
 		t.Fatalf("reading: %v", err)
 	}
 
-	if err := updateCephStorageClassStatus(context.Background(), cl, sc, nil, "ok"); err != nil {
+	if err := updateCephStorageClassStatus(context.Background(), cl, nil, sc, nil, "ok"); err != nil {
 		t.Fatalf("second update: %v", err)
 	}
 
@@ -374,7 +376,7 @@ func TestUpdateCephClusterConnectionStatus(t *testing.T) {
 	}
 	cl := newStatusTestClient(t, cc)
 
-	if err := updateCephClusterConnectionStatus(context.Background(), cl, cc, nil, "Successfully reconciled"); err != nil {
+	if err := updateCephClusterConnectionStatus(context.Background(), cl, nil, cc, nil, "Successfully reconciled"); err != nil {
 		t.Fatalf("updateCephClusterConnectionStatus: %v", err)
 	}
 
@@ -475,14 +477,14 @@ func TestUpdateStatus_ReportsNotFoundForAGoneObject(t *testing.T) {
 
 	t.Run("CephStorageClass", func(t *testing.T) {
 		gone := &storagev1alpha1.CephStorageClass{ObjectMeta: metav1.ObjectMeta{Name: "sc-1"}}
-		if err := updateCephStorageClassStatus(ctx, cl, gone, nil, "ok"); !k8serr.IsNotFound(err) {
+		if err := updateCephStorageClassStatus(ctx, cl, nil, gone, nil, "ok"); !k8serr.IsNotFound(err) {
 			t.Fatalf("err = %v, want a NotFound", err)
 		}
 	})
 
 	t.Run("CephClusterConnection", func(t *testing.T) {
 		gone := &storagev1alpha1.CephClusterConnection{ObjectMeta: metav1.ObjectMeta{Name: "cc-1"}}
-		if err := updateCephClusterConnectionStatus(ctx, cl, gone, nil, "ok"); !k8serr.IsNotFound(err) {
+		if err := updateCephClusterConnectionStatus(ctx, cl, nil, gone, nil, "ok"); !k8serr.IsNotFound(err) {
 			t.Fatalf("err = %v, want a NotFound", err)
 		}
 	})
@@ -560,5 +562,96 @@ func TestIdentifyReconcileFuncForStorageClass_StatusDrivenRetry(t *testing.T) {
 				t.Errorf("reconcile type = %q, want %q", got, tc.want)
 			}
 		})
+	}
+}
+
+// drainEvents returns what the fake recorder has received so far.
+func drainEvents(rec *events.FakeRecorder) []string {
+	var got []string
+	for {
+		select {
+		case e := <-rec.Events:
+			got = append(got, e)
+		default:
+			return got
+		}
+	}
+}
+
+// The status writers record an Event when Ready moves and only then: a
+// periodic resync that repeats the verdict, or re-words it, must not add to the
+// resource's Events, or the one that tells when it broke scrolls away.
+func TestStatusWritersRecordReadyTransitions(t *testing.T) {
+	ctx := context.Background()
+	failed := errors.New("unable to create the StorageClass")
+	failedAgain := errors.New("unable to create the StorageClass: timeout")
+
+	steps := []struct {
+		name string
+		err  error
+		want []string
+	}{
+		{"first verdict", nil, []string{"Normal Reconciled ok"}},
+		{"same verdict", nil, nil},
+		{"breaks", failed, []string{"Warning ReconcileFailed " + failed.Error()}},
+		{"fails with another message", failedAgain, nil},
+		{"recovers", nil, []string{"Normal Reconciled ok"}},
+	}
+
+	t.Run("CephStorageClass", func(t *testing.T) {
+		sc := &storagev1alpha1.CephStorageClass{ObjectMeta: metav1.ObjectMeta{Name: "sc"}}
+		cl := newStatusTestClient(t, sc)
+		rec := events.NewFakeRecorder(10)
+
+		for _, s := range steps {
+			if err := updateCephStorageClassStatus(ctx, cl, rec, sc, s.err, "ok"); err != nil {
+				t.Fatalf("%s: updating status: %v", s.name, err)
+			}
+			if got := drainEvents(rec); !slices.Equal(got, s.want) {
+				t.Errorf("%s: Events = %q, want %q", s.name, got, s.want)
+			}
+		}
+	})
+
+	t.Run("CephClusterConnection", func(t *testing.T) {
+		cc := &storagev1alpha1.CephClusterConnection{ObjectMeta: metav1.ObjectMeta{Name: "cc"}}
+		cl := newStatusTestClient(t, cc)
+		rec := events.NewFakeRecorder(10)
+
+		for _, s := range steps {
+			if err := updateCephClusterConnectionStatus(ctx, cl, rec, cc, s.err, "ok"); err != nil {
+				t.Fatalf("%s: updating status: %v", s.name, err)
+			}
+			if got := drainEvents(rec); !slices.Equal(got, s.want) {
+				t.Errorf("%s: Events = %q, want %q", s.name, got, s.want)
+			}
+		}
+	})
+}
+
+// A deletion held back by the volumes that still read the secret is recorded as
+// a Warning under the reason Ready carries, and a conflict over the config.json
+// entry is not recorded at all: it reports a problem by being True, which the
+// shared helper would record as Normal.
+func TestCephClusterConnectionRecordsAHeldDeletion(t *testing.T) {
+	ctx := context.Background()
+	cc := &storagev1alpha1.CephClusterConnection{ObjectMeta: metav1.ObjectMeta{Name: "cc"}}
+	cl := newStatusTestClient(t, cc)
+	rec := events.NewFakeRecorder(10)
+
+	if err := updateCephClusterConnectionStatus(ctx, cl, rec, cc, nil, "ok"); err != nil {
+		t.Fatalf("updating status: %v", err)
+	}
+	drainEvents(rec)
+
+	inUse := &secretInUseError{message: "2 PersistentVolumes still use the secret", volumesHold: true}
+	conflict := clusterConfigConflictCondition(cc.Generation, "config.json has one entry for the cluster")
+	if err := updateCephClusterConnectionStatus(ctx, cl, rec, cc, inUse, "", conflict); err != nil {
+		t.Fatalf("updating status: %v", err)
+	}
+
+	want := []string{"Warning " + storagev1alpha1.ReasonPersistentVolumesExist + " " + inUse.message}
+	if got := drainEvents(rec); !slices.Equal(got, want) {
+		t.Errorf("Events = %q, want %q", got, want)
 	}
 }

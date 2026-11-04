@@ -40,6 +40,23 @@ func phaseFromReady(conds []metav1.Condition) string {
 	return internal.PhaseFailed
 }
 
+// cephStorageClassConditions and cephClusterConnectionConditions are how
+// conditions.WithEvents reads the conditions of the two kinds. Both run on an
+// object as read from the API server, whose status may still be nil.
+func cephStorageClassConditions(sc *storagev1alpha1.CephStorageClass) []metav1.Condition {
+	if sc.Status == nil {
+		return nil
+	}
+	return sc.Status.Conditions
+}
+
+func cephClusterConnectionConditions(cc *storagev1alpha1.CephClusterConnection) []metav1.Condition {
+	if cc.Status == nil {
+		return nil
+	}
+	return cc.Status.Conditions
+}
+
 // shouldPublishStatus reports whether a reconcile pass should record its outcome
 // in the resource status.
 //

@@ -250,7 +250,7 @@ func TestReadyReasonOfConnectionHeldByVolumes(t *testing.T) {
 	if err == nil {
 		t.Fatal("reconcileSecret() should hold the connection")
 	}
-	if err := updateCephClusterConnectionStatus(ctx, cl, connection, err, msg); err != nil {
+	if err := updateCephClusterConnectionStatus(ctx, cl, nil, connection, err, msg); err != nil {
 		t.Fatalf("updating status: %v", err)
 	}
 

@@ -4,7 +4,7 @@ go 1.27.3
 
 require (
 	github.com/deckhouse/csi-ceph/api v0.0.0-20250314071238-6a7df30c52cc
-	github.com/deckhouse/sds-common-lib v0.17.0
+	github.com/deckhouse/sds-common-lib v0.19.0
 	github.com/google/go-cmp v0.7.0
 	github.com/kubernetes-csi/external-snapshotter/client/v8 v8.7.0
 	github.com/onsi/ginkgo/v2 v2.33.1

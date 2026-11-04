@@ -67,6 +67,7 @@ func RunCephClusterConnectionWatcherController(
 	log logger.Logger,
 ) (controller.Controller, error) {
 	cl := mgr.GetClient()
+	recorder := mgr.GetEventRecorder(CephClusterConnectionCtrlName)
 
 	ctx := context.Background()
 	// Use APIReader (direct client) for Get operations since cache may not be started yet
@@ -123,7 +124,7 @@ func RunCephClusterConnectionWatcherController(
 				if message, ok := conflicts[cephClusterConnection.Name]; ok {
 					extra = append(extra, clusterConfigConflictCondition(cephClusterConnection.Generation, message))
 				}
-				upErr := updateCephClusterConnectionStatus(ctx, cl, cephClusterConnection, err, msg, extra...)
+				upErr := updateCephClusterConnectionStatus(ctx, cl, recorder, cephClusterConnection, err, msg, extra...)
 				switch {
 				case k8serr.IsNotFound(upErr):
 					log.Debug(fmt.Sprintf("the CephClusterConnection %s is gone, its status was not written", cephClusterConnection.Name))

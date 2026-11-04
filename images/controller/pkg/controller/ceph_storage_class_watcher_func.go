@@ -445,10 +445,13 @@ func GetStoragecClassParams(cephSC *storagev1alpha1.CephStorageClass, controller
 // it and kept for the printer column and for tooling that predates conditions.
 //
 // reconcileErr is the error the pass returned, or nil on success. msg is the
-// human-readable summary the pass produced, which may be empty.
+// human-readable summary the pass produced, which may be empty. A write that
+// moves Ready records an Event on the CephStorageClass through recorder, which
+// may be nil.
 func updateCephStorageClassStatus(
 	ctx context.Context,
 	cl client.Client,
+	recorder conditions.EventRecorder,
 	cephSC *storagev1alpha1.CephStorageClass,
 	reconcileErr error,
 	msg string,
@@ -472,7 +475,7 @@ func updateCephStorageClassStatus(
 		conditions.Set(&sc.Status.Conditions, cond)
 		sc.Status.Phase = phaseFromReady(sc.Status.Conditions)
 		sc.Status.Reason = msg
-	})
+	}, conditions.WithEvents(recorder, cephStorageClassConditions))
 }
 
 func createStorageClassIfNotExists(ctx context.Context, cl client.Client, scList *v1.StorageClassList, sc *v1.StorageClass) (bool, error) {

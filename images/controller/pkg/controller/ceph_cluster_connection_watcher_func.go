@@ -82,9 +82,15 @@ func validateCephClusterConnectionSpec(cephClusterConnection *v1alpha1.CephClust
 // reconcileErr is the error the pass returned, or nil on success. msg is the
 // human-readable summary the pass produced, which may be empty. extra are the
 // other conditions the pass evaluated, written in the same update.
+//
+// A write that moves Ready records an Event on the connection through recorder,
+// which may be nil. ClusterConfigConflict records none: it is the one condition
+// here that reports a problem by being True, which the shared helper would
+// record as Normal.
 func updateCephClusterConnectionStatus(
 	ctx context.Context,
 	cl client.Client,
+	recorder conditions.EventRecorder,
 	cephClusterConnection *v1alpha1.CephClusterConnection,
 	reconcileErr error,
 	msg string,
@@ -116,7 +122,7 @@ func updateCephClusterConnectionStatus(
 		}
 		cc.Status.Phase = phaseFromReady(cc.Status.Conditions)
 		cc.Status.Reason = msg
-	})
+	}, conditions.WithEvents(recorder, cephClusterConnectionConditions))
 }
 
 // clusterConfigConflictCondition builds the ClusterConfigConflict condition
