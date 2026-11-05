@@ -1,0 +1,29 @@
+date: "2026-11-05"
+
+summary: "CephStorageClass and CephClusterConnection record Kubernetes Events when their `Ready` condition changes, StorageClasses of the module are updated in place and labelled with the module name, a CephStorageClass can no longer take the name of a foreign StorageClass, and the ceph-csi binary and the module components no longer carry the reported vulnerabilities of `go-jose` and `golang.org/x/net`."
+
+highlights:
+  - "CephStorageClass and CephClusterConnection record a `Warning` Event when their `Ready` condition turns `False` and a `Normal` one when it turns `True` again, so `kubectl describe` shows when a resource broke and when it recovered."
+  - "A change of the labels or annotations of a module StorageClass no longer deletes and recreates it, so PersistentVolumeClaims created at that moment no longer fail to provision."
+  - "The ceph-csi binary is built with `github.com/go-jose/go-jose/v4` v4.1.6 and `golang.org/x/net` v0.62.0, which closes CVE-2026-116587, CVE-2026-116585, CVE-2026-116586, CVE-2026-78661 and CVE-2026-97045."
+
+new_features:
+  - "CephStorageClass and CephClusterConnection now record a Kubernetes Event when their `Ready` condition changes status or reason: a `Warning` when it turns `False`, a `Normal` one when it turns `True` again. The reason of the Event is the reason of the condition, for example `ReconcileFailed` or `PersistentVolumesExist`, so `kubectl describe` shows when a resource broke and when it recovered. A reconcile pass that changes nothing records no Event. Both kinds are cluster-scoped, so their Events are in the `default` namespace, and the controller is granted the right to create them there."
+
+improvements:
+  - "A CephStorageClass can no longer be created under the name of a StorageClass that belongs to another provisioner. The module names its StorageClass after the CephStorageClass, so such a resource used to be created and then stay `Failed`; the webhook now rejects it at creation and names the StorageClass that holds the name."
+  - "The StorageClass validating webhook writes its messages through the module logger: they follow `logLevel` of the module and come out as JSON like the rest of the Pod log, instead of klog text at a fixed level."
+
+fixes:
+  - "A change of the labels or annotations of a StorageClass made by the module is now applied to the existing StorageClass instead of deleting and creating it again. Recreating removed the class for a moment, so a PersistentVolumeClaim that arrived in that window failed to provision. A change of the parameters, provisioner, reclaim policy or volume binding mode still recreates the StorageClass."
+  - "The `storage.deckhouse.io/managed-by` label of the StorageClasses the module creates now holds the module name, `csi-ceph`, instead of `d8-ceph-storage-class-controller`. Existing StorageClasses get the new value on the first reconcile after the update, without being recreated. Label selectors and monitoring queries that match the old value have to be updated. The label on other objects of the module, such as VolumeSnapshotClasses and Secrets, keeps its value."
+
+security:
+  - "In the ceph-csi binary `github.com/go-jose/go-jose/v4` is raised from v4.1.4 to v4.1.6, closing CVE-2026-116587, CVE-2026-116585 and CVE-2026-116586, and `golang.org/x/net` from v0.60.0 to v0.62.0, closing CVE-2026-78661 and CVE-2026-97045."
+  - "`golang.org/x/net` is raised from v0.60.0 to v0.62.0 in the module controller, webhooks and hooks, closing CVE-2026-78661 and CVE-2026-97045."
+
+upgrade_notes:
+  - "Nothing has to be done by hand, except for label selectors, monitoring queries and automation that match `storage.deckhouse.io/managed-by: d8-ceph-storage-class-controller` on StorageClasses: switch them to `csi-ceph`. The existing StorageClasses are relabelled in place, and the CephStorageClass name check applies only to resources created after the update."
+
+docs:
+  - "The FAQ explains why an RBD volume fails to map with `map failed: (13) Permission denied` after its Pod moves from a failed node: the Ceph user is not allowed to blocklist the old lock owner. It shows the matching `dmesg` lines, the mon caps the user needs (`profile rbd` or `allow command \"osd blocklist\"`, not the pre-Ceph 16 `osd blacklist`) and how to remove a stuck lock by hand. The RBD caps example says why `profile rbd` is needed in the mon caps."
