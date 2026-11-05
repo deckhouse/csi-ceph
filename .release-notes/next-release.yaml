@@ -4,6 +4,9 @@ date: "2026-xx-xx"
 summary: ""
 highlights: []
 
+docs:
+  - "The FAQ explains what happens to snapshots and restored volumes when one of them is deleted: any order is allowed, an RBD volume restored from a snapshot is a copy-on-write clone that ceph-csi flattens in the background once a chain gets deep, a deleted RBD image waits in the RBD trash while snapshots or restored volumes depend on it, and a read-write CephFS volume restored from a snapshot is a full copy."
+
 # Optional sections — delete rather than leave empty.
 # new_features: []
 # improvements: []

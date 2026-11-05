@@ -168,3 +168,11 @@ rbd lock rm <pool>/<image> '<ID>' <Locker>
 ```
 
 Take `<ID>` and `<Locker>` from the `rbd lock ls` output; the ID of an exclusive lock contains a space, so quote it.
+
+## What happens to snapshots and restored volumes when one of them is deleted?
+
+Any order of deletion is allowed: a PVC, a VolumeSnapshot and a volume restored from it can each be deleted while the others exist. The space in Ceph, however, is freed only when nothing depends on it any more.
+
+- **RBD.** A volume restored from a snapshot is a copy-on-write clone: it shares data with the snapshot until ceph-csi flattens it, that is, copies the data so that the clone no longer depends on its parent. ceph-csi flattens clones in the background when a chain of snapshots and restores reaches 4 levels (the hard limit is 8) or an image has more than 250 snapshots; a flattened volume takes its full size in the pool. A deleted image is moved to the RBD trash and stays there while snapshots or restored volumes still depend on it; the Ceph manager removes it afterwards, retrying every few minutes. To see what is still held, run `rbd trash ls <pool>` in the Ceph cluster.
+- **CephFS.** A read-write volume restored from a snapshot is a full copy, made in the background: the PVC binds when the copy is done, and until then deleting the snapshot waits for the copy. A deleted volume that has snapshots stays in Ceph with its snapshots and goes away with the last of them. A read-only (`ReadOnlyMany`) volume restored from a snapshot uses the snapshot itself and keeps it in Ceph until the volume is deleted.
+- The VolumeSnapshotClass of a CephStorageClass takes the `reclaimPolicy` of the class: with `Retain`, deleting a VolumeSnapshot leaves the snapshot in Ceph.
