@@ -15,9 +15,11 @@
 {{- $config := dict
   "valuesKey" "csiCeph"
   "webhookEnabled" true
+  "webhooksInController" true
   "webhookCertPath" "internal.customWebhookCert"
   "controllerMetricsPort" (int .Values.csiCeph.internal.controllerMetricsPort)
   "controllerMetricsProxyPort" (int .Values.csiCeph.internal.controllerMetricsProxyPort)
+  "controllerMetricsInProcessAuthorization" true
   "onMasterNode" true
   "podSecurityContext" "deckhouse"
   "additionalControllerEnvs" (list

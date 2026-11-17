@@ -22,13 +22,11 @@ import (
 	"net/http"
 	"os"
 
-	storagev1 "k8s.io/api/storage/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 
 	"github.com/deckhouse/csi-ceph/images/webhooks/handlers"
 	"github.com/deckhouse/sds-common-lib/logger"
-	"github.com/deckhouse/sds-common-lib/logger/kwhlogger"
 )
 
 type config struct {
@@ -55,11 +53,7 @@ func initFlags() config {
 	return cfg
 }
 
-const (
-	port           = ":8443"
-	SCValidatorID  = "SCValidator"
-	CSCValidatorID = "CSCValidator"
-)
+const port = ":8443"
 
 func main() {
 	// LOG_LEVEL arrives as a number 0..4 from lib-helm, which is what the
@@ -71,16 +65,8 @@ func main() {
 		fmt.Fprintf(os.Stderr, "unable to create the logger: %s\n", err)
 		os.Exit(1)
 	}
-	kwhLog := kwhlogger.New(log)
-	handlers.SetLogger(log)
 
 	cfg := initFlags()
-
-	scValidatingWebhookHandler, err := handlers.GetValidatingWebhookHandler(handlers.SCValidate, SCValidatorID, &storagev1.StorageClass{}, kwhLog)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "error creating scValidatingWebhookHandler: %s", err)
-		os.Exit(1)
-	}
 
 	restCfg, err := rest.InClusterConfig()
 	if err != nil {
@@ -93,15 +79,16 @@ func main() {
 		os.Exit(1)
 	}
 
-	cscValidatingWebhookHandler, err := handlers.GetValidatingWebhookHandler(handlers.CSCValidate(cl), CSCValidatorID, nil, kwhLog)
+	hs, err := handlers.Handlers(log, cl)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "error creating cscValidatingWebhookHandler: %s", err)
+		fmt.Fprintf(os.Stderr, "error creating the webhook handlers: %s", err)
 		os.Exit(1)
 	}
 
 	mux := http.NewServeMux()
-	mux.Handle("/sc-validate", scValidatingWebhookHandler)
-	mux.Handle("/csc-validate", cscValidatingWebhookHandler)
+	for path, h := range hs {
+		mux.Handle(path, h)
+	}
 	mux.HandleFunc("/healthz", httpHandlerHealthz)
 
 	log.Info("listening", "address", port)

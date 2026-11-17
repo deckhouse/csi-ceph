@@ -28,9 +28,9 @@ import (
 	sv1 "k8s.io/api/storage/v1"
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apiruntime "k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/kubernetes"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
@@ -39,8 +39,11 @@ import (
 	"github.com/deckhouse/csi-ceph/images/controller/pkg/config"
 	"github.com/deckhouse/csi-ceph/images/controller/pkg/controller"
 	"github.com/deckhouse/csi-ceph/images/controller/pkg/kubutils"
+	"github.com/deckhouse/csi-ceph/images/webhooks/handlers"
 	"github.com/deckhouse/sds-common-lib/logger"
 	"github.com/deckhouse/sds-common-lib/monitoring"
+	"github.com/deckhouse/sds-common-lib/monitoring/metricsauth"
+	"github.com/deckhouse/sds-common-lib/webhookserver"
 )
 
 var (
@@ -97,12 +100,7 @@ func main() {
 		DefaultNamespaces: map[string]cache.Config{
 			cfgParams.ControllerNamespace: {},
 		},
-		// The connection controller caches every PersistentVolume and
-		// VolumeAttachment of the cluster, those of other drivers included.
-		ByObject: map[client.Object]cache.ByObject{
-			&v1.PersistentVolume{}:  {Transform: cache.TransformStripManagedFields()},
-			&sv1.VolumeAttachment{}: {Transform: cache.TransformStripManagedFields()},
-		},
+		DefaultTransform: cache.TransformStripManagedFields(),
 	}
 
 	// Configured, not yet serving: the listener is opened by the manager below, and a
@@ -112,7 +110,7 @@ func main() {
 	managerOpts := manager.Options{
 		Scheme:                  scheme,
 		Cache:                   cacheOpt,
-		Metrics:                 metricsserver.Options{BindAddress: cfgParams.MetricsBindAddress},
+		Metrics:                 metricsauth.ApplyFromEnv(metricsserver.Options{BindAddress: cfgParams.MetricsBindAddress}),
 		HealthProbeBindAddress:  cfgParams.HealthProbeBindAddress,
 		LeaderElection:          true,
 		LeaderElectionNamespace: cfgParams.ControllerNamespace,
@@ -140,6 +138,29 @@ func main() {
 	if _, err = controller.RunCephClusterAuthenticationWatcherController(mgr, *cfgParams, baseLog.Named(controller.CephClusterAuthenticationCtrlName)); err != nil {
 		log.Error("unable to run the controller", logger.Err(err), slog.String("controller", controller.CephClusterAuthenticationCtrlName))
 		os.Exit(1)
+	}
+
+	webhookOpts, webhooksEnabled, err := webhookserver.OptionsFromEnv()
+	if err != nil {
+		log.Error("unable to read the webhook server configuration", logger.Err(err))
+		os.Exit(1)
+	}
+	if webhooksEnabled {
+		cs, err := kubernetes.NewForConfig(kConfig)
+		if err != nil {
+			log.Error("unable to create the Kubernetes client for the webhooks", logger.Err(err))
+			os.Exit(1)
+		}
+		hs, err := handlers.Handlers(baseLog.Named("webhooks"), cs)
+		if err != nil {
+			log.Error("unable to create the webhook handlers", logger.Err(err))
+			os.Exit(1)
+		}
+		if err = webhookserver.Add(mgr, webhookOpts, hs); err != nil {
+			log.Error("unable to add the webhook server", logger.Err(err))
+			os.Exit(1)
+		}
+		log.Info("serving the admission webhooks", "port", webhookOpts.Port, "certDir", webhookOpts.CertDir)
 	}
 
 	if err = mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {

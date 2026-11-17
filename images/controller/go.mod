@@ -1,9 +1,11 @@
 module github.com/deckhouse/csi-ceph/images/controller
 
 go 1.27.4
+
 require (
 	github.com/deckhouse/csi-ceph/api v0.0.0-20250314071238-6a7df30c52cc
-	github.com/deckhouse/sds-common-lib v0.19.0
+	github.com/deckhouse/csi-ceph/images/webhooks v0.0.0-00010101000000-000000000000
+	github.com/deckhouse/sds-common-lib v0.22.0
 	github.com/google/go-cmp v0.7.0
 	github.com/kubernetes-csi/external-snapshotter/client/v8 v8.7.0
 	github.com/onsi/ginkgo/v2 v2.33.1
@@ -17,12 +19,15 @@ require (
 
 replace github.com/deckhouse/csi-ceph/api => ../../api
 
+replace github.com/deckhouse/csi-ceph/images/webhooks => ../webhooks
+
 require (
 	github.com/DataDog/gostackparse v0.7.0 // indirect
 	github.com/Masterminds/semver/v3 v3.4.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
+	github.com/deckhouse/deckhouse/pkg/kube-rbac-auth v0.1.0 // indirect
 	github.com/deckhouse/deckhouse/pkg/log v0.2.1 // indirect
 	github.com/deckhouse/deckhouse/pkg/metrics-storage v0.3.0 // indirect
 	github.com/emicklei/go-restful/v3 v3.13.0 // indirect
@@ -59,6 +64,7 @@ require (
 	github.com/prometheus/client_model v0.6.2 // indirect
 	github.com/prometheus/common v0.70.0 // indirect
 	github.com/prometheus/procfs v0.21.1 // indirect
+	github.com/slok/kubewebhook/v2 v2.7.0 // indirect
 	github.com/spf13/pflag v1.0.10 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
 	go.yaml.in/yaml/v2 v2.4.4 // indirect

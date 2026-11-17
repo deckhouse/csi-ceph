@@ -61,9 +61,8 @@ type Options struct {
 }
 
 // defaultMetricsBindAddress keeps the endpoint on loopback when the chart says
-// nothing: the kube-rbac-proxy of the same pod is what publishes it. The fleet-wide
-// fallback is the wildcard ":8080", which would both answer unauthenticated on the
-// pod IP and collide with the proxy, since the two carry the same port number.
+// nothing: the fleet-wide fallback is the wildcard ":8080", which would answer
+// unauthenticated on the pod IP.
 const defaultMetricsBindAddress = "127.0.0.1:8080"
 
 func NewConfig() *Options {

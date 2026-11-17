@@ -9,11 +9,13 @@ git:
     includePaths:
       - api
       - images/{{ $.ImageName }}
+      - images/webhooks
     stageDependencies:
       install:
         - '**/*'
     excludePaths:
       - images/{{ $.ImageName }}/werf.inc.yaml
+      - images/webhooks/werf.inc.yaml
 
 shell:
   install:
