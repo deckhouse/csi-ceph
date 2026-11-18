@@ -42,7 +42,6 @@ resources:
         - deletecollection
         - patch
         - update
-      viewer:
         - get
         - list
         - watch
@@ -53,7 +52,6 @@ resources:
         - deletecollection
         - patch
         - update
-      User:
         - get
         - list
         - watch
@@ -66,7 +64,6 @@ resources:
         - deletecollection
         - patch
         - update
-      viewer:
         - get
         - list
         - watch
@@ -77,34 +74,12 @@ resources:
         - deletecollection
         - patch
         - update
-      User:
         - get
         - list
         - watch
   - group: storage.deckhouse.io
     resource: cephmetadatabackups
-    system:
-      manager:
-        - create
-        - delete
-        - deletecollection
-        - patch
-        - update
-      viewer:
-        - get
-        - list
-        - watch
-    legacy:
-      ClusterEditor:
-        - create
-        - delete
-        - deletecollection
-        - patch
-        - update
-      User:
-        - get
-        - list
-        - watch
+    noAccess: 'backups of PersistentVolumes the module hook makes while migrating from the ceph-csi module, and the hook recreates PersistentVolumes from them; users must not write them, and they hold whole objects that are not meant for reading'
   - group: storage.deckhouse.io
     resource: cephstorageclasses
     system:

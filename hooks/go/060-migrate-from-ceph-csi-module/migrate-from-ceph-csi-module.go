@@ -79,12 +79,6 @@ func handlerMigrateFromCephCsiModule(ctx context.Context, _ *pkg.HookInput) erro
 		return err
 	}
 
-	err = funcs.ProcessRemovedPVs(ctx, cl, CephCSIMigrateBackupSource, LogPrefix)
-	if err != nil {
-		fmt.Printf("[%s]: processRemovedPVs error %s\n", LogPrefix, err.Error())
-		return err
-	}
-
 	cephCSIDriverListToMigrate := &oldApi.CephCSIDriverList{}
 	req, err := labels.NewRequirement(CephCSIMigratedLabel, selection.NotEquals, []string{CephCSIMigratedLabelValueTrue})
 	if err != nil {
@@ -107,6 +101,12 @@ func handlerMigrateFromCephCsiModule(ctx context.Context, _ *pkg.HookInput) erro
 	cephStorageClassList := &v1alpha1.CephStorageClassList{}
 
 	if len(cephCSIDriverListToMigrate.Items) != 0 {
+		err = funcs.ProcessRemovedPVs(ctx, cl, CephCSIMigrateBackupSource, LogPrefix)
+		if err != nil {
+			fmt.Printf("[%s]: processRemovedPVs error %s\n", LogPrefix, err.Error())
+			return err
+		}
+
 		fmt.Printf("[%s]: Found %d CephCSIDrivers to migrate. Starting migration for them\n", LogPrefix, len(cephCSIDriverListToMigrate.Items))
 		fmt.Printf("[%s]: Disabling csi controllers and csi node for cephfs and rbd in namespace %s\n", LogPrefix, funcs.ModuleNamespace)
 		err := funcs.DisableCSIComponents(ctx, cl, LogPrefix)
@@ -133,6 +133,14 @@ func handlerMigrateFromCephCsiModule(ctx context.Context, _ *pkg.HookInput) erro
 		}
 	} else {
 		fmt.Printf("[%s]: No CephCSIDrivers found\n", LogPrefix)
+
+		pendingBackups, err := funcs.PendingPVBackupNames(ctx, cl, CephCSIMigrateBackupSource)
+		switch {
+		case err != nil:
+			fmt.Printf("[%s]: WARNING: cannot list backups of PersistentVolumes the migration did not recreate: %s\n", LogPrefix, err.Error())
+		case len(pendingBackups) != 0:
+			fmt.Printf("[%s]: WARNING: no CephCSIDriver is being migrated, so the PersistentVolumes in %d CephMetadataBackups are not recreated: %s. Recreate them manually from the backups if they are missing\n", LogPrefix, len(pendingBackups), strings.Join(pendingBackups, ", "))
+		}
 	}
 
 	for _, cephCSIDriver := range cephCSIDriverListToMigrate.Items {

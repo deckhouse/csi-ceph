@@ -7,6 +7,17 @@ highlights: []
 docs:
   - "Документация называет модуль `storage-foundation`, а не `snapshot-controller`, модулем, который требуется для снимков томов, и больше не предлагает включать `snapshot-controller`."
 
+fixes:
+  - "Миграция с модуля `ceph-csi` больше не падает с паникой на PersistentVolume, у которого есть ссылка на секрет для NodeStage, но нет ссылки на секрет для расширения тома: на новый Secret переводятся только те ссылки, которые есть у тома."
+  - "Если ни один `CephCSIDriver` не мигрирует, хук миграции пишет в лог предупреждение со списком `CephMetadataBackup`, по которым PersistentVolume не воссозданы, а не оставляет их незамеченными."
+
+security:
+  - "Уровни доступа `User`, `PrivilegedUser`, `Editor` и `Admin` и роли RBACv2 `d8:manage:storage:viewer` и `d8:manage:all:viewer` больше не читают `CephClusterConnection` и `CephClusterAuthentication`, в которых ключ пользователя Ceph хранится открытым текстом; `ClusterEditor`, `ClusterAdmin` и роли `manager` подсистемы storage по-прежнему читают и изменяют эти ресурсы. Это не скрывает ключ от всех уровней: контроллер копирует его в объекты Secret в `d8-csi-ceph`, а по модели доступа уровни начиная с `PrivilegedUser` читают Secret во всех пространствах имён, если режим multitenancy не ограничивает их собственными пространствами имён. Чтобы скрыть ключ полностью, ресурс подключения должен ссылаться на Secret вместо хранения ключа или ключ должен быть помечен как чувствительные данные; это прорабатывается отдельно."
+  - "Ни один уровень доступа ниже `SuperAdmin` не читает, не создаёт и не изменяет `CephMetadataBackup`: роль `ClusterEditor` и роль `manager` подсистемы storage в RBACv2 больше не пишут этот ресурс, а `User` и роль `viewer` подсистемы storage не читают. Граница безопасности — RBAC: записывать резервные копии может только `SuperAdmin`. Хук миграции добавляет к этому дополнительную проверку: он воссоздаёт PersistentVolume из резервной копии только во время миграции `CephCSIDriver` и только если копия содержит CSI-том RBD или CephFS без других источников тома и названа по этому тому. Проверка отсекает тома других видов, например `hostPath`, но не отличает копию, сделанную хуком, от копии, записанной тем, кому разрешена запись `CephMetadataBackup`. Раньше `ClusterEditor` мог создать копию с любым PersistentVolume, в том числе `hostPath`, и хук создавал этот том."
+
+upgrade_notes:
+  - "Пользователи с уровнем доступа `User`, `PrivilegedUser`, `Editor` или `Admin` и субъекты, привязанные к `d8:manage:storage:viewer` или `d8:manage:all:viewer`, больше не видят `CephClusterConnection`, `CephClusterAuthentication` и `CephMetadataBackup`. Тем, кто управляет подключениями к Ceph, выдайте `ClusterEditor` или роль `manager` подсистемы storage. `CephStorageClass` по-прежнему доступен на чтение всем уровням."
+
 # Необязательные разделы — пустые не оставлять, а удалять.
 # new_features: []
 # improvements: []

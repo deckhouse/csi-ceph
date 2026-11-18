@@ -24,30 +24,6 @@ rules:
 - apiGroups:
   - storage.deckhouse.io
   resources:
-  - cephclusterauthentications
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - storage.deckhouse.io
-  resources:
-  - cephclusterconnections
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - storage.deckhouse.io
-  resources:
-  - cephmetadatabackups
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - storage.deckhouse.io
-  resources:
   - cephstorageclasses
   verbs:
   - get
@@ -70,9 +46,6 @@ rules:
       - storage.deckhouse.io
     resources:
       - cephstorageclasses
-      - cephclusterconnections
-      - cephclusterauthentications
-      - cephmetadatabackups
     verbs:
       - get
       - list

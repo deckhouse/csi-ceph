@@ -21,6 +21,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"reflect"
 	"slices"
 	"strings"
 	"time"
@@ -342,7 +343,7 @@ func UpdateVolumeSnapshotContentIfNeeded(ctx context.Context, cl client.Client, 
 	return nil
 }
 
-func ProcessRemovedPVs(ctx context.Context, cl client.Client, backupSourceName, logPrefix string) error {
+func listPendingPVBackups(ctx context.Context, cl client.Client, backupSourceName string) (*v1alpha1.CephMetadataBackupList, error) {
 	cephMetadataBackupList := &v1alpha1.CephMetadataBackupList{}
 	labels := map[string]string{
 		BackupSourceLabelKey:           backupSourceName,
@@ -350,6 +351,24 @@ func ProcessRemovedPVs(ctx context.Context, cl client.Client, backupSourceName, 
 		PVRecreatedSuccesfullyLabelKey: LabelValueFalse,
 	}
 	err := cl.List(ctx, cephMetadataBackupList, client.MatchingLabels(labels))
+	return cephMetadataBackupList, err
+}
+
+func PendingPVBackupNames(ctx context.Context, cl client.Client, backupSourceName string) ([]string, error) {
+	cephMetadataBackupList, err := listPendingPVBackups(ctx, cl, backupSourceName)
+	if err != nil {
+		return nil, err
+	}
+
+	names := make([]string, 0, len(cephMetadataBackupList.Items))
+	for _, backup := range cephMetadataBackupList.Items {
+		names = append(names, backup.Name)
+	}
+	return names, nil
+}
+
+func ProcessRemovedPVs(ctx context.Context, cl client.Client, backupSourceName, logPrefix string) error {
+	cephMetadataBackupList, err := listPendingPVBackups(ctx, cl, backupSourceName)
 	if err != nil {
 		fmt.Printf("[%s]: CephMetadataBackupList get error %s\n", logPrefix, err.Error())
 		return err
@@ -364,17 +383,10 @@ func ProcessRemovedPVs(ctx context.Context, cl client.Client, backupSourceName, 
 	for _, backup := range cephMetadataBackupList.Items {
 		fmt.Printf("[%s]: Processing backup %s\n", logPrefix, backup.Name)
 
-		obj := &v1.PersistentVolume{}
-		data, err := base64.StdEncoding.DecodeString(backup.Spec.Data)
+		obj, err := backedUpPV(&backup)
 		if err != nil {
-			fmt.Printf("[%s]: Decode backup data error %s\n", logPrefix, err.Error())
-			return err
-		}
-
-		err = json.Unmarshal(data, obj)
-		if err != nil {
-			fmt.Printf("[%s]: Unmarshal backup data error %s\n", logPrefix, err.Error())
-			return err
+			fmt.Printf("[%s]: Skipping backup %s: %s\n", logPrefix, backup.Name, err.Error())
+			continue
 		}
 
 		err = cl.Create(ctx, obj)
@@ -397,6 +409,35 @@ func ProcessRemovedPVs(ctx context.Context, cl client.Client, backupSourceName, 
 		}
 	}
 	return nil
+}
+
+func backedUpPV(backup *v1alpha1.CephMetadataBackup) (*v1.PersistentVolume, error) {
+	data, err := base64.StdEncoding.DecodeString(backup.Spec.Data)
+	if err != nil {
+		return nil, fmt.Errorf("decode backup data: %w", err)
+	}
+
+	pv := &v1.PersistentVolume{}
+	if err := json.Unmarshal(data, pv); err != nil {
+		return nil, fmt.Errorf("unmarshal backup data: %w", err)
+	}
+
+	date := backup.Labels[BackupDateLabelKey]
+	if date == "" || backup.Name != fmt.Sprintf("%s-%s-%s", date, strings.ToLower(ResourceKindPersistentVolume), pv.Name) {
+		return nil, fmt.Errorf("backup name does not match the backed up PersistentVolume %s", pv.Name)
+	}
+
+	if pv.Spec.CSI == nil || !slices.Contains(AllowedProvisioners, pv.Spec.CSI.Driver) {
+		return nil, fmt.Errorf("PersistentVolume %s is not a volume of the %v CSI drivers", pv.Name, AllowedProvisioners)
+	}
+
+	otherSources := pv.Spec.PersistentVolumeSource
+	otherSources.CSI = nil
+	if !reflect.DeepEqual(otherSources, v1.PersistentVolumeSource{}) {
+		return nil, fmt.Errorf("PersistentVolume %s has a volume source besides CSI", pv.Name)
+	}
+
+	return pv, nil
 }
 
 func BackupResource(ctx context.Context, cl client.Client, backupObj runtime.Object, backupTime time.Time, backupSourceName, logPrefix string) (string, error) {
@@ -541,10 +582,14 @@ func MigratePVsToNewSecret(ctx context.Context, cl client.Client, pvList *v1.Per
 			newPV.ResourceVersion = ""
 			newPV.UID = ""
 			newPV.CreationTimestamp = metav1.Time{}
-			newPV.Spec.CSI.NodeStageSecretRef.Namespace = ModuleNamespace
-			newPV.Spec.CSI.NodeStageSecretRef.Name = newSecretName
-			newPV.Spec.CSI.ControllerExpandSecretRef.Namespace = ModuleNamespace
-			newPV.Spec.CSI.ControllerExpandSecretRef.Name = newSecretName
+			if newPV.Spec.CSI.NodeStageSecretRef != nil {
+				newPV.Spec.CSI.NodeStageSecretRef.Namespace = ModuleNamespace
+				newPV.Spec.CSI.NodeStageSecretRef.Name = newSecretName
+			}
+			if newPV.Spec.CSI.ControllerExpandSecretRef != nil {
+				newPV.Spec.CSI.ControllerExpandSecretRef.Namespace = ModuleNamespace
+				newPV.Spec.CSI.ControllerExpandSecretRef.Name = newSecretName
+			}
 			newPV.Annotations[PVAnnotationProvisionerDeletionSecretNamespace] = ModuleNamespace
 			newPV.Annotations[PVAnnotationProvisionerDeletionSecretName] = newSecretName
 

@@ -30,8 +30,11 @@ rules:
   - create
   - delete
   - deletecollection
+  - get
+  - list
   - patch
   - update
+  - watch
 - apiGroups:
   - storage.deckhouse.io
   resources:
@@ -40,18 +43,11 @@ rules:
   - create
   - delete
   - deletecollection
+  - get
+  - list
   - patch
   - update
-- apiGroups:
-  - storage.deckhouse.io
-  resources:
-  - cephmetadatabackups
-  verbs:
-  - create
-  - delete
-  - deletecollection
-  - patch
-  - update
+  - watch
 - apiGroups:
   - storage.deckhouse.io
   resources:
@@ -78,10 +74,18 @@ rules:
   - apiGroups:
       - storage.deckhouse.io
     resources:
+      - cephclusterconnections
+      - cephclusterauthentications
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - storage.deckhouse.io
+    resources:
       - cephstorageclasses
       - cephclusterconnections
       - cephclusterauthentications
-      - cephmetadatabackups
     verbs:
       - create
       - update

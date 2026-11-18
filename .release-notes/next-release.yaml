@@ -7,6 +7,17 @@ highlights: []
 docs:
   - "The documentation names the `storage-foundation` module, not `snapshot-controller`, as the module that volume snapshots require, and no longer asks to enable `snapshot-controller`."
 
+fixes:
+  - "The migration from the `ceph-csi` module no longer panics on a PersistentVolume that has a node stage secret reference but no controller expand secret reference: only the references the volume has are moved to the new Secret."
+  - "When no `CephCSIDriver` is being migrated, the migration hook logs a warning with the `CephMetadataBackup` objects whose PersistentVolumes it did not recreate, instead of leaving them unnoticed."
+
+security:
+  - "The `User`, `PrivilegedUser`, `Editor` and `Admin` access levels and the RBACv2 roles `d8:manage:storage:viewer` and `d8:manage:all:viewer` no longer read `CephClusterConnection` and `CephClusterAuthentication`, which hold the Ceph user key in plain text; `ClusterEditor`, `ClusterAdmin` and the storage `manager` roles keep reading and changing them. This does not hide the key from every level: the controller copies it to Secrets in `d8-csi-ceph`, and by the access model the levels from `PrivilegedUser` up read Secrets in all namespaces unless multitenancy limits them to their own namespaces. Hiding the key fully needs the connection to refer to a Secret instead of holding the key, or the key to be marked as sensitive data; this is being looked into separately."
+  - "No access level below `SuperAdmin` reads, creates or changes `CephMetadataBackup`: the `ClusterEditor` role and the RBACv2 storage `manager` role no longer write it, and `User` and the storage `viewer` role no longer read it. The security boundary is RBAC: only `SuperAdmin` can write a backup. The migration hook adds a check on top of it: it recreates a PersistentVolume from a backup only while a `CephCSIDriver` is being migrated, and only if the backup holds an RBD or CephFS CSI volume with no other volume source and is named after that volume. The check rejects volumes of other kinds, such as `hostPath`, but cannot tell a backup the hook made from one written by someone allowed to write `CephMetadataBackup`. Before, a `ClusterEditor` could create a backup with any PersistentVolume, a `hostPath` one included, and the hook created that volume."
+
+upgrade_notes:
+  - "Users with the `User`, `PrivilegedUser`, `Editor` or `Admin` access level and subjects bound to `d8:manage:storage:viewer` or `d8:manage:all:viewer` no longer see `CephClusterConnection`, `CephClusterAuthentication` and `CephMetadataBackup`. Give `ClusterEditor` or the storage `manager` role to those who manage Ceph connections. `CephStorageClass` stays readable for every level."
+
 # Optional sections — delete rather than leave empty.
 # new_features: []
 # improvements: []
