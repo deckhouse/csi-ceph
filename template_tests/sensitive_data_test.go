@@ -40,6 +40,8 @@ const (
 var (
 	readVerbs = []string{"get", "list", "watch"}
 
+	writeVerbs = []string{"update", "patch"}
+
 	deckhouseVersions = []string{"1.76.5", "1.78.0"}
 
 	rbacTemplates = []string{
@@ -73,6 +75,17 @@ func TestControllerReadsSensitiveFields(t *testing.T) {
 			role := find(t, render(t, version), "ClusterRole", "d8:csi-ceph:controller")
 			for _, resource := range sensitiveResources {
 				assertVerbs(t, role, resource, readVerbs)
+			}
+		})
+	}
+}
+
+func TestControllerGetsUnmaskedWriteResponses(t *testing.T) {
+	for _, version := range deckhouseVersions {
+		t.Run(version, func(t *testing.T) {
+			role := find(t, render(t, version), "ClusterRole", "d8:csi-ceph:controller")
+			for _, resource := range []string{"cephclusterconnections/sensitive", "cephclusterauthentications/sensitive"} {
+				assertVerbs(t, role, resource, writeVerbs)
 			}
 		})
 	}
