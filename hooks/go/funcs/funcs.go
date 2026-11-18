@@ -642,18 +642,16 @@ func MigratePVsToNewSecret(ctx context.Context, cl client.Client, pvList *v1.Per
 
 			err = cl.Create(ctx, newPV)
 			if err != nil {
-				if client.IgnoreAlreadyExists(err) == nil {
-					// If PV already exists, we need to return reclaim policy to original value
-					patchJSON := fmt.Sprintf(`{"spec":{"persistentVolumeReclaimPolicy":"%s"}}`, newPV.Spec.PersistentVolumeReclaimPolicy)
-					patch := client.RawPatch(types.MergePatchType, []byte(patchJSON))
-					err = cl.Patch(ctx, newPV, patch)
-					if err != nil {
-						fmt.Printf("[%s]: PV patch error %s\n", logPrefix, err)
-						err = fmt.Errorf("failed to patch PV %s: %w", newPV.Name, err)
-					}
+				if client.IgnoreAlreadyExists(err) != nil {
+					fmt.Printf("[%s]: PV create error %s\n", logPrefix, err)
+					return err
 				}
-				fmt.Printf("[%s]: PV create error %s\n", logPrefix, err)
-				return err
+				fmt.Printf("[%s]: PV %s already exists\n", logPrefix, newPV.Name)
+				err = restoreExistingPV(ctx, cl, newPV, newSecretName)
+				if err != nil {
+					fmt.Printf("[%s]: PV %s error %s\n", logPrefix, newPV.Name, err)
+					return err
+				}
 			}
 			fmt.Printf("[%s]: PV %s successfully migrated\n", logPrefix, pv.Name)
 
@@ -676,6 +674,41 @@ func MigratePVsToNewSecret(ctx context.Context, cl client.Client, pvList *v1.Per
 	}
 
 	return nil
+}
+
+func restoreExistingPV(ctx context.Context, cl client.Client, newPV *v1.PersistentVolume, newSecretName string) error {
+	existing := &v1.PersistentVolume{}
+	if err := cl.Get(ctx, types.NamespacedName{Name: newPV.Name}, existing); err != nil {
+		return fmt.Errorf("failed to get existing PV %s: %w", newPV.Name, err)
+	}
+
+	if !pvHasSecretRefsOf(existing, newPV) {
+		return fmt.Errorf("PV %s was recreated outside the migration and does not reference secret %s/%s", newPV.Name, ModuleNamespace, newSecretName)
+	}
+
+	patchJSON := fmt.Sprintf(`{"spec":{"persistentVolumeReclaimPolicy":"%s"}}`, newPV.Spec.PersistentVolumeReclaimPolicy)
+	if err := cl.Patch(ctx, existing, client.RawPatch(types.MergePatchType, []byte(patchJSON))); err != nil {
+		return fmt.Errorf("failed to patch PV %s: %w", newPV.Name, err)
+	}
+
+	return nil
+}
+
+func pvHasSecretRefsOf(pv, want *v1.PersistentVolume) bool {
+	if pv.Spec.CSI == nil || want.Spec.CSI == nil {
+		return false
+	}
+
+	return sameSecretRef(pv.Spec.CSI.NodeStageSecretRef, want.Spec.CSI.NodeStageSecretRef) &&
+		sameSecretRef(pv.Spec.CSI.ControllerExpandSecretRef, want.Spec.CSI.ControllerExpandSecretRef)
+}
+
+func sameSecretRef(ref, want *v1.SecretReference) bool {
+	if ref == nil || want == nil {
+		return ref == want
+	}
+
+	return *ref == *want
 }
 
 func DisableCSIComponents(ctx context.Context, cl client.Client, logPrefix string) error {
