@@ -19,6 +19,8 @@ spec:
                 userKey:
                   description: |
                     Ключ пользователя Ceph.
+
+                    Если у вызывающей стороны нет прав на подресурс `cephclusterconnections/sensitive`, API возвращает `<omitted>` вместо значения.
                 monitors:
                   description: |
                     Список IP-адресов ceph-mon в формате `10.0.0.10:6789`.

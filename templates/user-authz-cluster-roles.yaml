@@ -45,3 +45,21 @@ rules:
   - deletecollection
   - patch
   - update
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  annotations:
+    user-authz.deckhouse.io/access-level: ClusterAdmin
+  name: d8:user-authz:csi-ceph:cluster-admin
+  {{- include "helm_lib_module_labels" (list .) | nindent 2 }}
+rules:
+- apiGroups:
+  - storage.deckhouse.io
+  resources:
+  - cephclusterconnections/sensitive
+  - cephclusterauthentications/sensitive
+  verbs:
+  - get
+  - list
+  - watch

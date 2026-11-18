@@ -14,6 +14,8 @@ spec:
                 userKey:
                   description: |
                     Авторизационный ключ Ceph, соответствующий `userID`.
+
+                    Если у вызывающей стороны нет прав на подресурс `cephclusterauthentications/sensitive`, API возвращает `<omitted>` вместо значения.
             status:
               description: |
                 Отображает текущую информацию о ресурсах, управляемых пользовательским ресурсом CephClusterAuthentication.

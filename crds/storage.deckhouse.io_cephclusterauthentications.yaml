@@ -38,8 +38,12 @@ spec:
                 description: Username without `client.`.
                 type: string
               userKey:
-                description: Ceph auth key corresponding to the `userID`.
+                description: |-
+                  Ceph auth key corresponding to the `userID`.
+
+                  If the caller is not allowed to read the `cephclusterauthentications/sensitive` subresource, the API returns `<omitted>` instead of the value.
                 type: string
+                x-kubernetes-sensitive-data: true
             required:
             - userID
             - userKey

@@ -66,9 +66,13 @@ spec:
                 description: Ceph user name.
                 type: string
               userKey:
-                description: Ceph user key.
+                description: |-
+                  Ceph user key.
+
+                  If the caller is not allowed to read the `cephclusterconnections/sensitive` subresource, the API returns `<omitted>` instead of the value.
                 minLength: 1
                 type: string
+                x-kubernetes-sensitive-data: true
             required:
             - clusterID
             - monitors

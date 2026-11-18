@@ -65,7 +65,10 @@ type CephClusterConnectionSpec struct {
 	UserID string `json:"userID"`
 
 	// Ceph user key.
+	//
+	// If the caller is not allowed to read the `cephclusterconnections/sensitive` subresource, the API returns `<omitted>` instead of the value.
 	// +kubebuilder:validation:MinLength=1
+	// +crd-enricher:deckhouse:sensitive-data
 	UserKey string `json:"userKey"`
 
 	// CephFS specific parameters (Cluster wide).

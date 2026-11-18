@@ -54,6 +54,9 @@ type CephClusterAuthenticationSpec struct {
 	UserID string `json:"userID"`
 
 	// Ceph auth key corresponding to the `userID`.
+	//
+	// If the caller is not allowed to read the `cephclusterauthentications/sensitive` subresource, the API returns `<omitted>` instead of the value.
+	// +crd-enricher:deckhouse:sensitive-data
 	UserKey string `json:"userKey"`
 }
 

@@ -38,6 +38,14 @@ rules:
 - apiGroups:
   - storage.deckhouse.io
   resources:
+  - cephclusterauthentications/sensitive
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - storage.deckhouse.io
+  resources:
   - cephclusterconnections
   verbs:
   - create
@@ -47,6 +55,14 @@ rules:
   - list
   - patch
   - update
+  - watch
+- apiGroups:
+  - storage.deckhouse.io
+  resources:
+  - cephclusterconnections/sensitive
+  verbs:
+  - get
+  - list
   - watch
 - apiGroups:
   - storage.deckhouse.io
@@ -76,6 +92,8 @@ rules:
     resources:
       - cephclusterconnections
       - cephclusterauthentications
+      - cephclusterconnections/sensitive
+      - cephclusterauthentications/sensitive
     verbs:
       - get
       - list
