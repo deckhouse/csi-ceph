@@ -31,8 +31,8 @@ func TestParseStorageClassLabelIgnoredPrefixes(t *testing.T) {
 		{name: "single", in: "argocd.argoproj.io/", want: []string{"argocd.argoproj.io/"}},
 		{
 			name: "multi",
-			in:   "argocd.argoproj.io/,helm.toolkit.fluxcd.io/,fleet.cattle.op/",
-			want: []string{"argocd.argoproj.io/", "helm.toolkit.fluxcd.io/", "fleet.cattle.op/"},
+			in:   "argocd.argoproj.io/,helm.toolkit.fluxcd.io/,fleet.cattle.io/",
+			want: []string{"argocd.argoproj.io/", "helm.toolkit.fluxcd.io/", "fleet.cattle.io/"},
 		},
 		{
 			name: "whitespace and stray commas",

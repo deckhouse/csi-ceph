@@ -19,3 +19,6 @@ highlights: []
 #     to: "1.1"
 #     changelog_url: "https://..."
 #     notes: "..."
+
+fixes:
+  - "Labels with the `fleet.cattle.io/` prefix are no longer copied from the StorageClass resources of the module to the StorageClasses. The default of `storageClassLabelIgnoredPrefixes` listed a misspelled prefix, `fleet.cattle.op/`, so the Rancher Fleet labels were copied."

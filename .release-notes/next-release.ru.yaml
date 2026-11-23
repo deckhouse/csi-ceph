@@ -19,3 +19,6 @@ highlights: []
 #     to: "1.1"
 #     changelog_url: "https://..."
 #     notes: "..."
+
+fixes:
+  - "Лейблы с префиксом `fleet.cattle.io/` больше не копируются из ресурсов StorageClass модуля в StorageClass. В значении по умолчанию `storageClassLabelIgnoredPrefixes` был указан префикс с опечаткой, `fleet.cattle.op/`, поэтому лейблы Rancher Fleet копировались."

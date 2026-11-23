@@ -42,7 +42,7 @@ var userIgnoredPrefixes = []string{
 	"argocd.argoproj.io/",
 	"kustomize.toolkit.fluxcd.io/",
 	"helm.toolkit.fluxcd.io/",
-	"fleet.cattle.op/",
+	"fleet.cattle.io/",
 }
 
 func ignoredPrefixesUnion() []string {
@@ -97,7 +97,7 @@ var _ = Describe("CephStorageClass label propagation filtering", func() {
 			"argocd.argoproj.io/secret":     "true",
 			"kustomize.toolkit.fluxcd.io/x": "1",
 			"helm.toolkit.fluxcd.io/y":      "2",
-			"fleet.cattle.op/bundle":        "store",
+			"fleet.cattle.io/bundle":        "store",
 			"team":                          "storage",
 		})
 
@@ -115,7 +115,7 @@ var _ = Describe("CephStorageClass label propagation filtering", func() {
 			"argocd.argoproj.io/secret",
 			"kustomize.toolkit.fluxcd.io/x",
 			"helm.toolkit.fluxcd.io/y",
-			"fleet.cattle.op/bundle",
+			"fleet.cattle.io/bundle",
 		} {
 			Expect(sc.Labels).NotTo(HaveKey(key))
 		}
