@@ -6,3 +6,4 @@ dirs:
   - /etc/ceph-csi-config
   - /tmp/csi/keys
   - /etc/ceph
+  - /etc/webhook/certs
