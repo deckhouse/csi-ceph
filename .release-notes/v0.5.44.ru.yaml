@@ -1,0 +1,19 @@
+date: "2026-11-24"
+
+summary: "Модуль поднимает алерт, когда ядерный клиент RBD узла потерял подписку (watch) на подключённый том, например после того, как Ceph занёс его в blocklist, CephStorageClass типа `RBD` показывает место своего пула в `status.capacity`, а под `controller` снова запускается в кластерах с `ContainerdV2` и снапшоттером `erofs`."
+
+highlights:
+  - "Новый алерт `CsiCephRBDVolumeWithoutWatch` и событие `RBDImageNotWatched` на PersistentVolume: у подключённого тома RBD подписчиков образа меньше, чем узлов, к которым он подключён. Так бывает, когда Ceph заносит ядерного клиента узла в blocklist OSD: том может остаться доступным только на чтение, а под продолжает работать."
+  - "CephStorageClass типа `RBD` показывает место своего пула в `status.capacity`: записанные данные, сколько ещё поместится в пул, квоту пула и число образов в корзине RBD — оно объясняет, почему удаление PVC не вернуло место."
+  - "Под `controller` больше не падает с ошибкой `read-only file system` и не остаётся в `CrashLoopBackOff` в кластерах с `ContainerdV2` и снапшоттером `erofs` (DKP CSE или DKP с `defaultCRI: ContainerdV2`)."
+
+new_features:
+  - "Контроллер раз в пять минут проверяет подписчиков подключённых образов RBD с учётными данными их `CephClusterConnection`, открывая образы только на чтение, и отдаёт метрики `csi_ceph_rbd_volume_without_watch` и `csi_ceph_rbd_watch_check_success`; если проверка не проходит 30 минут, срабатывает `D8CsiCephRBDWatchCheckFailed`. В FAQ описано, как подтвердить причину и восстановить узел: drain, перезагрузка, проверка файловых систем."
+  - "CephStorageClass типа `RBD` показывает место своего пула в `status.capacity` так, как его показывает `ceph df`: записанные данные (тома, снапшоты, восстановленные тома и образы в корзине RBD), сколько ещё поместится в пул, квоту пула и остаток в её пределах, число образов в корзине RBD — оно объясняет, почему удаление PVC не вернуло место. `freeOnDisk` выводится в широких колонках `d8 k get cephstorageclass`. Контроллер читает пул раз в минуту с учётными данными `CephClusterConnection` через одно соединение на `CephClusterConnection`, общее с проверкой подписчиков, и записывает статус, когда величина сдвигается больше чем на 1 %, когда меняется корзина или квота, и не реже раза в 5 минут; `csi_ceph_rbd_capacity_read_success` показывает, удалось ли последнее чтение."
+
+fixes:
+  - "Под `controller` теперь запускается в кластерах с `ContainerdV2` и снапшоттером `erofs` (DKP CSE или DKP с `defaultCRI: ContainerdV2`): в его образе есть точка монтирования `/etc/webhook/certs`, поэтому контейнер больше не падает с ошибкой `read-only file system` и не остаётся в `CrashLoopBackOff`."
+  - "Лейблы с префиксом `fleet.cattle.io/` больше не копируются из ресурсов StorageClass модуля в StorageClass. В значении по умолчанию `storageClassLabelIgnoredPrefixes` был указан префикс с опечаткой, `fleet.cattle.op/`, поэтому лейблы Rancher Fleet копировались."
+
+security:
+  - "Модули OpenTelemetry `go.opentelemetry.io/otel`, `metric` и `trace` в бинарном файле ceph-csi подняты с v1.44.0 до v1.47.0, что закрывает CVE-2026-128085."
