@@ -18,8 +18,13 @@ package crdtests
 import (
 	"context"
 	"testing"
+	"time"
 
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/deckhouse/csi-ceph/api/v1alpha1"
 )
@@ -224,6 +229,53 @@ func TestCephStorageClassUpdate(t *testing.T) {
 			createClass(t, csc)
 			tt.change(csc)
 			expectAdmission(t, k8sClient.Update(context.Background(), csc), tt.wantErr...)
+		})
+	}
+}
+
+func TestCephStorageClassStatusCapacity(t *testing.T) {
+	ctx := context.Background()
+	csc := rbdClass("status-capacity")
+	createClass(t, csc)
+
+	at := metav1.NewTime(time.Date(2026, 11, 24, 12, 0, 0, 0, time.UTC))
+	quota := resource.MustParse("50Gi")
+	freeByQuota := resource.MustParse("40Gi")
+	csc.Status = &v1alpha1.CephStorageClassStatus{Capacity: &v1alpha1.CephStorageClassCapacity{
+		Pool:          "rbd",
+		Size:          resource.MustParse("100Gi"),
+		Used:          resource.MustParse("10Gi"),
+		FreeOnDisk:    resource.MustParse("90Gi"),
+		Quota:         &quota,
+		FreeByQuota:   &freeByQuota,
+		ImagesInTrash: 2,
+		UpdatedAt:     at,
+	}}
+	if err := k8sClient.Status().Update(ctx, csc); err != nil {
+		t.Fatalf("update the status with capacity: %v", err)
+	}
+
+	got := &v1alpha1.CephStorageClass{}
+	if err := k8sClient.Get(ctx, client.ObjectKeyFromObject(csc), got); err != nil {
+		t.Fatal(err)
+	}
+	c := got.Status.Capacity
+	if c == nil || c.Pool != "rbd" || c.FreeOnDisk.Cmp(resource.MustParse("90Gi")) != 0 || c.FreeByQuota == nil || c.FreeByQuota.Cmp(freeByQuota) != 0 || c.ImagesInTrash != 2 || !c.UpdatedAt.Equal(&at) {
+		t.Fatalf("capacity read back as %+v", c)
+	}
+
+	for name, capacity := range map[string]string{
+		"without pool":       `{"pool":null}`,
+		"without freeOnDisk": `{"freeOnDisk":null}`,
+		"without updatedAt":  `{"updatedAt":null}`,
+		"not a quantity":     `{"freeOnDisk":"lots"}`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			patch := client.RawPatch(types.MergePatchType, []byte(`{"status":{"capacity":`+capacity+`}}`))
+			err := k8sClient.Status().Patch(ctx, got.DeepCopy(), patch)
+			if !apierrors.IsInvalid(err) {
+				t.Fatalf("status patch %s: %v; want Invalid", capacity, err)
+			}
 		})
 	}
 }

@@ -21,10 +21,12 @@ package rbdwatch
 import (
 	"context"
 	"errors"
+
+	"github.com/deckhouse/csi-ceph/images/controller/pkg/cephconn"
 )
 
 type CephCounter struct {
-	MsCrcData bool
+	Conns *cephconn.Conns
 }
 
 func (c CephCounter) CountWatchers(context.Context, Credentials, []Image) (map[Image]int, error) {

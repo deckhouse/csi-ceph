@@ -163,13 +163,13 @@ func RunCephStorageClassWatcherController(
 		UpdateFunc: func(_ context.Context, e event.TypedUpdateEvent[*v1alpha1.CephStorageClass], q workqueue.TypedRateLimitingInterface[reconcile.Request]) {
 			log := log.Named("update")
 
-			log.Info(fmt.Sprintf("get event for CephStorageClass %q. Check if it should be reconciled", e.ObjectNew.GetName()))
+			log.Debug(fmt.Sprintf("get event for CephStorageClass %q. Check if it should be reconciled", e.ObjectNew.GetName()))
 
 			oldCephSC := e.ObjectOld
 			newCephSC := e.ObjectNew
 
 			if !shouldEnqueueCephStorageClassUpdate(oldCephSC, newCephSC) {
-				log.Info(fmt.Sprintf("an update event for the CephStorageClass %s changes nothing the StorageClass is built from. It will not be reconciled", newCephSC.Name))
+				log.Debug(fmt.Sprintf("an update event for the CephStorageClass %s changes nothing the StorageClass is built from. It will not be reconciled", newCephSC.Name))
 				return
 			}
 

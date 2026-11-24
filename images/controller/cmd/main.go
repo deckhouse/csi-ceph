@@ -37,9 +37,11 @@ import (
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
 	"github.com/deckhouse/csi-ceph/api/v1alpha1"
+	"github.com/deckhouse/csi-ceph/images/controller/pkg/cephconn"
 	"github.com/deckhouse/csi-ceph/images/controller/pkg/config"
 	"github.com/deckhouse/csi-ceph/images/controller/pkg/controller"
 	"github.com/deckhouse/csi-ceph/images/controller/pkg/kubutils"
+	"github.com/deckhouse/csi-ceph/images/controller/pkg/rbdcapacity"
 	"github.com/deckhouse/csi-ceph/images/controller/pkg/rbdwatch"
 	"github.com/deckhouse/csi-ceph/images/webhooks/handlers"
 	"github.com/deckhouse/sds-common-lib/logger"
@@ -142,9 +144,15 @@ func main() {
 		os.Exit(1)
 	}
 
+	cephConns := cephconn.NewConns(cfgParams.MsCrcData)
+	if err = mgr.Add(cephConns); err != nil {
+		log.Error("unable to add the Ceph connection pool", logger.Err(err))
+		os.Exit(1)
+	}
+
 	watchChecker := &rbdwatch.Checker{
 		Client:   mgr.GetClient(),
-		Counter:  rbdwatch.CephCounter{MsCrcData: cfgParams.MsCrcData},
+		Counter:  rbdwatch.CephCounter{Conns: cephConns},
 		Recorder: mgr.GetEventRecorder(rbdwatch.CheckerName),
 		Log:      baseLog.Named(rbdwatch.CheckerName),
 		Interval: rbdwatch.DefaultInterval,
@@ -155,6 +163,21 @@ func main() {
 	}
 	if err = metrics.Registry.Register(rbdwatch.Collector{Checker: watchChecker}); err != nil {
 		log.Error("unable to register the RBD watch metrics", logger.Err(err))
+		os.Exit(1)
+	}
+
+	capacityPublisher := &rbdcapacity.Publisher{
+		Client:   mgr.GetClient(),
+		Reader:   rbdcapacity.CephPoolReader{Conns: cephConns},
+		Log:      baseLog.Named(rbdcapacity.PublisherName),
+		Interval: rbdcapacity.DefaultInterval,
+	}
+	if err = mgr.Add(capacityPublisher); err != nil {
+		log.Error("unable to add the RBD capacity publisher", logger.Err(err))
+		os.Exit(1)
+	}
+	if err = metrics.Registry.Register(rbdcapacity.Collector{Publisher: capacityPublisher}); err != nil {
+		log.Error("unable to register the RBD capacity metrics", logger.Err(err))
 		os.Exit(1)
 	}
 

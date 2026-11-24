@@ -20,6 +20,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -39,6 +40,7 @@ import (
 )
 
 type fakeCounter struct {
+	mu     sync.Mutex
 	counts map[Image]int
 	err    error
 	calls  []Credentials
@@ -46,6 +48,8 @@ type fakeCounter struct {
 }
 
 func (f *fakeCounter) CountWatchers(_ context.Context, creds Credentials, images []Image) (map[Image]int, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	f.calls = append(f.calls, creds)
 	f.images = append(f.images, images)
 	counts := map[Image]int{}
@@ -155,7 +159,7 @@ func TestVolumeWithoutWatcherIsReported(t *testing.T) {
 		t.Fatalf("unexpected result (-want +got):\n%s", diff)
 	}
 
-	wantCreds := []Credentials{{Monitors: []string{"10.0.0.1:6789", "10.0.0.2:6789"}, UserID: "user-ceph", UserKey: "key-ceph"}}
+	wantCreds := []Credentials{{Name: "ceph", Monitors: []string{"10.0.0.1:6789", "10.0.0.2:6789"}, UserID: "user-ceph", UserKey: "key-ceph"}}
 	if diff := cmp.Diff(wantCreds, counter.calls); diff != "" {
 		t.Fatalf("unexpected credentials (-want +got):\n%s", diff)
 	}
@@ -291,7 +295,11 @@ func TestVolumesAreGroupedByConnection(t *testing.T) {
 
 	c.Run(context.Background())
 
-	if diff := cmp.Diff([][]Image{{a}, {b}}, counter.images); diff != "" {
+	byUser := map[string][]Image{}
+	for i, creds := range counter.calls {
+		byUser[creds.Name] = counter.images[i]
+	}
+	if diff := cmp.Diff(map[string][]Image{"first": {a}, "second": {b}}, byUser); diff != "" {
 		t.Fatalf("unexpected images (-want +got):\n%s", diff)
 	}
 	if diff := cmp.Diff(map[string]bool{"first": true, "second": true}, c.Result().Connections); diff != "" {

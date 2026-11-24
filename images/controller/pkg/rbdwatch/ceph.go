@@ -22,64 +22,47 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
+	"sync"
 
 	"github.com/ceph/go-ceph/rados"
 	"github.com/ceph/go-ceph/rbd"
+
+	"github.com/deckhouse/csi-ceph/images/controller/pkg/cephconn"
 )
 
-const opTimeoutSeconds = "30"
-
 type CephCounter struct {
-	MsCrcData bool
+	Conns *cephconn.Conns
 }
 
 func (c CephCounter) CountWatchers(ctx context.Context, creds Credentials, images []Image) (map[Image]int, error) {
-	conn, err := rados.NewConnWithUser(creds.UserID)
-	if err != nil {
-		return nil, fmt.Errorf("unable to create a Ceph connection: %w", err)
-	}
-
-	options := [][2]string{
-		{"mon_host", strings.Join(creds.Monitors, ",")},
-		{"key", creds.UserKey},
-		{"client_mount_timeout", opTimeoutSeconds},
-		{"rados_mon_op_timeout", opTimeoutSeconds},
-		{"rados_osd_op_timeout", opTimeoutSeconds},
-		{"rbd_cache", "false"},
-		{"ms_crc_data", fmt.Sprint(c.MsCrcData)},
-		{"admin_socket", ""},
-		{"log_file", ""},
-		{"log_to_stderr", "false"},
-		{"err_to_stderr", "false"},
-	}
-	for _, o := range options {
-		if err := conn.SetConfigOption(o[0], o[1]); err != nil {
-			return nil, fmt.Errorf("unable to set the Ceph option %s: %w", o[0], err)
+	var (
+		mu     sync.Mutex
+		counts map[Image]int
+	)
+	err := c.Conns.Do(ctx, creds, func(conn *rados.Conn) error {
+		out := make(map[Image]int, len(images))
+		var errs []error
+		for _, image := range images {
+			if ctx.Err() != nil {
+				errs = append(errs, ctx.Err())
+				break
+			}
+			n, err := countImageWatchers(conn, image)
+			if err != nil {
+				errs = append(errs, fmt.Errorf("%s: %w", image, err))
+				continue
+			}
+			out[image] = n
 		}
-	}
+		mu.Lock()
+		counts = out
+		mu.Unlock()
+		return errors.Join(errs...)
+	})
 
-	if err := conn.Connect(); err != nil {
-		return nil, fmt.Errorf("unable to connect to the Ceph monitors %s as client.%s: %w", strings.Join(creds.Monitors, ","), creds.UserID, err)
-	}
-	defer conn.Shutdown()
-
-	counts := make(map[Image]int, len(images))
-	var errs []error
-	for _, image := range images {
-		if ctx.Err() != nil {
-			errs = append(errs, ctx.Err())
-			break
-		}
-		n, err := countImageWatchers(conn, image)
-		if err != nil {
-			errs = append(errs, fmt.Errorf("%s: %w", image, err))
-			continue
-		}
-		counts[image] = n
-	}
-
-	return counts, errors.Join(errs...)
+	mu.Lock()
+	defer mu.Unlock()
+	return counts, err
 }
 
 func countImageWatchers(conn *rados.Conn, image Image) (int, error) {

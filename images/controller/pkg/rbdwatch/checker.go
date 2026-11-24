@@ -32,6 +32,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/deckhouse/csi-ceph/api/v1alpha1"
+	"github.com/deckhouse/csi-ceph/images/controller/pkg/cephconn"
 	"github.com/deckhouse/csi-ceph/images/controller/pkg/internal"
 	"github.com/deckhouse/sds-common-lib/logger"
 )
@@ -40,6 +41,8 @@ const (
 	CheckerName     = "rbd-watch-checker"
 	Driver          = "rbd.csi.ceph.com"
 	DefaultInterval = 5 * time.Minute
+
+	connectionTimeout = 4 * time.Minute
 
 	EventReason = "RBDImageNotWatched"
 	EventAction = "CheckWatchers"
@@ -58,11 +61,7 @@ func (i Image) String() string {
 	return i.Pool + "/" + i.RadosNamespace + "/" + i.Name
 }
 
-type Credentials struct {
-	Monitors []string
-	UserID   string
-	UserKey  string
-}
+type Credentials = cephconn.Credentials
 
 type WatcherCounter interface {
 	CountWatchers(ctx context.Context, creds Credentials, images []Image) (map[Image]int, error)
@@ -163,14 +162,18 @@ func (c *Checker) Check(ctx context.Context) (Result, error) {
 	}
 
 	result := Result{Connections: make(map[string]bool, len(byConnection))}
-	for _, name := range slices.Sorted(maps.Keys(byConnection)) {
+	var mu sync.Mutex
+	cephconn.ForEach(ctx, slices.Sorted(maps.Keys(byConnection)), cephconn.ParallelConnections, connectionTimeout, func(ctx context.Context, name string) {
 		unwatched, err := c.checkConnection(ctx, name, byConnection[name])
+		mu.Lock()
 		result.Unwatched = append(result.Unwatched, unwatched...)
 		result.Connections[name] = err == nil
+		mu.Unlock()
 		if err != nil {
 			c.Log.Error("unable to count the watchers of the RBD images", logger.Err(err), "cephClusterConnection", name)
 		}
-	}
+	})
+	slices.SortFunc(result.Unwatched, func(a, b Unwatched) int { return strings.Compare(a.PersistentVolume, b.PersistentVolume) })
 
 	return result, nil
 }
@@ -192,6 +195,7 @@ func (c *Checker) checkConnection(ctx context.Context, name string, volumes []Vo
 	}
 
 	counts, err := c.Counter.CountWatchers(ctx, Credentials{
+		Name:     name,
 		Monitors: connection.Spec.Monitors,
 		UserID:   connection.Spec.UserID,
 		UserKey:  connection.Spec.UserKey,

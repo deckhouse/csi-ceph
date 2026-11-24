@@ -16,7 +16,10 @@ limitations under the License.
 
 package v1alpha1
 
-import metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+import (
+	"k8s.io/apimachinery/pkg/api/resource"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+)
 
 const (
 	CephStorageClassTypeRBD    = "RBD"
@@ -36,6 +39,7 @@ var (
 // +kubebuilder:metadata:labels={"heritage=deckhouse","module=csi-ceph","backup.deckhouse.io/cluster-config=true"}
 // +kubebuilder:printcolumn:name="Phase",type="string",JSONPath=".status.phase"
 // +kubebuilder:printcolumn:name="Ready",type="string",JSONPath=".status.conditions[?(@.type==\"Ready\")].status"
+// +kubebuilder:printcolumn:name="Free on disk",type="string",JSONPath=".status.capacity.freeOnDisk",priority=1
 // +kubebuilder:printcolumn:name="Reason",type="string",JSONPath=".status.reason",priority=1
 // +kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp",description="The age of this resource"
 // +crd-enricher:crd:minimal=true
@@ -147,4 +151,43 @@ type CephStorageClassStatus struct {
 	// +crd-enricher:raw:items.properties.reason.description="Machine-readable reason for the current status, suitable for log filtering\nand alerting."
 	// +crd-enricher:raw:items.properties.message.description=Human-readable explanation of the current status.
 	Conditions []metav1.Condition `json:"conditions,omitempty"`
+
+	// Space of the RBD pool the class provisions in, as `ceph df` reports it. Set for an `RBD` class only. The
+	// controller reads the pool once a minute and writes the figures when one of them moves by more than 1% of the
+	// size, when the number of images in the RBD trash or the quota changes, and at least every 5 minutes.
+	// +optional
+	Capacity *CephStorageClassCapacity `json:"capacity,omitempty"`
+}
+
+// Space of the RBD pool of a CephStorageClass. The figures are for the whole pool: they include the data of
+// every client of the pool and of every class that provisions in it.
+// +k8s:deepcopy-gen=true
+type CephStorageClassCapacity struct {
+	// Name of the RBD pool.
+	// +kubebuilder:validation:MaxLength=253
+	Pool string `json:"pool"`
+	// Used plus freeOnDisk.
+	Size resource.Quantity `json:"size"`
+	// Data stored in the pool, before replication (`STORED` of `ceph df`), rounded down to MiB. It includes the
+	// volumes, their snapshots, the volumes restored from snapshots and the images in the RBD trash. Data a
+	// restored volume shares with its snapshot is counted once.
+	Used resource.Quantity `json:"used"`
+	// Data the pool can still take, before replication (`MAX AVAIL` of `ceph df`), rounded down to MiB: what the
+	// fullest OSD of the pool's CRUSH rule leaves before the full ratio. Pools on the same OSDs share it, and the
+	// quota of the pool does not lower it.
+	FreeOnDisk resource.Quantity `json:"freeOnDisk"`
+	// Byte quota of the pool. Absent when the pool has none.
+	// +optional
+	Quota *resource.Quantity `json:"quota,omitempty"`
+	// Data the pool can still take within its quota: the smaller of the quota minus used and freeOnDisk, rounded
+	// down to MiB. Absent when the pool has no quota.
+	// +optional
+	FreeByQuota *resource.Quantity `json:"freeByQuota,omitempty"`
+	// Number of images in the RBD trash of the pool. The driver moves the image of a deleted volume there,
+	// and the image keeps its data while a snapshot or a volume cloned from it still depends on it.
+	// `capacity` is written only after the trash was listed, so an absent field means zero images.
+	// +optional
+	ImagesInTrash int32 `json:"imagesInTrash,omitempty"`
+	// When the figures were read from Ceph.
+	UpdatedAt metav1.Time `json:"updatedAt"`
 }

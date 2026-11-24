@@ -215,6 +215,17 @@ To recover:
 
 To find out who blocklisted the client, search the audit log of the Ceph monitors for `osd blocklist add` with the address of the node.
 
+## How much space is left in the RBD pool of a CephStorageClass?
+
+The module's controller publishes the space of the pool in `status.capacity` of an `RBD` CephStorageClass, and `d8 k get cephstorageclass -o wide` prints `freeOnDisk`:
+
+- `used` is the data stored in the pool before replication, the `STORED` column of `ceph df`. It counts the volumes, their snapshots, the volumes restored from snapshots and the images in the RBD trash.
+- `freeOnDisk` is how much more data the pool can take, the `MAX AVAIL` column of `ceph df`: what the fullest OSD of the pool's CRUSH rule leaves before the full ratio, divided by the replication factor of the pool. Pools on the same OSDs share this space, so writing to one of them lowers it for all.
+- `size` is `used` plus `freeOnDisk`; `quota` is the byte quota of the pool when one is set (`ceph osd pool set-quota`). `freeOnDisk` does not take the quota into account, so with a quota set `freeByQuota` tells how much more the pool can take: the smaller of the quota minus `used` and `freeOnDisk`.
+- `imagesInTrash` is the number of images in the RBD trash of the pool. An image of a deleted volume stays there while a snapshot or a restored volume depends on it, as the next question describes, so a non-zero count explains why deleting a PVC returned no space.
+
+`used`, `freeOnDisk` and `freeByQuota` are rounded down to MiB. The figures are for the whole pool, including the data of other clients of the Ceph cluster and of other classes that use the same pool. The controller reads them with the credentials of the CephClusterConnection once a minute and writes them when a figure moves by more than 1% of `size`, when the trash count or the quota changes, or every 5 minutes; `status.capacity.updatedAt` tells when the figures were read. If the Ceph cluster cannot be reached, the last figures stay in place with their old `updatedAt`, and the `csi_ceph_rbd_capacity_read_success` metric of the CephClusterConnection is 0. The controller keeps one connection to the cluster per CephClusterConnection, shared with the check of the RBD image watchers, and logs in at most once a minute. The caps from the examples above are enough: `profile rbd` in the mon caps allows `ceph df`, and the osd caps of the pool allow listing its trash.
+
 ## What happens to snapshots and restored volumes when one of them is deleted?
 
 Any order of deletion is allowed: a PVC, a VolumeSnapshot and a volume restored from it can each be deleted while the others exist. The space in Ceph, however, is freed only when nothing depends on it any more.

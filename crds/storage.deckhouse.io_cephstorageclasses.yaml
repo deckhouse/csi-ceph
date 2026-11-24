@@ -22,6 +22,10 @@ spec:
     - jsonPath: .status.conditions[?(@.type=="Ready")].status
       name: Ready
       type: string
+    - jsonPath: .status.capacity.freeOnDisk
+      name: Free on disk
+      priority: 1
+      type: string
     - jsonPath: .status.reason
       name: Reason
       priority: 1
@@ -122,6 +126,78 @@ spec:
           status:
             description: Displays current information about the Storage Class.
             properties:
+              capacity:
+                description: |-
+                  Space of the RBD pool the class provisions in, as `ceph df` reports it. Set for an `RBD` class only. The
+                  controller reads the pool once a minute and writes the figures when one of them moves by more than 1% of the
+                  size, when the number of images in the RBD trash or the quota changes, and at least every 5 minutes.
+                properties:
+                  freeByQuota:
+                    anyOf:
+                    - type: integer
+                    - type: string
+                    description: |-
+                      Data the pool can still take within its quota: the smaller of the quota minus used and freeOnDisk, rounded
+                      down to MiB. Absent when the pool has no quota.
+                    pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                    x-kubernetes-int-or-string: true
+                  freeOnDisk:
+                    anyOf:
+                    - type: integer
+                    - type: string
+                    description: |-
+                      Data the pool can still take, before replication (`MAX AVAIL` of `ceph df`), rounded down to MiB: what the
+                      fullest OSD of the pool's CRUSH rule leaves before the full ratio. Pools on the same OSDs share it, and the
+                      quota of the pool does not lower it.
+                    pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                    x-kubernetes-int-or-string: true
+                  imagesInTrash:
+                    description: |-
+                      Number of images in the RBD trash of the pool. The driver moves the image of a deleted volume there,
+                      and the image keeps its data while a snapshot or a volume cloned from it still depends on it.
+                      `capacity` is written only after the trash was listed, so an absent field means zero images.
+                    format: int32
+                    type: integer
+                  pool:
+                    description: Name of the RBD pool.
+                    maxLength: 253
+                    type: string
+                  quota:
+                    anyOf:
+                    - type: integer
+                    - type: string
+                    description: Byte quota of the pool. Absent when the pool has
+                      none.
+                    pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                    x-kubernetes-int-or-string: true
+                  size:
+                    anyOf:
+                    - type: integer
+                    - type: string
+                    description: Used plus freeOnDisk.
+                    pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                    x-kubernetes-int-or-string: true
+                  updatedAt:
+                    description: When the figures were read from Ceph.
+                    format: date-time
+                    type: string
+                  used:
+                    anyOf:
+                    - type: integer
+                    - type: string
+                    description: |-
+                      Data stored in the pool, before replication (`STORED` of `ceph df`), rounded down to MiB. It includes the
+                      volumes, their snapshots, the volumes restored from snapshots and the images in the RBD trash. Data a
+                      restored volume shares with its snapshot is counted once.
+                    pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                    x-kubernetes-int-or-string: true
+                required:
+                - freeOnDisk
+                - pool
+                - size
+                - updatedAt
+                - used
+                type: object
               conditions:
                 description: 'The latest observations of the resource state. Condition
                   type: `Ready`.'

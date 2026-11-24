@@ -8,6 +8,7 @@ highlights:
 # Optional sections — delete rather than leave empty.
 new_features:
   - "The controller checks the watchers of the attached RBD images every five minutes, with the credentials of their `CephClusterConnection` and read-only, and exports the `csi_ceph_rbd_volume_without_watch` and `csi_ceph_rbd_watch_check_success` metrics; `D8CsiCephRBDWatchCheckFailed` fires when the check fails for 30 minutes. The FAQ describes how to confirm the cause and recover the node: drain, reboot, check the filesystems."
+  - "An `RBD` CephStorageClass reports the space of its pool in `status.capacity`, as `ceph df` shows it: the data stored (volumes, snapshots, restored volumes and images in the RBD trash), the space the pool can still take, the pool quota and the space left within it, and the number of images in the RBD trash, which tells why deleting a PVC returned no space. `freeOnDisk` is a wide column of `d8 k get cephstorageclass`. The controller reads the pool once a minute with the credentials of the `CephClusterConnection` over one connection per `CephClusterConnection`, shared with the watcher check, and writes the status when a figure moves by more than 1%, when the trash or the quota changes, or every 5 minutes; `csi_ceph_rbd_capacity_read_success` shows whether the last read succeeded."
 # improvements: []
 # fixes: []
 # security: []
