@@ -41,17 +41,29 @@ secrets:
 {{ include "secret for private go modules" . }}
 
 shell:
+  install:
+    - pm install gcc glibc-devel libatomic-devel pkgconf ceph-devel librbd
   setup:
     {{- include "svace toolchain for golang builds" . | nindent 4 }}
     {{- include "auth for private go modules" . | nindent 4 }}
     - cd /src/images/{{ $.ImageName }}/cmd
     - GOPROXY=$(cat /run/secrets/GOPROXY) go mod download
-    - export GOOS=linux GOARCH=amd64 CGO_ENABLED=0
+    - export GOOS=linux GOARCH=amd64 CGO_ENABLED=1
     - |
-      {{- include "image-build.build" (set $ "BuildCommand" (printf `go build -ldflags="-s -w" -tags "%s" -o /%s` .MODULE_EDITION $.ImageName)) | nindent 6 }}
+      {{- include "image-build.build" (set $ "BuildCommand" (printf `go build -ldflags="-s -w" -tags "%s,cephclient" -o /%s` .MODULE_EDITION $.ImageName)) | nindent 6 }}
     # Absolute mode: see the note in .werf/defines/golang.tmpl -- `chmod +x` is masked by
     # the umask in effect and can leave the binary executable by root only.
     - chmod 0755 /{{ $.ImageName }}
+
+---
+image: {{ .ModuleNamePrefix }}{{ .ImageName }}-runtime-artifact
+from: {{ index $.Images "builder/distroless" }}
+final: false
+shell:
+  setup:
+    - pm install -n --rootDir /relocate glibc librbd
+    - mkdir -p /relocate/etc
+    - if [ -x /relocate/sbin/ldconfig ]; then chroot /relocate /sbin/ldconfig; fi
 
 ---
 image: {{ .ModuleNamePrefix }}{{ .ImageName }}
@@ -59,6 +71,10 @@ from: {{ index $.Images "base/distroless" }}
 # An import is keyed on file content, not on mode: without this the pre-fix stage stays cached.
 fromCacheVersion: "1"
 import:
+  - image: {{ .ModuleNamePrefix }}{{ .ImageName }}-runtime-artifact
+    add: /relocate
+    to: /
+    before: setup
   - image: {{ .ModuleNamePrefix }}{{ .ImageName }}-golang-artifact
     add: /{{ $.ImageName }}
     to: /{{ $.ImageName }}

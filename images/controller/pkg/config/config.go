@@ -58,6 +58,7 @@ type Options struct {
 	// Labels on a CephStorageClass whose keys start with any of these prefixes are
 	// NOT propagated to the managed Kubernetes StorageClass.
 	StorageClassLabelIgnoredPrefixes []string
+	MsCrcData                        bool
 }
 
 // defaultMetricsBindAddress keeps the endpoint on loopback when the chart says
@@ -93,6 +94,8 @@ func NewConfig() *Options {
 	opts.RequeueStorageClassInterval = DefaultRequeueStorageClassInterval
 
 	opts.StorageClassLabelIgnoredPrefixes = parseStorageClassLabelIgnoredPrefixes(os.Getenv(StorageClassLabelIgnoredPrefixesEnvName))
+
+	opts.MsCrcData = !strings.EqualFold(strings.TrimSpace(os.Getenv(MsCrcDataEnvName)), "false")
 
 	return &opts
 }

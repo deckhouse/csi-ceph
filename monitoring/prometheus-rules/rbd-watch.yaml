@@ -1,0 +1,71 @@
+- name: kubernetes.ceph.rbd_watch
+  rules:
+    - alert: CsiCephRBDVolumeWithoutWatch
+      expr: |
+        max by (persistentvolume, node, cephclusterconnection, pool, rados_namespace, image) (csi_ceph_rbd_volume_without_watch == 1)
+        unless on (node)
+          (max by (node) (kube_node_status_condition{condition="Ready", status="true"}) == 0)
+      for: 10m
+      labels:
+        severity_level: "4"
+        tier: cluster
+      annotations:
+        plk_markup_format: "markdown"
+        plk_protocol_version: "1"
+        plk_create_group_if_not_exists__csi_ceph_rbd_volume_without_watch: "CsiCephRBDVolumeWithoutWatchGroup,tier=~tier,prometheus=deckhouse,kubernetes=~kubernetes"
+        plk_grouped_by__csi_ceph_rbd_volume_without_watch: "CsiCephRBDVolumeWithoutWatchGroup,tier=~tier,prometheus=deckhouse,kubernetes=~kubernetes"
+        summary: The RBD image of the PersistentVolume `{{ $labels.persistentvolume }}` attached to the node `{{ $labels.node }}` is not watched.
+        description: |
+          The PersistentVolume `{{ $labels.persistentvolume }}` is attached to the node `{{ $labels.node }}`, but its RBD image `{{ $labels.pool }}/{{ $labels.image }}` (CephClusterConnection `{{ $labels.cephclusterconnection }}`) has fewer watchers than nodes it is attached to.
+
+          A node that maps an RBD image always watches it. A node without the watch has either not mapped the image, or its kernel RBD client has lost the connection to the image, most often because Ceph added the client to the OSD blocklist. The kernel client does not restore the watch by itself: reads and writes of the volume on that node fail or hang and its filesystem may turn read-only, while the Pod keeps running. Every next attempt of another client to take the exclusive lock of such an image blocklists the whole kernel client of the node again, together with all its other volumes.
+
+          If the volume is attached to several nodes, for example during a live migration of a virtual machine, the alert names each of them; the broken one is the node whose kernel log shows the errors below.
+
+          Troubleshooting steps:
+
+          1. Check the events of the Pods that use the volume. If a Pod on the node `{{ $labels.node }}` is in `ContainerCreating` because the volume cannot be mapped, fix the cause from its events; the steps below do not apply.
+
+          2. Read the kernel log on the node `{{ $labels.node }}`:
+
+             ```shell
+             dmesg -T | grep -E 'rbd|libceph'
+             ```
+
+             `failed to reregister watch: -108` and `blocklisted` mean that the kernel client was blocklisted.
+
+          3. Drain the node and reboot it. Only a reboot, or unmapping all its RBD images, replaces the kernel client; restarting a Pod does not help:
+
+             ```shell
+             d8 k drain {{ $labels.node }} --ignore-daemonsets --delete-emptydir-data
+             ```
+
+          4. After the reboot, check the filesystems of the volumes that were used on the node with `fsck` while they are not mounted anywhere, or watch the `PersistentVolumeFilesystemErrors` alert of the `storage-foundation` module.
+
+          The module documentation describes these steps in detail in the FAQ, in the question about a Pod that keeps running while its RBD volume is read-only.
+
+    - alert: D8CsiCephRBDWatchCheckFailed
+      expr: |
+        max by (cephclusterconnection) (csi_ceph_rbd_watch_check_success) == 0
+      for: 30m
+      labels:
+        severity_level: "6"
+        tier: cluster
+      annotations:
+        plk_markup_format: "markdown"
+        plk_protocol_version: "1"
+        plk_create_group_if_not_exists__d8_csi_ceph_rbd_watch_check_failed: "D8CsiCephRBDWatchCheckFailedGroup,tier=~tier,prometheus=deckhouse,kubernetes=~kubernetes"
+        plk_grouped_by__d8_csi_ceph_rbd_watch_check_failed: "D8CsiCephRBDWatchCheckFailedGroup,tier=~tier,prometheus=deckhouse,kubernetes=~kubernetes"
+        summary: The csi-ceph controller cannot check the RBD images of the CephClusterConnection `{{ $labels.cephclusterconnection }}`.
+        description: |
+          Every five minutes the csi-ceph controller connects to Ceph with the credentials of the CephClusterConnection `{{ $labels.cephclusterconnection }}` and counts the watchers of the RBD images attached to the nodes, so that the `CsiCephRBDVolumeWithoutWatch` alert can fire. The check has failed for 30 minutes, so that alert cannot fire for the volumes of this connection.
+
+          Troubleshooting steps:
+
+          1. Read the reason in the controller log:
+
+             ```shell
+             d8 k -n d8-csi-ceph logs -l app=controller -c controller | grep 'watchers of the RBD images'
+             ```
+
+          2. Check that the Ceph monitors of the CephClusterConnection are reachable from the master nodes, where the controller runs, and that the Ceph user of the connection may read the pools of the volumes: the check needs the same caps the module needs anyway (`mon 'profile rbd'`, `osd 'profile rbd pool=<pool>'`).

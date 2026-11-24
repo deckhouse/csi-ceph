@@ -169,6 +169,52 @@ rbd lock rm <pool>/<image> '<ID>' <Locker>
 
 Take `<ID>` and `<Locker>` from the `rbd lock ls` output; the ID of an exclusive lock contains a space, so quote it.
 
+## Why does a Pod keep running while its RBD volume is read-only or returns I/O errors?
+
+Every node that maps an RBD image watches it: the kernel RBD client registers a watch on the image header and holds the exclusive lock of the image while it writes. When Ceph adds the kernel client of a node to the OSD blocklist, the OSDs drop its watches and reject its requests. The kernel client does not register the watch again, even after the blocklist entry expires, and keeps the device mapped. Reads and writes of the volume on that node fail or hang, and the filesystem may turn read-only, while the Pod stays `Running` and the CSI driver reports the volume as healthy. Any other client that then takes the exclusive lock of such an image, for example to create a snapshot, finds a lock owner without a watch and blocklists the kernel client of the node again, together with all its other volumes. Ceph blocklists a client when another client breaks its lock, for example after a node failure, or by hand.
+
+The csi-ceph controller checks every five minutes that each attached RBD volume has as many watchers as nodes it is attached to, and raises the `CsiCephRBDVolumeWithoutWatch` alert for a volume on a `Ready` node that has fewer. It also records a `RBDImageNotWatched` Warning event on the PersistentVolume:
+
+```shell
+d8 k get events -A --field-selector reason=RBDImageNotWatched
+```
+
+The check connects to Ceph from the controller with the credentials of the `CephClusterConnection` and opens the images read-only, so it needs no caps beyond those listed above. If it cannot connect or read an image for 30 minutes, the `D8CsiCephRBDWatchCheckFailed` alert fires.
+
+To confirm the cause on the node named by the alert:
+
+1. Look for the errors of the kernel client:
+
+   ```shell
+   dmesg -T | grep -E 'rbd|libceph'
+   ```
+
+   `failed to reregister watch: -108`, `blocklisted`, and write errors with `-108` or `-16` mean that the client was blocklisted or lost the lock.
+
+2. Optionally, compare the address of the kernel client with the blocklist and the watchers of the image in Ceph:
+
+   ```shell
+   cat /sys/bus/rbd/devices/*/client_addr
+   ceph osd blocklist ls
+   rbd status <pool>/<image>
+   ```
+
+   The image is listed with `Watchers: none`, or without the address of the node.
+
+To recover:
+
+1. Drain the node. Only a reboot of the node, or unmapping all its RBD images, replaces the kernel client; restarting a Pod does not help, because the new Pod gets the same mapping:
+
+   ```shell
+   d8 k drain <node> --ignore-daemonsets --delete-emptydir-data
+   ```
+
+2. Reboot the node and uncordon it after it becomes `Ready`.
+
+3. Check the filesystems of the volumes that were used on the node while they are not mounted anywhere, for example with `e2fsck -f` for ext4 or `xfs_repair` for XFS. The `PersistentVolumeFilesystemIsRO`, `PersistentVolumeFilesystemErrors` and `PersistentVolumeFilesystemShutdown` alerts of the `storage-foundation` module point at such volumes.
+
+To find out who blocklisted the client, search the audit log of the Ceph monitors for `osd blocklist add` with the address of the node.
+
 ## What happens to snapshots and restored volumes when one of them is deleted?
 
 Any order of deletion is allowed: a PVC, a VolumeSnapshot and a volume restored from it can each be deleted while the others exist. The space in Ceph, however, is freed only when nothing depends on it any more.

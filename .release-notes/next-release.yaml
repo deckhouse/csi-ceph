@@ -1,11 +1,13 @@
 # Draft scaffold for the next release. Before tagging, rename to vX.Y.Z.yaml
 # (the file name must match the git tag) and fill it in.
 date: "2026-xx-xx"
-summary: ""
-highlights: []
+summary: "The module now raises an alert when the kernel RBD client of a node has lost its watch on an attached volume, for example after Ceph blocklisted it."
+highlights:
+  - "New `CsiCephRBDVolumeWithoutWatch` alert and `RBDImageNotWatched` event on the PersistentVolume: an attached RBD volume whose image has fewer watchers than nodes it is attached to, which happens after Ceph adds the kernel client of a node to the OSD blocklist and can leave the volume read-only while the Pod keeps running."
 
 # Optional sections — delete rather than leave empty.
-# new_features: []
+new_features:
+  - "The controller checks the watchers of the attached RBD images every five minutes, with the credentials of their `CephClusterConnection` and read-only, and exports the `csi_ceph_rbd_volume_without_watch` and `csi_ceph_rbd_watch_check_success` metrics; `D8CsiCephRBDWatchCheckFailed` fires when the check fails for 30 minutes. The FAQ describes how to confirm the cause and recover the node: drain, reboot, check the filesystems."
 # improvements: []
 # fixes: []
 # security: []

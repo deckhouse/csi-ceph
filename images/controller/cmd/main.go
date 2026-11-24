@@ -33,12 +33,14 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
+	"sigs.k8s.io/controller-runtime/pkg/metrics"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
 	"github.com/deckhouse/csi-ceph/api/v1alpha1"
 	"github.com/deckhouse/csi-ceph/images/controller/pkg/config"
 	"github.com/deckhouse/csi-ceph/images/controller/pkg/controller"
 	"github.com/deckhouse/csi-ceph/images/controller/pkg/kubutils"
+	"github.com/deckhouse/csi-ceph/images/controller/pkg/rbdwatch"
 	"github.com/deckhouse/csi-ceph/images/webhooks/handlers"
 	"github.com/deckhouse/sds-common-lib/logger"
 	"github.com/deckhouse/sds-common-lib/monitoring"
@@ -137,6 +139,22 @@ func main() {
 
 	if _, err = controller.RunCephClusterAuthenticationWatcherController(mgr, *cfgParams, baseLog.Named(controller.CephClusterAuthenticationCtrlName)); err != nil {
 		log.Error("unable to run the controller", logger.Err(err), slog.String("controller", controller.CephClusterAuthenticationCtrlName))
+		os.Exit(1)
+	}
+
+	watchChecker := &rbdwatch.Checker{
+		Client:   mgr.GetClient(),
+		Counter:  rbdwatch.CephCounter{MsCrcData: cfgParams.MsCrcData},
+		Recorder: mgr.GetEventRecorder(rbdwatch.CheckerName),
+		Log:      baseLog.Named(rbdwatch.CheckerName),
+		Interval: rbdwatch.DefaultInterval,
+	}
+	if err = mgr.Add(watchChecker); err != nil {
+		log.Error("unable to add the RBD watch checker", logger.Err(err))
+		os.Exit(1)
+	}
+	if err = metrics.Registry.Register(rbdwatch.Collector{Checker: watchChecker}); err != nil {
+		log.Error("unable to register the RBD watch metrics", logger.Err(err))
 		os.Exit(1)
 	}
 
