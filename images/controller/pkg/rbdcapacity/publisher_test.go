@@ -19,38 +19,104 @@ package rbdcapacity
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v8/apis/volumesnapshot/v1"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	apiruntime "k8s.io/apimachinery/pkg/runtime"
+	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	"github.com/deckhouse/csi-ceph/api/v1alpha1"
 	"github.com/deckhouse/csi-ceph/images/controller/pkg/cephconn"
+	"github.com/deckhouse/csi-ceph/images/controller/pkg/rbdwatch"
 	"github.com/deckhouse/sds-common-lib/logger"
 )
 
 const gi = int64(1) << 30
 
 type fakeReader struct {
-	mu    sync.Mutex
-	stats map[string]map[string]*PoolStats
-	err   error
-	calls []cephconn.Credentials
-	pools [][]string
+	mu       sync.Mutex
+	stats    map[string]map[string]*PoolStats
+	err      error
+	calls    []cephconn.Credentials
+	pools    [][]string
+	measures []bool
 }
 
-func (f *fakeReader) ReadPools(_ context.Context, creds cephconn.Credentials, pools []string) (map[string]*PoolStats, error) {
+func (f *fakeReader) ReadPools(_ context.Context, creds cephconn.Credentials, pools []string, measureTrash bool) (map[string]*PoolStats, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.calls = append(f.calls, creds)
 	f.pools = append(f.pools, pools)
-	return f.stats[creds.UserID], f.err
+	f.measures = append(f.measures, measureTrash)
+	if f.stats[creds.UserID] == nil {
+		return nil, f.err
+	}
+	out := map[string]*PoolStats{}
+	for k, v := range f.stats[creds.UserID] {
+		if v == nil {
+			out[k] = nil
+			continue
+		}
+		c := *v
+		if !measureTrash {
+			c.HeldByDeleted = nil
+		}
+		out[k] = &c
+	}
+	return out, f.err
+}
+
+func measured(c *v1alpha1.CephStorageClassCapacity, allocated int64, heldByDeleted *int64) *v1alpha1.CephStorageClassCapacity {
+	c.Allocated = resource.NewQuantity(allocated, resource.BinarySI)
+	if heldByDeleted != nil {
+		c.HeldByDeleted = resource.NewQuantity(*heldByDeleted, resource.BinarySI)
+	}
+	return c
+}
+
+func ptr(v int64) *int64 {
+	return &v
+}
+
+func pv(name, driver, clusterID, pool string, size int64) *corev1.PersistentVolume {
+	return &corev1.PersistentVolume{
+		ObjectMeta: metav1.ObjectMeta{Name: name},
+		Spec: corev1.PersistentVolumeSpec{
+			Capacity: corev1.ResourceList{corev1.ResourceStorage: *resource.NewQuantity(size, resource.BinarySI)},
+			PersistentVolumeSource: corev1.PersistentVolumeSource{
+				CSI: &corev1.CSIPersistentVolumeSource{
+					Driver:           driver,
+					VolumeHandle:     name,
+					VolumeAttributes: map[string]string{"clusterID": clusterID, "pool": pool, "imageName": "csi-vol-" + name},
+				},
+			},
+		},
+	}
+}
+
+func handle(clusterID string, poolID int64) string {
+	return fmt.Sprintf("0001-%04x-%s-%016x-%s", len(clusterID), clusterID, poolID, "a1b2c3d4-0000-1111-2222-333344445555")
+}
+
+func content(name, driver, snapshotHandle string, restoreSize int64) *snapshotv1.VolumeSnapshotContent {
+	return &snapshotv1.VolumeSnapshotContent{
+		ObjectMeta: metav1.ObjectMeta{Name: name},
+		Spec: snapshotv1.VolumeSnapshotContentSpec{
+			Driver:            driver,
+			DeletionPolicy:    snapshotv1.VolumeSnapshotContentDelete,
+			VolumeSnapshotRef: corev1.ObjectReference{Name: name, Namespace: "default"},
+		},
+		Status: &snapshotv1.VolumeSnapshotContentStatus{SnapshotHandle: &snapshotHandle, RestoreSize: &restoreSize},
+	}
 }
 
 func connection(name string) *v1alpha1.CephClusterConnection {
@@ -107,8 +173,10 @@ func capacity(pool string, used, free int64, at time.Time) *v1alpha1.CephStorage
 func newPublisher(t *testing.T, reader PoolReader, objs ...client.Object) *Publisher {
 	t.Helper()
 	scheme := apiruntime.NewScheme()
-	if err := v1alpha1.AddToScheme(scheme); err != nil {
-		t.Fatal(err)
+	for _, add := range []func(*apiruntime.Scheme) error{v1alpha1.AddToScheme, clientgoscheme.AddToScheme, snapshotv1.AddToScheme} {
+		if err := add(scheme); err != nil {
+			t.Fatal(err)
+		}
 	}
 	return &Publisher{
 		Client: fake.NewClientBuilder().
@@ -150,15 +218,25 @@ func sameCapacity(t *testing.T, want, got *v1alpha1.CephStorageClassCapacity) {
 		return
 	}
 	type flat struct {
-		Pool                          string
-		Size, Used, FreeOnDisk, Quota int64
-		ImagesInTrash                 int32
-		UpdatedAt                     int64
+		Pool                                                                 string
+		Size, Used, FreeOnDisk, Quota, FreeByQuota, Allocated, HeldByDeleted int64
+		HasFreeByQuota, HasAllocated, HasHeldByDeleted                       bool
+		ImagesInTrash                                                        int32
+		UpdatedAt                                                            int64
 	}
 	f := func(c *v1alpha1.CephStorageClassCapacity) flat {
 		out := flat{Pool: c.Pool, Size: c.Size.Value(), Used: c.Used.Value(), FreeOnDisk: c.FreeOnDisk.Value(), ImagesInTrash: c.ImagesInTrash, UpdatedAt: c.UpdatedAt.Unix()}
 		if c.Quota != nil {
 			out.Quota = c.Quota.Value()
+		}
+		if c.FreeByQuota != nil {
+			out.FreeByQuota, out.HasFreeByQuota = c.FreeByQuota.Value(), true
+		}
+		if c.Allocated != nil {
+			out.Allocated, out.HasAllocated = c.Allocated.Value(), true
+		}
+		if c.HeldByDeleted != nil {
+			out.HeldByDeleted, out.HasHeldByDeleted = c.HeldByDeleted.Value(), true
 		}
 		return out
 	}
@@ -185,13 +263,14 @@ func TestRBDClassGetsTheSpaceOfItsPool(t *testing.T) {
 
 	syncAt(t, p, now)
 
-	rbd := capacity("rbd", 6*gi, 90*gi, now)
+	rbd := measured(capacity("rbd", 6*gi, 90*gi, now), 0, nil)
 	rbd.ImagesInTrash = 2
 	sameCapacity(t, rbd, capacityOf(t, p, "rbd-a"))
 	sameCapacity(t, rbd, capacityOf(t, p, "rbd-b"))
 
-	fast := capacity("fast", gi, 9*gi, now)
+	fast := measured(capacity("fast", gi, 9*gi, now), 0, nil)
 	fast.Quota = resource.NewQuantity(50*gi, resource.BinarySI)
+	fast.FreeByQuota = resource.NewQuantity(9*gi, resource.BinarySI)
 	sameCapacity(t, fast, capacityOf(t, p, "fast"))
 
 	sameCapacity(t, nil, capacityOf(t, p, "fs"))
@@ -214,15 +293,15 @@ func TestEveryConnectionIsReadWithItsOwnCredentials(t *testing.T) {
 
 	syncAt(t, p, now)
 
-	sameCapacity(t, capacity("rbd", gi, 9*gi, now), capacityOf(t, p, "on-a"))
-	sameCapacity(t, capacity("rbd", 2*gi, 8*gi, now), capacityOf(t, p, "on-b"))
+	sameCapacity(t, measured(capacity("rbd", gi, 9*gi, now), 0, nil), capacityOf(t, p, "on-a"))
+	sameCapacity(t, measured(capacity("rbd", 2*gi, 8*gi, now), 0, nil), capacityOf(t, p, "on-b"))
 }
 
 func TestSmallMoveIsNotWrittenBeforeTheRefreshPeriod(t *testing.T) {
 	then := time.Date(2026, 11, 24, 12, 0, 0, 0, time.UTC)
-	prev := capacity("rbd", 10*gi, 90*gi, then)
+	prev := measured(capacity("rbd", 10*gi, 90*gi, then), 0, ptr(0))
 	reader := &fakeReader{stats: map[string]map[string]*PoolStats{
-		"user-ceph": {"rbd": {Stored: 10*gi + gi/2, MaxAvail: 90*gi - gi/2}},
+		"user-ceph": {"rbd": {Stored: 10*gi + gi/2, MaxAvail: 90*gi - gi/2, HeldByDeleted: ptr(0)}},
 	}}
 	p := newPublisher(t, reader, connection("ceph"), withCapacity(rbdClass("rbd", "ceph", "rbd"), prev))
 
@@ -231,7 +310,7 @@ func TestSmallMoveIsNotWrittenBeforeTheRefreshPeriod(t *testing.T) {
 
 	later := then.Add(refreshPeriod)
 	syncAt(t, p, later)
-	sameCapacity(t, capacity("rbd", 10*gi+gi/2, 90*gi-gi/2, later), capacityOf(t, p, "rbd"))
+	sameCapacity(t, measured(capacity("rbd", 10*gi+gi/2, 90*gi-gi/2, later), 0, ptr(0)), capacityOf(t, p, "rbd"))
 }
 
 func TestMoveOfMoreThanOnePercentIsWrittenAtOnce(t *testing.T) {
@@ -243,7 +322,7 @@ func TestMoveOfMoreThanOnePercentIsWrittenAtOnce(t *testing.T) {
 
 	now := then.Add(time.Minute)
 	syncAt(t, p, now)
-	sameCapacity(t, capacity("rbd", 12*gi, 88*gi, now), capacityOf(t, p, "rbd"))
+	sameCapacity(t, measured(capacity("rbd", 12*gi, 88*gi, now), 0, nil), capacityOf(t, p, "rbd"))
 }
 
 func TestChangeOfTheTrashIsWrittenAtOnce(t *testing.T) {
@@ -255,7 +334,7 @@ func TestChangeOfTheTrashIsWrittenAtOnce(t *testing.T) {
 
 	now := then.Add(time.Minute)
 	syncAt(t, p, now)
-	want := capacity("rbd", 10*gi, 90*gi, now)
+	want := measured(capacity("rbd", 10*gi, 90*gi, now), 0, nil)
 	want.ImagesInTrash = 1
 	sameCapacity(t, want, capacityOf(t, p, "rbd"))
 }
@@ -306,7 +385,7 @@ func TestClassBeingDeletedIsSkipped(t *testing.T) {
 }
 
 func TestNegativeFiguresAreClampedToZero(t *testing.T) {
-	got := capacityFrom("rbd", &PoolStats{Stored: -1, MaxAvail: -5})
+	got := capacityFrom("rbd", &PoolStats{Stored: -1, MaxAvail: -5}, nil)
 	sameCapacity(t, capacity("rbd", 0, 0, time.Time{}), got)
 }
 
@@ -358,7 +437,7 @@ func TestPartialReadPublishesThePoolsThatWereRead(t *testing.T) {
 	now := then.Add(time.Hour)
 	syncAt(t, p, now)
 
-	sameCapacity(t, capacity("rbd", 2*gi, 8*gi, now), capacityOf(t, p, "rbd"))
+	sameCapacity(t, measured(capacity("rbd", 2*gi, 8*gi, now), 0, nil), capacityOf(t, p, "rbd"))
 	sameCapacity(t, prevFast, capacityOf(t, p, "fast"))
 	if diff := cmp.Diff(map[string]bool{"ceph": false}, p.Reads()); diff != "" {
 		t.Errorf("reads (-want +got):\n%s", diff)
@@ -368,7 +447,7 @@ func TestPartialReadPublishesThePoolsThatWereRead(t *testing.T) {
 func TestChangeOfTheQuotaIsWrittenAtOnce(t *testing.T) {
 	then := time.Date(2026, 11, 24, 12, 0, 0, 0, time.UTC)
 	withQuota := func(quota int64, at time.Time) *v1alpha1.CephStorageClassCapacity {
-		c := capacity("rbd", 10*gi, 90*gi, at)
+		c := measured(capacity("rbd", 10*gi, 90*gi, at), 0, nil)
 		c.Quota = resource.NewQuantity(quota, resource.BinarySI)
 		c.FreeByQuota = resource.NewQuantity(min(quota-10*gi, 90*gi), resource.BinarySI)
 		return c
@@ -380,13 +459,15 @@ func TestChangeOfTheQuotaIsWrittenAtOnce(t *testing.T) {
 		want  func(time.Time) *v1alpha1.CephStorageClassCapacity
 	}{
 		"set": {
-			prev:  capacity("rbd", 10*gi, 90*gi, then),
+			prev:  measured(capacity("rbd", 10*gi, 90*gi, then), 0, nil),
 			quota: 50 * gi,
 			want:  func(at time.Time) *v1alpha1.CephStorageClassCapacity { return withQuota(50*gi, at) },
 		},
 		"removed": {
 			prev: withQuota(50*gi, then),
-			want: func(at time.Time) *v1alpha1.CephStorageClassCapacity { return capacity("rbd", 10*gi, 90*gi, at) },
+			want: func(at time.Time) *v1alpha1.CephStorageClassCapacity {
+				return measured(capacity("rbd", 10*gi, 90*gi, at), 0, nil)
+			},
 		},
 		"changed": {
 			prev:  withQuota(50*gi, then),
@@ -427,19 +508,19 @@ func TestFreeByQuotaIsTheSmallerOfTheQuotaLeftAndFreeOnDisk(t *testing.T) {
 		"rounded down to MiB": {PoolStats{Stored: gi + 1, MaxAvail: 90 * gi, Quota: 2 * gi}, gi - 1<<20},
 	} {
 		t.Run(name, func(t *testing.T) {
-			got := capacityFrom("rbd", &tc.stats)
+			got := capacityFrom("rbd", &tc.stats, nil)
 			if got.FreeByQuota == nil || got.FreeByQuota.Value() != tc.want {
 				t.Fatalf("freeByQuota = %v; want %d", got.FreeByQuota, tc.want)
 			}
 		})
 	}
-	if got := capacityFrom("rbd", &PoolStats{Stored: gi, MaxAvail: gi}); got.FreeByQuota != nil || got.Quota != nil {
+	if got := capacityFrom("rbd", &PoolStats{Stored: gi, MaxAvail: gi}, nil); got.FreeByQuota != nil || got.Quota != nil {
 		t.Fatalf("a pool without a quota got quota %v and freeByQuota %v", got.Quota, got.FreeByQuota)
 	}
 }
 
 func TestFiguresAreRoundedDownToMiB(t *testing.T) {
-	got := capacityFrom("rbd", &PoolStats{Stored: 3<<20 + 5, MaxAvail: 1073741836345})
+	got := capacityFrom("rbd", &PoolStats{Stored: 3<<20 + 5, MaxAvail: 1073741836345}, nil)
 	if got.Used.Value() != 3<<20 || got.FreeOnDisk.Value() != 1073741836345-1073741836345%(1<<20) {
 		t.Fatalf("used = %d, freeOnDisk = %d", got.Used.Value(), got.FreeOnDisk.Value())
 	}
@@ -457,11 +538,11 @@ func TestReadsReportEveryConnectionAndForgetTheGoneOnes(t *testing.T) {
 		"user-ok": {"rbd": {Stored: gi, MaxAvail: 9 * gi}},
 	}}
 	p := newPublisher(t, reader, connection("ok"), connection("broken"), rbdClass("on-ok", "ok", "rbd"), rbdClass("on-broken", "broken", "rbd"))
-	p.Reader = readerFunc(func(ctx context.Context, creds cephconn.Credentials, pools []string) (map[string]*PoolStats, error) {
+	p.Reader = readerFunc(func(ctx context.Context, creds cephconn.Credentials, pools []string, measure bool) (map[string]*PoolStats, error) {
 		if creds.Name == "broken" {
 			return nil, errors.New("connection refused")
 		}
-		return reader.ReadPools(ctx, creds, pools)
+		return reader.ReadPools(ctx, creds, pools, measure)
 	})
 
 	syncAt(t, p, now)
@@ -514,8 +595,110 @@ func TestStartReadsAtOnceAndStopsWithTheContext(t *testing.T) {
 	}
 }
 
-type readerFunc func(context.Context, cephconn.Credentials, []string) (map[string]*PoolStats, error)
+type readerFunc func(context.Context, cephconn.Credentials, []string, bool) (map[string]*PoolStats, error)
 
-func (f readerFunc) ReadPools(ctx context.Context, creds cephconn.Credentials, pools []string) (map[string]*PoolStats, error) {
-	return f(ctx, creds, pools)
+func (f readerFunc) ReadPools(ctx context.Context, creds cephconn.Credentials, pools []string, measure bool) (map[string]*PoolStats, error) {
+	return f(ctx, creds, pools, measure)
+}
+
+func TestAllocatedSumsTheVolumesAndSnapshotsOfThePool(t *testing.T) {
+	now := time.Date(2026, 11, 24, 12, 0, 0, 0, time.UTC)
+	reader := &fakeReader{stats: map[string]map[string]*PoolStats{
+		"user-ceph": {
+			"rbd":  {ID: 2, Stored: 6 * gi, MaxAvail: 90 * gi, ImagesInTrash: 1, HeldByDeleted: ptr(gi)},
+			"fast": {ID: 3, Stored: gi, MaxAvail: 9 * gi},
+		},
+	}}
+	p := newPublisher(t, reader,
+		connection("ceph"),
+		rbdClass("rbd", "ceph", "rbd"),
+		rbdClass("fast", "ceph", "fast"),
+		pv("a", rbdwatch.Driver, "fsid-ceph", "rbd", 10*gi),
+		pv("b", rbdwatch.Driver, "fsid-ceph", "rbd", 5*gi),
+		pv("c", rbdwatch.Driver, "fsid-ceph", "fast", 2*gi),
+		pv("other-pool", rbdwatch.Driver, "fsid-ceph", "slow", 100*gi),
+		pv("other-cluster", rbdwatch.Driver, "fsid-other", "rbd", 100*gi),
+		pv("cephfs", "cephfs.csi.ceph.com", "fsid-ceph", "rbd", 100*gi),
+		content("snap-a", rbdwatch.Driver, handle("fsid-ceph", 2), 10*gi),
+		content("snap-c", rbdwatch.Driver, handle("fsid-ceph", 3), 2*gi),
+		content("snap-other-cluster", rbdwatch.Driver, handle("fsid-other", 2), 100*gi),
+		content("snap-unknown-pool", rbdwatch.Driver, handle("fsid-ceph", 9), 100*gi),
+		content("snap-bad-handle", rbdwatch.Driver, "not-a-csi-id", 100*gi),
+		content("snap-cephfs", "cephfs.csi.ceph.com", handle("fsid-ceph", 2), 100*gi),
+	)
+
+	syncAt(t, p, now)
+
+	rbd := measured(capacity("rbd", 6*gi, 90*gi, now), 25*gi, ptr(gi))
+	rbd.ImagesInTrash = 1
+	sameCapacity(t, rbd, capacityOf(t, p, "rbd"))
+	sameCapacity(t, measured(capacity("fast", gi, 9*gi, now), 4*gi, nil), capacityOf(t, p, "fast"))
+}
+
+func TestDetailsAreMeasuredOnceEveryDetailInterval(t *testing.T) {
+	then := time.Date(2026, 11, 24, 12, 0, 0, 0, time.UTC)
+	reader := &fakeReader{stats: map[string]map[string]*PoolStats{
+		"user-ceph": {"rbd": {ID: 2, Stored: 10 * gi, MaxAvail: 90 * gi, ImagesInTrash: 1, HeldByDeleted: ptr(gi)}},
+	}}
+	p := newPublisher(t, reader, connection("ceph"), rbdClass("rbd", "ceph", "rbd"), pv("a", rbdwatch.Driver, "fsid-ceph", "rbd", 10*gi))
+
+	for _, at := range []time.Duration{0, time.Minute, 9 * time.Minute, DefaultDetailInterval, DefaultDetailInterval + time.Minute} {
+		syncAt(t, p, then.Add(at))
+	}
+
+	if diff := cmp.Diff([]bool{true, false, false, true, false}, reader.measures); diff != "" {
+		t.Errorf("measureTrash per sync (-want +got):\n%s", diff)
+	}
+	want := measured(capacity("rbd", 10*gi, 90*gi, then.Add(9*time.Minute)), 10*gi, ptr(gi))
+	want.ImagesInTrash = 1
+	sameCapacity(t, want, capacityOf(t, p, "rbd"))
+}
+
+func TestFailedReadIsRetriedWithTheMeasurement(t *testing.T) {
+	then := time.Date(2026, 11, 24, 12, 0, 0, 0, time.UTC)
+	reader := &fakeReader{err: errors.New("connection refused")}
+	p := newPublisher(t, reader, connection("ceph"), rbdClass("rbd", "ceph", "rbd"))
+
+	syncAt(t, p, then)
+	reader.err = nil
+	reader.stats = map[string]map[string]*PoolStats{"user-ceph": {"rbd": {ID: 2, Stored: gi, MaxAvail: 9 * gi, HeldByDeleted: ptr(0)}}}
+	syncAt(t, p, then.Add(time.Minute))
+
+	if diff := cmp.Diff([]bool{true, true}, reader.measures); diff != "" {
+		t.Errorf("measureTrash per sync (-want +got):\n%s", diff)
+	}
+	sameCapacity(t, measured(capacity("rbd", gi, 9*gi, then.Add(time.Minute)), 0, ptr(0)), capacityOf(t, p, "rbd"))
+}
+
+func TestHeldByDeletedThatCouldNotBeMeasuredIsAbsent(t *testing.T) {
+	then := time.Date(2026, 11, 24, 12, 0, 0, 0, time.UTC)
+	prev := measured(capacity("rbd", 10*gi, 90*gi, then), 0, ptr(gi))
+	prev.ImagesInTrash = 1
+	reader := &fakeReader{stats: map[string]map[string]*PoolStats{
+		"user-ceph": {"rbd": {ID: 2, Stored: 10 * gi, MaxAvail: 90 * gi, ImagesInTrash: 1}},
+	}}
+	p := newPublisher(t, reader, connection("ceph"), withCapacity(rbdClass("rbd", "ceph", "rbd"), prev))
+
+	now := then.Add(time.Minute)
+	syncAt(t, p, now)
+	want := measured(capacity("rbd", 10*gi, 90*gi, now), 0, nil)
+	want.ImagesInTrash = 1
+	sameCapacity(t, want, capacityOf(t, p, "rbd"))
+}
+
+func TestTrashThatCouldNotBeMeasuredDoesNotFailTheRead(t *testing.T) {
+	now := time.Date(2026, 11, 24, 12, 0, 0, 0, time.UTC)
+	reader := &fakeReader{stats: map[string]map[string]*PoolStats{
+		"user-ceph": {"rbd": {ID: 2, Stored: 10 * gi, MaxAvail: 90 * gi, ImagesInTrash: 1, MeasureErr: errors.New("the image has no fast-diff feature")}},
+	}}
+	p := newPublisher(t, reader, connection("ceph"), rbdClass("rbd", "ceph", "rbd"))
+
+	syncAt(t, p, now)
+
+	want := measured(capacity("rbd", 10*gi, 90*gi, now), 0, nil)
+	want.ImagesInTrash = 1
+	sameCapacity(t, want, capacityOf(t, p, "rbd"))
+	if diff := cmp.Diff(map[string]bool{"ceph": true}, p.Reads()); diff != "" {
+		t.Errorf("reads (-want +got):\n%s", diff)
+	}
 }

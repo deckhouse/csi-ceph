@@ -25,19 +25,23 @@ import (
 	"sync"
 	"time"
 
+	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v8/apis/volumesnapshot/v1"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/deckhouse/csi-ceph/api/v1alpha1"
 	"github.com/deckhouse/csi-ceph/images/controller/pkg/cephconn"
+	"github.com/deckhouse/csi-ceph/images/controller/pkg/rbdwatch"
 	"github.com/deckhouse/sds-common-lib/conditions"
 	"github.com/deckhouse/sds-common-lib/logger"
 )
 
 const (
-	PublisherName   = "rbd-capacity-publisher"
-	DefaultInterval = time.Minute
+	PublisherName         = "rbd-capacity-publisher"
+	DefaultInterval       = time.Minute
+	DefaultDetailInterval = 10 * time.Minute
 
 	refreshPeriod     = 5 * time.Minute
 	changeShare       = 0.01
@@ -46,25 +50,41 @@ const (
 )
 
 type PoolStats struct {
+	ID            int64
 	Stored        int64
 	MaxAvail      int64
 	Quota         int64
 	ImagesInTrash int
+	HeldByDeleted *int64
+	MeasureErr    error
 }
 
 type PoolReader interface {
-	ReadPools(ctx context.Context, creds cephconn.Credentials, pools []string) (map[string]*PoolStats, error)
+	ReadPools(ctx context.Context, creds cephconn.Credentials, pools []string, measureTrash bool) (map[string]*PoolStats, error)
 }
 
 type Publisher struct {
-	Client   client.Client
-	Reader   PoolReader
-	Log      logger.Logger
-	Interval time.Duration
-	Now      func() time.Time
+	Client         client.Client
+	Reader         PoolReader
+	Log            logger.Logger
+	Interval       time.Duration
+	DetailInterval time.Duration
+	Now            func() time.Time
 
-	mu    sync.Mutex
-	reads map[string]bool
+	mu         sync.Mutex
+	reads      map[string]bool
+	measuredAt map[string]time.Time
+	details    map[poolKey]detail
+}
+
+type poolKey struct {
+	connection string
+	pool       string
+}
+
+type detail struct {
+	allocated     int64
+	heldByDeleted *int64
 }
 
 func (p *Publisher) NeedLeaderElection() bool {
@@ -126,6 +146,16 @@ func (p *Publisher) Sync(ctx context.Context) error {
 			delete(p.reads, name)
 		}
 	}
+	for name := range p.measuredAt {
+		if _, ok := byConnection[name]; !ok {
+			delete(p.measuredAt, name)
+		}
+	}
+	for key := range p.details {
+		if _, ok := byConnection[key.connection]; !ok {
+			delete(p.details, key)
+		}
+	}
 	p.mu.Unlock()
 
 	cephconn.ForEach(ctx, slices.Sorted(maps.Keys(byConnection)), cephconn.ParallelConnections, connectionTimeout, func(ctx context.Context, name string) {
@@ -150,14 +180,18 @@ func (p *Publisher) syncConnection(ctx context.Context, name string, classes []*
 	}
 	slices.Sort(pools)
 
+	measure := p.dueForDetails(name, p.now())
 	stats, err := p.Reader.ReadPools(ctx, cephconn.Credentials{
 		Name:     name,
 		Monitors: connection.Spec.Monitors,
 		UserID:   connection.Spec.UserID,
 		UserKey:  connection.Spec.UserKey,
-	}, pools)
+	}, pools, measure)
 	readAt := p.now()
 	p.recordRead(name, err, pools)
+	if measure && stats != nil {
+		p.measure(ctx, name, connection.Spec.ClusterID, stats, readAt)
+	}
 
 	for _, class := range classes {
 		pool := class.Spec.RBD.Pool
@@ -165,7 +199,7 @@ func (p *Publisher) syncConnection(ctx context.Context, name string, classes []*
 		if !ok {
 			continue
 		}
-		next := capacityFrom(pool, s)
+		next := capacityFrom(pool, s, p.detail(name, pool))
 		var prev *v1alpha1.CephStorageClassCapacity
 		if class.Status != nil {
 			prev = class.Status.Capacity
@@ -198,12 +232,113 @@ func (p *Publisher) recordRead(name string, err error, pools []string) {
 	}
 }
 
+func (p *Publisher) dueForDetails(name string, now time.Time) bool {
+	interval := p.DetailInterval
+	if interval <= 0 {
+		interval = DefaultDetailInterval
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	last, ok := p.measuredAt[name]
+	return !ok || now.Sub(last) >= interval
+}
+
+func (p *Publisher) detail(name, pool string) *detail {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	d, ok := p.details[poolKey{connection: name, pool: pool}]
+	if !ok {
+		return nil
+	}
+	return &d
+}
+
+func (p *Publisher) measure(ctx context.Context, name, clusterID string, stats map[string]*PoolStats, now time.Time) {
+	for pool, s := range stats {
+		if s != nil && s.MeasureErr != nil {
+			p.Log.Info("unable to measure the space the RBD trash holds; heldByDeleted is left out", "error", s.MeasureErr.Error(), "cephClusterConnection", name, "pool", pool)
+		}
+	}
+
+	allocated, err := allocatedInPools(ctx, p.Client, clusterID, stats)
+	if err != nil {
+		p.Log.Error("unable to sum the provisioned size of the RBD volumes and snapshots", logger.Err(err), "cephClusterConnection", name)
+		return
+	}
+
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.measuredAt == nil {
+		p.measuredAt = map[string]time.Time{}
+	}
+	if p.details == nil {
+		p.details = map[poolKey]detail{}
+	}
+	p.measuredAt[name] = now
+	for pool, s := range stats {
+		key := poolKey{connection: name, pool: pool}
+		if s == nil {
+			delete(p.details, key)
+			continue
+		}
+		p.details[key] = detail{allocated: allocated[pool], heldByDeleted: s.HeldByDeleted}
+	}
+}
+
+func allocatedInPools(ctx context.Context, cl client.Reader, clusterID string, stats map[string]*PoolStats) (map[string]int64, error) {
+	byID := map[int64]string{}
+	for pool, s := range stats {
+		if s != nil {
+			byID[s.ID] = pool
+		}
+	}
+	allocated := map[string]int64{}
+
+	pvs := &corev1.PersistentVolumeList{}
+	if err := cl.List(ctx, pvs); err != nil {
+		return nil, fmt.Errorf("unable to list PersistentVolumes: %w", err)
+	}
+	for i := range pvs.Items {
+		pv := &pvs.Items[i]
+		csi := pv.Spec.CSI
+		if csi == nil || csi.Driver != rbdwatch.Driver || csi.VolumeAttributes["clusterID"] != clusterID {
+			continue
+		}
+		pool := csi.VolumeAttributes["pool"]
+		if s, ok := stats[pool]; !ok || s == nil {
+			continue
+		}
+		size := pv.Spec.Capacity[corev1.ResourceStorage]
+		allocated[pool] += size.Value()
+	}
+
+	contents := &snapshotv1.VolumeSnapshotContentList{}
+	if err := cl.List(ctx, contents); err != nil {
+		return nil, fmt.Errorf("unable to list VolumeSnapshotContents: %w", err)
+	}
+	for i := range contents.Items {
+		c := &contents.Items[i]
+		if c.Spec.Driver != rbdwatch.Driver || c.Status == nil || c.Status.SnapshotHandle == nil || c.Status.RestoreSize == nil {
+			continue
+		}
+		id, ok := parseCSIID(*c.Status.SnapshotHandle)
+		if !ok || id.clusterID != clusterID {
+			continue
+		}
+		if pool, ok := byID[id.poolID]; ok {
+			allocated[pool] += *c.Status.RestoreSize
+		}
+	}
+
+	return allocated, nil
+}
+
 func roundDown(v int64) int64 {
 	v = max(v, 0)
 	return v - v%granularity
 }
 
-func capacityFrom(pool string, s *PoolStats) *v1alpha1.CephStorageClassCapacity {
+func capacityFrom(pool string, s *PoolStats, d *detail) *v1alpha1.CephStorageClassCapacity {
 	if s == nil {
 		return nil
 	}
@@ -220,6 +355,12 @@ func capacityFrom(pool string, s *PoolStats) *v1alpha1.CephStorageClassCapacity 
 	if s.Quota > 0 {
 		capacity.Quota = resource.NewQuantity(s.Quota, resource.BinarySI)
 		capacity.FreeByQuota = resource.NewQuantity(roundDown(min(s.Quota-max(s.Stored, 0), s.MaxAvail)), resource.BinarySI)
+	}
+	if d != nil {
+		capacity.Allocated = resource.NewQuantity(max(d.allocated, 0), resource.BinarySI)
+		if d.heldByDeleted != nil {
+			capacity.HeldByDeleted = resource.NewQuantity(roundDown(*d.heldByDeleted), resource.BinarySI)
+		}
 	}
 
 	return capacity
@@ -241,6 +382,12 @@ func needsWrite(prev, next *v1alpha1.CephStorageClassCapacity, now time.Time) bo
 	if next.FreeByQuota != nil && moved(*prev.FreeByQuota, *next.FreeByQuota, next.Size) {
 		return true
 	}
+	if (prev.Allocated == nil) != (next.Allocated == nil) || (prev.HeldByDeleted == nil) != (next.HeldByDeleted == nil) {
+		return true
+	}
+	if movedOptional(prev.Allocated, next.Allocated, next.Size) || movedOptional(prev.HeldByDeleted, next.HeldByDeleted, next.Size) {
+		return true
+	}
 
 	return moved(prev.Size, next.Size, next.Size) ||
 		moved(prev.Used, next.Used, next.Size) ||
@@ -253,6 +400,14 @@ func sameQuantity(a, b *resource.Quantity) bool {
 	}
 
 	return a.Cmp(*b) == 0
+}
+
+func movedOptional(prev, next *resource.Quantity, of resource.Quantity) bool {
+	if prev == nil || next == nil {
+		return false
+	}
+
+	return moved(*prev, *next, of)
 }
 
 func moved(prev, next, of resource.Quantity) bool {

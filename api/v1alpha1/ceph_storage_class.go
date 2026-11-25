@@ -185,6 +185,17 @@ type CephStorageClassCapacity struct {
 	// down to MiB. Absent when the pool has no quota.
 	// +optional
 	FreeByQuota *resource.Quantity `json:"freeByQuota,omitempty"`
+	// Sum of the provisioned sizes of the volumes and snapshots this Kubernetes cluster keeps in the pool: the capacity
+	// of every PersistentVolume and the restore size of every VolumeSnapshotContent of the pool. A snapshot and a volume
+	// restored from it count at the full size of their source, though they share data with it. Volumes of other
+	// clients of the pool are not counted. Refreshed every 10 minutes.
+	// +optional
+	Allocated *resource.Quantity `json:"allocated,omitempty"`
+	// Data of deleted volumes the pool still keeps: what the images in the RBD trash of the pool still hold, before
+	// replication, with the data of their snapshots, rounded down to MiB. Part of `used`. Absent when an image in the
+	// trash could not be measured. Refreshed every 10 minutes.
+	// +optional
+	HeldByDeleted *resource.Quantity `json:"heldByDeleted,omitempty"`
 	// Number of images in the RBD trash of the pool. The driver moves the image of a deleted volume there,
 	// and the image keeps its data while a snapshot or a volume cloned from it still depends on it.
 	// `capacity` is written only after the trash was listed, so an absent field means zero images.

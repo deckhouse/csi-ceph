@@ -169,10 +169,11 @@ func main() {
 	}
 
 	capacityPublisher := &rbdcapacity.Publisher{
-		Client:   mgr.GetClient(),
-		Reader:   rbdcapacity.CephPoolReader{Conns: cephConns},
-		Log:      baseLog.Named(rbdcapacity.PublisherName),
-		Interval: rbdcapacity.DefaultInterval,
+		Client:         mgr.GetClient(),
+		Reader:         rbdcapacity.CephPoolReader{Conns: cephConns},
+		Log:            baseLog.Named(rbdcapacity.PublisherName),
+		Interval:       rbdcapacity.DefaultInterval,
+		DetailInterval: rbdcapacity.DefaultDetailInterval,
 	}
 	if err = mgr.Add(capacityPublisher); err != nil {
 		log.Error("unable to add the RBD capacity publisher", logger.Err(err))

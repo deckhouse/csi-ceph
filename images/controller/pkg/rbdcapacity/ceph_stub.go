@@ -29,6 +29,6 @@ type CephPoolReader struct {
 	Conns *cephconn.Conns
 }
 
-func (r CephPoolReader) ReadPools(context.Context, cephconn.Credentials, []string) (map[string]*PoolStats, error) {
+func (r CephPoolReader) ReadPools(context.Context, cephconn.Credentials, []string, bool) (map[string]*PoolStats, error) {
 	return nil, errors.New("the controller is built without the Ceph client: build it with the cephclient tag")
 }

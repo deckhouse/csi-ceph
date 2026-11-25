@@ -26,6 +26,7 @@ const dfCommand = `{"prefix":"df","detail":"detail","format":"json"}`
 type dfOutput struct {
 	Pools []struct {
 		Name  string `json:"name"`
+		ID    int64  `json:"id"`
 		Stats struct {
 			Stored     int64  `json:"stored"`
 			MaxAvail   int64  `json:"max_avail"`
@@ -52,6 +53,7 @@ func parseDF(data []byte, pools []string) (map[string]*PoolStats, error) {
 			return nil, fmt.Errorf("the output of ceph df has no quota_bytes for the pool %s: the command was not run with detail", p.Name)
 		}
 		stats[p.Name] = &PoolStats{
+			ID:       p.ID,
 			Stored:   p.Stats.Stored,
 			MaxAvail: p.Stats.MaxAvail,
 			Quota:    *p.Stats.QuotaBytes,

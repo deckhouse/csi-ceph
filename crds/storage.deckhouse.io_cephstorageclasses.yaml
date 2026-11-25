@@ -141,6 +141,17 @@ spec:
                   controller reads the pool once a minute and writes the figures when one of them moves by more than 1% of the
                   size, when the number of images in the RBD trash or the quota changes, and at least every 5 minutes.
                 properties:
+                  allocated:
+                    anyOf:
+                    - type: integer
+                    - type: string
+                    description: |-
+                      Sum of the provisioned sizes of the volumes and snapshots this Kubernetes cluster keeps in the pool: the capacity
+                      of every PersistentVolume and the restore size of every VolumeSnapshotContent of the pool. A snapshot and a volume
+                      restored from it count at the full size of their source, though they share data with it. Volumes of other
+                      clients of the pool are not counted. Refreshed every 10 minutes.
+                    pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                    x-kubernetes-int-or-string: true
                   freeByQuota:
                     anyOf:
                     - type: integer
@@ -158,6 +169,16 @@ spec:
                       Data the pool can still take, before replication (`MAX AVAIL` of `ceph df`), rounded down to MiB: what the
                       fullest OSD of the pool's CRUSH rule leaves before the full ratio. Pools on the same OSDs share it, and the
                       quota of the pool does not lower it.
+                    pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                    x-kubernetes-int-or-string: true
+                  heldByDeleted:
+                    anyOf:
+                    - type: integer
+                    - type: string
+                    description: |-
+                      Data of deleted volumes the pool still keeps: what the images in the RBD trash of the pool still hold, before
+                      replication, with the data of their snapshots, rounded down to MiB. Part of `used`. Absent when an image in the
+                      trash could not be measured. Refreshed every 10 minutes.
                     pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
                     x-kubernetes-int-or-string: true
                   imagesInTrash:

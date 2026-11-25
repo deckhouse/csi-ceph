@@ -6,6 +6,7 @@ highlights: []
 
 new_features:
   - "The `D8CsiCephStorageConnectionNotReady` and `D8CsiCephStorageClassNotReady` alerts fire when the `Ready` condition of a `CephClusterConnection` or a `CephStorageClass` has not been `True` for 15 minutes. They read the new `csi_ceph_resource_ready` metric of the controller and link to the new FAQ section on the status conditions and reasons."
+  - "`status.capacity` of an `RBD` CephStorageClass gets two optional fields: `allocated`, the provisioned size of the volumes and snapshots this Kubernetes cluster keeps in the pool (the capacity of its PersistentVolumes and the restore size of its VolumeSnapshotContents), and `heldByDeleted`, the data the images of deleted volumes in the RBD trash still hold, with their snapshots. Both are refreshed every 10 minutes; `heldByDeleted` is left out when an image in the trash has no `fast-diff` feature."
 improvements:
   - "`kubectl get` shows the reason of the `Ready` condition and the monitors for `CephClusterConnection`, and the reason, the connection and the RBD pool for `CephStorageClass`. Both kinds are in the `d8-storage` category, connections also in `d8-storage-connections` and classes in `d8-storage-classes`, so `kubectl get d8-storage-classes` lists the classes of every storage module."
 upgrade_notes:

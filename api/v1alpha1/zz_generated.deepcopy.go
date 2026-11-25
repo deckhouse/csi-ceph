@@ -400,6 +400,16 @@ func (in *CephStorageClassCapacity) DeepCopyInto(out *CephStorageClassCapacity) 
 		x := (*in).DeepCopy()
 		*out = &x
 	}
+	if in.Allocated != nil {
+		in, out := &in.Allocated, &out.Allocated
+		x := (*in).DeepCopy()
+		*out = &x
+	}
+	if in.HeldByDeleted != nil {
+		in, out := &in.HeldByDeleted, &out.HeldByDeleted
+		x := (*in).DeepCopy()
+		*out = &x
+	}
 	in.UpdatedAt.DeepCopyInto(&out.UpdatedAt)
 	return
 }

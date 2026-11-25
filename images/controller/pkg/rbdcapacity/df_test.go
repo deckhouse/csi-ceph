@@ -39,8 +39,8 @@ func TestParseDFTakesTheListedPools(t *testing.T) {
 	}
 
 	want := map[string]*PoolStats{
-		"rbd":  {Stored: 6442450944, MaxAvail: 94489280512},
-		"fast": {Stored: 1073741824, MaxAvail: 10737418240, Quota: 53687091200},
+		"rbd":  {ID: 2, Stored: 6442450944, MaxAvail: 94489280512},
+		"fast": {ID: 3, Stored: 1073741824, MaxAvail: 10737418240, Quota: 53687091200},
 	}
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Errorf("parseDF() mismatch (-want +got):\n%s", diff)
