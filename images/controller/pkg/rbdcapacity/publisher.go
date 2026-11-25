@@ -34,6 +34,7 @@ import (
 	"github.com/deckhouse/csi-ceph/api/v1alpha1"
 	"github.com/deckhouse/csi-ceph/images/controller/pkg/cephconn"
 	"github.com/deckhouse/csi-ceph/images/controller/pkg/rbdwatch"
+	sdscapacity "github.com/deckhouse/sds-common-lib/capacity"
 	"github.com/deckhouse/sds-common-lib/conditions"
 	"github.com/deckhouse/sds-common-lib/logger"
 )
@@ -346,10 +347,12 @@ func capacityFrom(pool string, s *PoolStats, d *detail) *v1alpha1.CephStorageCla
 	used := roundDown(s.Stored)
 	free := roundDown(s.MaxAvail)
 	capacity := &v1alpha1.CephStorageClassCapacity{
+		Capacity: sdscapacity.Capacity{
+			Size:       *resource.NewQuantity(used+free, resource.BinarySI),
+			Used:       *resource.NewQuantity(used, resource.BinarySI),
+			FreeOnDisk: *resource.NewQuantity(free, resource.BinarySI),
+		},
 		Pool:          pool,
-		Size:          *resource.NewQuantity(used+free, resource.BinarySI),
-		Used:          *resource.NewQuantity(used, resource.BinarySI),
-		FreeOnDisk:    *resource.NewQuantity(free, resource.BinarySI),
 		ImagesInTrash: int32(min(s.ImagesInTrash, math.MaxInt32)),
 	}
 	if s.Quota > 0 {

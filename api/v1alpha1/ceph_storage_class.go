@@ -17,8 +17,9 @@ limitations under the License.
 package v1alpha1
 
 import (
-	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/deckhouse/sds-common-lib/capacity"
 )
 
 const (
@@ -156,6 +157,16 @@ type CephStorageClassStatus struct {
 	// controller reads the pool once a minute and writes the figures when one of them moves by more than 1% of the
 	// size, when the number of images in the RBD trash or the quota changes, and at least every 5 minutes.
 	// +optional
+	// +crd-enricher:unset:properties.freeByAllocationLimit
+	// +crd-enricher:unset:properties.heldBySnapshots
+	// +crd-enricher:raw:properties.size.description=Used plus freeOnDisk.
+	// +crd-enricher:raw:properties.used.description="Data stored in the pool, before replication (`STORED` of `ceph df`), rounded down to MiB. It includes the\nvolumes, their snapshots, the volumes restored from snapshots and the images in the RBD trash. Data a\nrestored volume shares with its snapshot is counted once."
+	// +crd-enricher:raw:properties.freeOnDisk.description="Data the pool can still take, before replication (`MAX AVAIL` of `ceph df`), rounded down to MiB: what the\nfullest OSD of the pool's CRUSH rule leaves before the full ratio. Pools on the same OSDs share it, and the\nquota of the pool does not lower it."
+	// +crd-enricher:raw:properties.quota.description=Byte quota of the pool. Absent when the pool has none.
+	// +crd-enricher:raw:properties.freeByQuota.description="Data the pool can still take within its quota: the smaller of the quota minus used and freeOnDisk, rounded\ndown to MiB. Absent when the pool has no quota."
+	// +crd-enricher:raw:properties.allocated.description="Sum of the provisioned sizes of the volumes and snapshots this Kubernetes cluster keeps in the pool: the capacity\nof every PersistentVolume and the restore size of every VolumeSnapshotContent of the pool. A snapshot and a volume\nrestored from it count at the full size of their source, though they share data with it. Volumes of other\nclients of the pool are not counted. Refreshed every 10 minutes."
+	// +crd-enricher:raw:properties.heldByDeleted.description="Data of deleted volumes the pool still keeps: what the images in the RBD trash of the pool still hold, before\nreplication, with the data of their snapshots, rounded down to MiB. Part of `used`. Absent when an image in the\ntrash could not be measured. Refreshed every 10 minutes."
+	// +crd-enricher:raw:properties.updatedAt.description=When the figures were read from Ceph.
 	Capacity *CephStorageClassCapacity `json:"capacity,omitempty"`
 }
 
@@ -163,42 +174,13 @@ type CephStorageClassStatus struct {
 // every client of the pool and of every class that provisions in it.
 // +k8s:deepcopy-gen=true
 type CephStorageClassCapacity struct {
+	capacity.Capacity `json:",inline"`
 	// Name of the RBD pool.
 	// +kubebuilder:validation:MaxLength=253
 	Pool string `json:"pool"`
-	// Used plus freeOnDisk.
-	Size resource.Quantity `json:"size"`
-	// Data stored in the pool, before replication (`STORED` of `ceph df`), rounded down to MiB. It includes the
-	// volumes, their snapshots, the volumes restored from snapshots and the images in the RBD trash. Data a
-	// restored volume shares with its snapshot is counted once.
-	Used resource.Quantity `json:"used"`
-	// Data the pool can still take, before replication (`MAX AVAIL` of `ceph df`), rounded down to MiB: what the
-	// fullest OSD of the pool's CRUSH rule leaves before the full ratio. Pools on the same OSDs share it, and the
-	// quota of the pool does not lower it.
-	FreeOnDisk resource.Quantity `json:"freeOnDisk"`
-	// Byte quota of the pool. Absent when the pool has none.
-	// +optional
-	Quota *resource.Quantity `json:"quota,omitempty"`
-	// Data the pool can still take within its quota: the smaller of the quota minus used and freeOnDisk, rounded
-	// down to MiB. Absent when the pool has no quota.
-	// +optional
-	FreeByQuota *resource.Quantity `json:"freeByQuota,omitempty"`
-	// Sum of the provisioned sizes of the volumes and snapshots this Kubernetes cluster keeps in the pool: the capacity
-	// of every PersistentVolume and the restore size of every VolumeSnapshotContent of the pool. A snapshot and a volume
-	// restored from it count at the full size of their source, though they share data with it. Volumes of other
-	// clients of the pool are not counted. Refreshed every 10 minutes.
-	// +optional
-	Allocated *resource.Quantity `json:"allocated,omitempty"`
-	// Data of deleted volumes the pool still keeps: what the images in the RBD trash of the pool still hold, before
-	// replication, with the data of their snapshots, rounded down to MiB. Part of `used`. Absent when an image in the
-	// trash could not be measured. Refreshed every 10 minutes.
-	// +optional
-	HeldByDeleted *resource.Quantity `json:"heldByDeleted,omitempty"`
 	// Number of images in the RBD trash of the pool. The driver moves the image of a deleted volume there,
 	// and the image keeps its data while a snapshot or a volume cloned from it still depends on it.
 	// `capacity` is written only after the trash was listed, so an absent field means zero images.
 	// +optional
 	ImagesInTrash int32 `json:"imagesInTrash,omitempty"`
-	// When the figures were read from Ceph.
-	UpdatedAt metav1.Time `json:"updatedAt"`
 }

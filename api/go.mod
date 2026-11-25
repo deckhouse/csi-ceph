@@ -1,11 +1,15 @@
 module github.com/deckhouse/csi-ceph/api
 
 go 1.27.4
-require k8s.io/apimachinery v0.37.2
+
+require (
+	github.com/deckhouse/sds-common-lib v0.25.0
+	k8s.io/apimachinery v0.37.2
+)
 
 require (
 	github.com/fxamacker/cbor/v2 v2.9.1 // indirect
-	github.com/go-logr/logr v1.4.3 // indirect
+	github.com/go-logr/logr v1.4.4 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.3-0.20250322232337-35a7c28c31ee // indirect

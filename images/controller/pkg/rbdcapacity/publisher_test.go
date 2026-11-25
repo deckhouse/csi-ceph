@@ -37,6 +37,7 @@ import (
 	"github.com/deckhouse/csi-ceph/api/v1alpha1"
 	"github.com/deckhouse/csi-ceph/images/controller/pkg/cephconn"
 	"github.com/deckhouse/csi-ceph/images/controller/pkg/rbdwatch"
+	sdscapacity "github.com/deckhouse/sds-common-lib/capacity"
 	"github.com/deckhouse/sds-common-lib/logger"
 )
 
@@ -162,11 +163,13 @@ func withCapacity(class *v1alpha1.CephStorageClass, c *v1alpha1.CephStorageClass
 
 func capacity(pool string, used, free int64, at time.Time) *v1alpha1.CephStorageClassCapacity {
 	return &v1alpha1.CephStorageClassCapacity{
-		Pool:       pool,
-		Size:       *resource.NewQuantity(used+free, resource.BinarySI),
-		Used:       *resource.NewQuantity(used, resource.BinarySI),
-		FreeOnDisk: *resource.NewQuantity(free, resource.BinarySI),
-		UpdatedAt:  metav1.NewTime(at),
+		Capacity: sdscapacity.Capacity{
+			Size:       *resource.NewQuantity(used+free, resource.BinarySI),
+			Used:       *resource.NewQuantity(used, resource.BinarySI),
+			FreeOnDisk: *resource.NewQuantity(free, resource.BinarySI),
+			UpdatedAt:  metav1.NewTime(at),
+		},
+		Pool: pool,
 	}
 }
 

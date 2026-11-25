@@ -27,6 +27,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/deckhouse/csi-ceph/api/v1alpha1"
+	"github.com/deckhouse/sds-common-lib/capacity"
 )
 
 func rbdClass(name string) *v1alpha1.CephStorageClass {
@@ -242,14 +243,16 @@ func TestCephStorageClassStatusCapacity(t *testing.T) {
 	quota := resource.MustParse("50Gi")
 	freeByQuota := resource.MustParse("40Gi")
 	csc.Status = &v1alpha1.CephStorageClassStatus{Capacity: &v1alpha1.CephStorageClassCapacity{
+		Capacity: capacity.Capacity{
+			Size:        resource.MustParse("100Gi"),
+			Used:        resource.MustParse("10Gi"),
+			FreeOnDisk:  resource.MustParse("90Gi"),
+			Quota:       &quota,
+			FreeByQuota: &freeByQuota,
+			UpdatedAt:   at,
+		},
 		Pool:          "rbd",
-		Size:          resource.MustParse("100Gi"),
-		Used:          resource.MustParse("10Gi"),
-		FreeOnDisk:    resource.MustParse("90Gi"),
-		Quota:         &quota,
-		FreeByQuota:   &freeByQuota,
 		ImagesInTrash: 2,
-		UpdatedAt:     at,
 	}}
 	if err := k8sClient.Status().Update(ctx, csc); err != nil {
 		t.Fatalf("update the status with capacity: %v", err)
