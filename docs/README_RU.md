@@ -119,7 +119,7 @@ Ceph — это масштабируемая распределённая сис
    EOF
    ```
 
-1. Проверьте, что созданные ресурсы [CephStorageClass](/modules/csi-ceph/cr.html#cephstorageclass) перешли в состояние `Created`:
+1. Проверьте, что у созданных ресурсов [CephStorageClass](/modules/csi-ceph/cr.html#cephstorageclass) условие `Ready` равно `True`:
 
    ```shell
    d8 k get cephstorageclass
@@ -128,9 +128,9 @@ Ceph — это масштабируемая распределённая сис
    В результате будет выведена информация о созданных ресурсах [CephStorageClass](/modules/csi-ceph/cr.html#cephstorageclass):
 
    ```console
-   NAME          PHASE     AGE
-   ceph-rbd-sc   Created   1h
-   ceph-fs-sc    Created   1h
+   NAME          READY   REASON       CONNECTION       POOL            AGE
+   ceph-rbd-sc   True    Reconciled   ceph-cluster-1   ceph-rbd-pool   1h
+   ceph-fs-sc    True    Reconciled   ceph-cluster-1                   1h
    ```
 
 1. Проверьте созданный StorageClass:

@@ -34,13 +34,15 @@ var (
 // +k8s:deepcopy-gen=true
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 // +kubebuilder:object:root=true
-// +kubebuilder:resource:scope=Cluster
+// +kubebuilder:resource:scope=Cluster,categories=d8-storage;d8-storage-classes
 // +kubebuilder:subresource:status
 // +kubebuilder:metadata:labels={"heritage=deckhouse","module=csi-ceph","backup.deckhouse.io/cluster-config=true"}
-// +kubebuilder:printcolumn:name="Phase",type="string",JSONPath=".status.phase"
 // +kubebuilder:printcolumn:name="Ready",type="string",JSONPath=".status.conditions[?(@.type==\"Ready\")].status"
+// +kubebuilder:printcolumn:name="Reason",type="string",JSONPath=".status.conditions[?(@.type==\"Ready\")].reason"
+// +kubebuilder:printcolumn:name="Connection",type="string",JSONPath=".spec.clusterConnectionName"
+// +kubebuilder:printcolumn:name="Pool",type="string",JSONPath=".spec.rbd.pool"
 // +kubebuilder:printcolumn:name="Free on disk",type="string",JSONPath=".status.capacity.freeOnDisk",priority=1
-// +kubebuilder:printcolumn:name="Reason",type="string",JSONPath=".status.reason",priority=1
+// +kubebuilder:printcolumn:name="Phase",type="string",JSONPath=".status.phase",priority=1
 // +kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp",description="The age of this resource"
 // +crd-enricher:crd:minimal=true
 // +crd-enricher:crd:preserveUnknownFields=false

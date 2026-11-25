@@ -96,6 +96,26 @@ The reserve applies only to volumes created after the annotation was set — fil
 
 Changing the annotation makes the controller recreate the StorageClass, because `parameters` of an existing StorageClass are immutable in Kubernetes. Existing volumes and PVCs are not affected.
 
+## What do the status conditions and reasons mean?
+
+`CephClusterConnection` and `CephStorageClass` publish the `Ready` condition. Its status and reason are in the `READY` and `REASON` columns, and its message says what is wrong:
+
+```shell
+d8 k get d8-storage-connections
+d8 k get d8-storage-classes
+d8 k get cephclusterconnection <name> -o jsonpath='{.status.conditions[?(@.type=="Ready")]}'
+```
+
+The controller exports the same as the `csi_ceph_resource_ready` metric. When `Ready` of a resource has not been `True` for 15 minutes, the `D8CsiCephStorageConnectionNotReady` or `D8CsiCephStorageClassNotReady` alert fires and refers to this section.
+
+| Resource | Reason | Meaning | What to do |
+|---|---|---|---|
+| Connection, class | `Reconciled` | `Ready=True`. The Secret and the CSI ConfigMap entry of the connection are written; the StorageClass and the VolumeSnapshotClass of the class match its spec. | Nothing. |
+| Connection, class | `Pending` | The controller has not reached a verdict yet. | A new resource passes it within minutes. If it stays, check that the controller pod in the `d8-csi-ceph` namespace is running. |
+| Connection | `PersistentVolumesExist`, `VolumeSnapshotContentsExist` | The connection is being deleted and waits for the PersistentVolumes or VolumeSnapshotContents that still need its Secret; the message names them. | See [Why is a CephClusterConnection not deleted?](#why-is-a-cephclusterconnection-not-deleted) The alerts do not fire for these reasons. |
+| Connection | `ReconcileFailed` | The controller could not write the Secret or the CSI ConfigMap entry of the connection. | The message and the controller log have the error: `d8 k -n d8-csi-ceph logs deploy/controller -c controller`. |
+| Class | `ReconcileFailed` | The StorageClass or the VolumeSnapshotClass could not be created or updated: the connection in `spec.clusterConnectionName` does not exist, a StorageClass of the same name is not managed by the module, or the API request failed. | Read the message. Create the connection, or remove the StorageClass that is in the way. |
+
 ## Why is a CephClusterConnection not deleted?
 
 A `CephClusterConnection` holds the Secret with the user its volumes were created with, and Kubernetes reads that Secret to attach, detach, mount, expand and delete these volumes. Deleting the connection earlier would leave them stuck, for example a volume that can no longer be detached from its node. So the connection and its Secret stay until no PersistentVolume needs them. Its `Ready` condition is `False` with the reason `PersistentVolumesExist`, gives the number of such PersistentVolumes and names up to ten of them:
@@ -173,7 +193,7 @@ Take `<ID>` and `<Locker>` from the `rbd lock ls` output; the ID of an exclusive
 
 Every node that maps an RBD image watches it: the kernel RBD client registers a watch on the image header and holds the exclusive lock of the image while it writes. When Ceph adds the kernel client of a node to the OSD blocklist, the OSDs drop its watches and reject its requests. The kernel client does not register the watch again, even after the blocklist entry expires, and keeps the device mapped. Reads and writes of the volume on that node fail or hang, and the filesystem may turn read-only, while the Pod stays `Running` and the CSI driver reports the volume as healthy. Any other client that then takes the exclusive lock of such an image, for example to create a snapshot, finds a lock owner without a watch and blocklists the kernel client of the node again, together with all its other volumes. Ceph blocklists a client when another client breaks its lock, for example after a node failure, or by hand.
 
-The csi-ceph controller checks every five minutes that each attached RBD volume has as many watchers as nodes it is attached to, and raises the `CsiCephRBDVolumeWithoutWatch` alert for a volume on a `Ready` node that has fewer. It also records a `RBDImageNotWatched` Warning event on the PersistentVolume:
+The csi-ceph controller checks every five minutes that each attached RBD volume has as many watchers as nodes it is attached to, and raises the `D8CsiCephRBDVolumeWithoutWatch` alert for a volume on a `Ready` node that has fewer. It also records a `RBDImageNotWatched` Warning event on the PersistentVolume:
 
 ```shell
 d8 k get events -A --field-selector reason=RBDImageNotWatched

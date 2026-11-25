@@ -4,13 +4,18 @@ date: "2026-xx-xx"
 summary: ""
 highlights: []
 
+new_features:
+  - "Алерты `D8CsiCephStorageConnectionNotReady` и `D8CsiCephStorageClassNotReady` срабатывают, если условие `Ready` у `CephClusterConnection` или `CephStorageClass` не равно `True` 15 минут. Они строятся на новой метрике контроллера `csi_ceph_resource_ready` и ссылаются на новый раздел FAQ об условиях и причинах в статусе."
+improvements:
+  - "`kubectl get` показывает причину условия `Ready` и мониторы у `CephClusterConnection`, а у `CephStorageClass` — причину, подключение и пул RBD. Оба вида ресурсов входят в категорию `d8-storage`, подключения — также в `d8-storage-connections`, классы — в `d8-storage-classes`, поэтому `kubectl get d8-storage-classes` выводит классы всех модулей хранения."
+upgrade_notes:
+  - "Колонка `Phase` у `CephClusterConnection` и `CephStorageClass` выводится только в `kubectl get -o wide`, а в колонке `Reason` теперь причина условия `Ready`, а не `status.reason`. Скриптам, которые разбирают колонки, нужно читать `.status.conditions`."
+  - "Алерты `StorageClassNewCephClusterConnectionCreated`, `StorageClassCephClusterAuthenticationNotMigrated`, `StorageClassPossibleProblemWithAllowVolumeExpansion`, `StorageClassPossibleProblemWithMountOptions`, `StorageClassPossibleProblemWithCephfsPool`, `CsiCephRBDVolumeWithoutWatch` устарели и будут удалены в следующем минорном релизе. Их заменяют, в том же порядке, `D8CsiCephStorageClassNewCephClusterConnectionCreated`, `D8CsiCephStorageClassCephClusterAuthenticationNotMigrated`, `D8CsiCephStorageClassPossibleProblemWithAllowVolumeExpansion`, `D8CsiCephStorageClassPossibleProblemWithMountOptions`, `D8CsiCephStorageClassPossibleProblemWithCephfsPool`, `D8CsiCephRBDVolumeWithoutWatch`, которые срабатывают при тех же условиях; пока старые имена не удалены, срабатывают оба. Обновите заглушки (silences) и маршруты, которые выбирают старые имена."
+
 # Необязательные разделы — пустые не оставлять, а удалять.
-# new_features: []
-# improvements: []
 # fixes: []
 # security: []
 # breaking: []
-# upgrade_notes: []
 # known_issues: []
 # docs: []
 # dependencies:

@@ -9,6 +9,9 @@ metadata:
 spec:
   group: storage.deckhouse.io
   names:
+    categories:
+    - d8-storage
+    - d8-storage-classes
     kind: CephStorageClass
     plural: cephstorageclasses
     singular: cephstorageclass
@@ -16,18 +19,24 @@ spec:
   scope: Cluster
   versions:
   - additionalPrinterColumns:
-    - jsonPath: .status.phase
-      name: Phase
-      type: string
     - jsonPath: .status.conditions[?(@.type=="Ready")].status
       name: Ready
+      type: string
+    - jsonPath: .status.conditions[?(@.type=="Ready")].reason
+      name: Reason
+      type: string
+    - jsonPath: .spec.clusterConnectionName
+      name: Connection
+      type: string
+    - jsonPath: .spec.rbd.pool
+      name: Pool
       type: string
     - jsonPath: .status.capacity.freeOnDisk
       name: Free on disk
       priority: 1
       type: string
-    - jsonPath: .status.reason
-      name: Reason
+    - jsonPath: .status.phase
+      name: Phase
       priority: 1
       type: string
     - description: The age of this resource

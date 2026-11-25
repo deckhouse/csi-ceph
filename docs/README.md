@@ -119,7 +119,7 @@ To connect to a Ceph cluster, follow the step-by-step instructions below. Execut
    EOF
    ```
 
-1. Verify that the created [CephStorageClass](/modules/csi-ceph/cr.html#cephstorageclass) resources have transitioned to `Created` state:
+1. Verify that the created [CephStorageClass](/modules/csi-ceph/cr.html#cephstorageclass) resources are `Ready`:
 
    ```shell
    d8 k get cephstorageclass
@@ -128,9 +128,9 @@ To connect to a Ceph cluster, follow the step-by-step instructions below. Execut
    This will output information about the created [CephStorageClass](/modules/csi-ceph/cr.html#cephstorageclass) resources:
 
    ```console
-   NAME          PHASE     AGE
-   ceph-rbd-sc   Created   1h
-   ceph-fs-sc    Created   1h
+   NAME          READY   REASON       CONNECTION       POOL            AGE
+   ceph-rbd-sc   True    Reconciled   ceph-cluster-1   ceph-rbd-pool   1h
+   ceph-fs-sc    True    Reconciled   ceph-cluster-1                   1h
    ```
 
 1. Verify the created StorageClass:

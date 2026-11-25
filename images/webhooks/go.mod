@@ -1,8 +1,9 @@
 module github.com/deckhouse/csi-ceph/images/webhooks
 
 go 1.27.4
+
 require (
-	github.com/deckhouse/sds-common-lib v0.15.0
+	github.com/deckhouse/sds-common-lib v0.25.0
 	github.com/slok/kubewebhook/v2 v2.7.0
 	k8s.io/api v0.37.2
 	k8s.io/apimachinery v0.37.2
@@ -15,7 +16,7 @@ require (
 	github.com/deckhouse/deckhouse/pkg/log v0.2.1 // indirect
 	github.com/emicklei/go-restful/v3 v3.13.0 // indirect
 	github.com/fxamacker/cbor/v2 v2.9.1 // indirect
-	github.com/go-logr/logr v1.4.3 // indirect
+	github.com/go-logr/logr v1.4.4 // indirect
 	github.com/go-openapi/jsonpointer v1.0.0 // indirect
 	github.com/go-openapi/jsonreference v1.0.0 // indirect
 	github.com/go-openapi/swag v0.27.1 // indirect
@@ -38,7 +39,7 @@ require (
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
 	go.yaml.in/yaml/v2 v2.4.4 // indirect
-	go.yaml.in/yaml/v3 v3.0.4 // indirect
+	go.yaml.in/yaml/v3 v3.0.5 // indirect
 	golang.org/x/net v0.62.0 // indirect
 	golang.org/x/oauth2 v0.36.0 // indirect
 	golang.org/x/sys v0.49.0 // indirect

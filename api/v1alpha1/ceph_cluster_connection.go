@@ -24,12 +24,13 @@ import (
 // +k8s:deepcopy-gen=true
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 // +kubebuilder:object:root=true
-// +kubebuilder:resource:scope=Cluster
+// +kubebuilder:resource:scope=Cluster,categories=d8-storage;d8-storage-connections
 // +kubebuilder:subresource:status
 // +kubebuilder:metadata:labels={"heritage=deckhouse","module=csi-ceph","backup.deckhouse.io/cluster-config=true"}
-// +kubebuilder:printcolumn:name="Phase",type="string",JSONPath=".status.phase"
 // +kubebuilder:printcolumn:name="Ready",type="string",JSONPath=".status.conditions[?(@.type==\"Ready\")].status"
-// +kubebuilder:printcolumn:name="Reason",type="string",JSONPath=".status.reason",priority=1
+// +kubebuilder:printcolumn:name="Reason",type="string",JSONPath=".status.conditions[?(@.type==\"Ready\")].reason"
+// +kubebuilder:printcolumn:name="Address",type="string",JSONPath=".spec.monitors"
+// +kubebuilder:printcolumn:name="Phase",type="string",JSONPath=".status.phase",priority=1
 // +kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp",description="The age of this resource"
 // +kubebuilder:validation:XValidation:rule="oldSelf == null || (has(self.spec.cephFS) == has(oldSelf.spec.cephFS) && (!has(self.spec.cephFS) || self.spec.cephFS == oldSelf.spec.cephFS))",message="The spec.cephFS field is immutable (cannot be added, removed, or changed)."
 // +crd-enricher:crd:minimal=true
