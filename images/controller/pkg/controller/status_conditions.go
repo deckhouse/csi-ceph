@@ -17,6 +17,8 @@ limitations under the License.
 package controller
 
 import (
+	"fmt"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	storagev1alpha1 "github.com/deckhouse/csi-ceph/api/v1alpha1"
@@ -24,20 +26,18 @@ import (
 	"github.com/deckhouse/sds-common-lib/conditions"
 )
 
-// phaseFromReady maps the Ready condition onto this module's coarse phase
-// vocabulary. CephStorageClass and CephClusterConnection share it: their phase
-// vocabularies are identical.
-//
-// It is a pure function of the conditions and never consults the previous
-// phase, so a resource cannot get stranded in a phase the way it can with a
-// phase-to-phase state machine. Anything other than Ready=True is Failed, which
-// matches the behaviour before conditions existed: the phase was Created only
-// when the reconcile pass returned no error.
+// phaseFromReady maps the Ready condition onto the deprecated status.phase of
+// CephStorageClass and CephClusterConnection: Created for True, Failed for
+// False, and no phase while there is no verdict.
 func phaseFromReady(conds []metav1.Condition) string {
-	if conditions.IsTrue(conds, storagev1alpha1.ConditionTypeReady) {
+	switch {
+	case conditions.IsTrue(conds, storagev1alpha1.ConditionTypeReady):
 		return internal.PhaseCreated
+	case conditions.IsFalse(conds, storagev1alpha1.ConditionTypeReady):
+		return internal.PhaseFailed
+	default:
+		return ""
 	}
-	return internal.PhaseFailed
 }
 
 // cephStorageClassConditions and cephClusterConnectionConditions are how
@@ -90,7 +90,8 @@ func shouldPublishStatus(obj metav1.Object, reconcileErr error, shouldRequeue bo
 //
 // The phase is consulted only for those pre-conditions objects, so that ones
 // that did fail before the upgrade are still picked up. Once the condition
-// exists it is the only thing that counts.
+// exists it is the only thing that counts. WaitingForDependency is not a
+// failure of the class: the connection watch brings it back.
 func shouldRetryFailedStorageClass(status *storagev1alpha1.CephStorageClassStatus) bool {
 	if status == nil {
 		return false
@@ -98,5 +99,37 @@ func shouldRetryFailedStorageClass(status *storagev1alpha1.CephStorageClassStatu
 	if conditions.Get(status.Conditions, storagev1alpha1.ConditionTypeReady) == nil {
 		return status.Phase == internal.PhaseFailed
 	}
-	return conditions.IsFalse(status.Conditions, storagev1alpha1.ConditionTypeReady)
+	ready := conditions.Get(status.Conditions, storagev1alpha1.ConditionTypeReady)
+	return ready.Status == metav1.ConditionFalse && ready.Reason != conditions.ReasonWaitingForDependency
+}
+
+// waitingForConnectionError is the verdict of a CephStorageClass pass that did
+// its own part but whose CephClusterConnection is missing or not Ready.
+type waitingForConnectionError struct {
+	msg string
+}
+
+func (e *waitingForConnectionError) Error() string { return e.msg }
+
+func connectionMissing(name string) error {
+	return &waitingForConnectionError{msg: fmt.Sprintf("CephClusterConnection %q does not exist", name)}
+}
+
+// connectionNotReady returns a waitingForConnectionError unless the Ready
+// condition of cc is True for its current generation.
+func connectionNotReady(cc *storagev1alpha1.CephClusterConnection) error {
+	ready := conditions.Get(cephClusterConnectionConditions(cc), storagev1alpha1.ConditionTypeReady)
+	switch {
+	case ready == nil:
+		return &waitingForConnectionError{msg: fmt.Sprintf("CephClusterConnection %q is not Ready (%s)", cc.Name, conditions.ReasonPending)}
+	case ready.Status != metav1.ConditionTrue:
+		msg := fmt.Sprintf("CephClusterConnection %q is not Ready (%s)", cc.Name, ready.Reason)
+		if ready.Message != "" {
+			msg += ": " + ready.Message
+		}
+		return &waitingForConnectionError{msg: msg}
+	case ready.ObservedGeneration < cc.Generation:
+		return &waitingForConnectionError{msg: fmt.Sprintf("CephClusterConnection %q has not been reconciled since its last change", cc.Name)}
+	}
+	return nil
 }

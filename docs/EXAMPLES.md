@@ -23,7 +23,7 @@ spec:
   userKey: <your-ceph-auth-key>
 ```
 
-To verify the creation of the object, use the following command (Phase should be `Created`):
+To verify the creation of the object, use the following command (`READY` should be `True`):
 
 ```shell
 d8 k get cephclusterconnection <cephclusterconnection name>
@@ -68,7 +68,7 @@ spec:
     fsName: cephfs
 ```
 
-To verify the creation of the object, use the following command (Phase should be `Created`):
+To verify the creation of the object, use the following command (`READY` should be `True`):
 
 ```shell
 d8 k get cephstorageclass <cephstorageclass name>

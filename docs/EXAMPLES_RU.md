@@ -23,7 +23,7 @@ spec:
   userKey: <your-ceph-auth-key>
 ```
 
-Чтобы проверить создание объекта, выполните следующую команду (Phase должен быть `Created`):
+Чтобы проверить создание объекта, выполните следующую команду (`READY` должно быть `True`):
 
 ```shell
 d8 k get cephclusterconnection <имя cephclusterconnection>
@@ -68,7 +68,7 @@ spec:
     fsName: cephfs
 ```
 
-Чтобы проверить создание объекта, выполните следующую команду (Phase должен быть `Created`):
+Чтобы проверить создание объекта, выполните следующую команду (`READY` должно быть `True`):
 
 ```shell
 d8 k get cephstorageclass <имя cephstorageclass>

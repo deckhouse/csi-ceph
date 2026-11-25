@@ -90,7 +90,7 @@ Where the classic 5% ext4 reserve is wanted — for example to keep a filesystem
 d8 k annotate cephstorageclass <name> storage.deckhouse.io/ext4-reserved-percent=5
 ```
 
-The value is a whole number of percent between 0 and 50; an invalid one puts the CephStorageClass into the `Failed` phase with the reason in its conditions, instead of breaking volume creation later.
+The value is a whole number of percent between 0 and 50; an invalid one leaves the CephStorageClass with `Ready=False` and the reason in its status, instead of breaking volume creation later.
 
 The reserve applies only to volumes created after the annotation was set — filesystems that already exist keep the reserve they were created with. It is meaningful for RBD only: CephFS volumes are subdirectories of an existing filesystem and are never formatted, so the annotation is ignored on a CephFS class. Nor does it apply to a volume whose `defaultFSType` is XFS, which keeps no blocks for the superuser.
 
@@ -114,7 +114,8 @@ The controller exports the same as the `csi_ceph_resource_ready` metric. When `R
 | Connection, class | `Pending` | The controller has not reached a verdict yet. | A new resource passes it within minutes. If it stays, check that the controller pod in the `d8-csi-ceph` namespace is running. |
 | Connection | `PersistentVolumesExist`, `VolumeSnapshotContentsExist` | The connection is being deleted and waits for the PersistentVolumes or VolumeSnapshotContents that still need its Secret; the message names them. | See [Why is a CephClusterConnection not deleted?](#why-is-a-cephclusterconnection-not-deleted) The alerts do not fire for these reasons. |
 | Connection | `ReconcileFailed` | The controller could not write the Secret or the CSI ConfigMap entry of the connection. | The message and the controller log have the error: `d8 k -n d8-csi-ceph logs deploy/controller -c controller`. |
-| Class | `ReconcileFailed` | The StorageClass or the VolumeSnapshotClass could not be created or updated: the connection in `spec.clusterConnectionName` does not exist, a StorageClass of the same name is not managed by the module, or the API request failed. | Read the message. Create the connection, or remove the StorageClass that is in the way. |
+| Class | `WaitingForDependency` | The connection in `spec.clusterConnectionName` does not exist or is not `Ready`. The message names the connection and its reason. The StorageClass and the VolumeSnapshotClass are still created and updated while the connection exists. | Fix the connection first: its own reason and alert name the cause. The class turns `Ready=True` as soon as the connection does. |
+| Class | `ReconcileFailed` | The StorageClass or the VolumeSnapshotClass could not be created or updated: a StorageClass of the same name is not managed by the module, or the API request failed. | Read the message. Remove the StorageClass that is in the way. |
 
 ## Why is a CephClusterConnection not deleted?
 

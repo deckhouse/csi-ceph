@@ -76,7 +76,7 @@ To connect to a Ceph cluster, follow the step-by-step instructions below. Execut
    EOF
    ```
 
-1. Verify the connection creation with the command (`Phase` should be in `Created` status):
+1. Verify the connection creation with the command (`READY` should be `True`):
 
    ```shell
    d8 k get cephclusterconnection ceph-cluster-1

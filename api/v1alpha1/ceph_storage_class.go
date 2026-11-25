@@ -126,13 +126,11 @@ type CephStorageClassCephFS struct {
 // Displays current information about the Storage Class.
 // +k8s:deepcopy-gen=true
 type CephStorageClassStatus struct {
-	// The Storage class current state. Might be:
-	// - Failed (if the controller received incorrect resource configuration or some errors occurred during the operation)
-	// - Created (if everything went fine)
+	// Deprecated. Derived from the `Ready` condition. `Created` while `Ready` is `True`, `Failed` while it is `False`, absent while it is `Unknown`. Read `status.conditions` instead.
 	// +kubebuilder:validation:Enum=Failed;Created
 	Phase string `json:"phase,omitempty"`
 
-	// Additional information about the current state of the Storage Class.
+	// Deprecated. Repeats the message of the `Ready` condition.
 	Reason string `json:"reason,omitempty"`
 
 	// The value of `metadata.generation` the controller has last acted on. When it trails

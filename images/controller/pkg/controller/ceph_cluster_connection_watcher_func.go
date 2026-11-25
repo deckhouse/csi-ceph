@@ -121,7 +121,7 @@ func updateCephClusterConnectionStatus(
 			conditions.Set(&cc.Status.Conditions, c)
 		}
 		cc.Status.Phase = phaseFromReady(cc.Status.Conditions)
-		cc.Status.Reason = msg
+		cc.Status.Reason = cond.Message
 	}, conditions.WithEvents(recorder, cephClusterConnectionConditions))
 }
 

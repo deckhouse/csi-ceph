@@ -200,14 +200,12 @@ func TestPhaseFromReady(t *testing.T) {
 		{
 			name:  "unknown",
 			conds: []metav1.Condition{{Type: storagev1alpha1.ConditionTypeReady, Status: metav1.ConditionUnknown}},
-			want:  internal.PhaseFailed,
+			want:  "",
 		},
 		{
-			// Matches the behaviour before conditions existed: the phase was
-			// Created only when the reconcile pass returned no error.
 			name:  "no conditions at all",
 			conds: nil,
-			want:  internal.PhaseFailed,
+			want:  "",
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -284,6 +282,9 @@ func TestUpdateCephStorageClassStatus_Failure(t *testing.T) {
 	}
 	if got.Status.Phase != internal.PhaseFailed {
 		t.Errorf("phase = %q, want %q", got.Status.Phase, internal.PhaseFailed)
+	}
+	if got.Status.Reason != ready.Message {
+		t.Errorf("status.reason = %q, want it to repeat the Ready message %q", got.Status.Reason, ready.Message)
 	}
 }
 
@@ -530,6 +531,14 @@ func TestIdentifyReconcileFuncForStorageClass_StatusDrivenRetry(t *testing.T) {
 			&storagev1alpha1.CephStorageClassStatus{Phase: internal.PhaseFailed}, internal.UpdateReconcile},
 		{"ready", readyStatus(metav1.ConditionTrue, internal.PhaseCreated), ""},
 		{"not ready", readyStatus(metav1.ConditionFalse, internal.PhaseFailed), internal.UpdateReconcile},
+		{"waiting for the connection", &storagev1alpha1.CephStorageClassStatus{
+			Phase: internal.PhaseFailed,
+			Conditions: []metav1.Condition{{
+				Type:   storagev1alpha1.ConditionTypeReady,
+				Status: metav1.ConditionFalse,
+				Reason: conditions.ReasonWaitingForDependency,
+			}},
+		}, ""},
 		{"no status at all", nil, ""},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

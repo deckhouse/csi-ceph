@@ -18,6 +18,7 @@ package controller
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -37,6 +38,7 @@ import (
 	v1alpha1 "github.com/deckhouse/csi-ceph/api/v1alpha1"
 	"github.com/deckhouse/csi-ceph/images/controller/pkg/config"
 	"github.com/deckhouse/csi-ceph/images/controller/pkg/internal"
+	"github.com/deckhouse/sds-common-lib/conditions"
 	"github.com/deckhouse/sds-common-lib/logger"
 )
 
@@ -185,7 +187,47 @@ func RunCephStorageClassWatcherController(
 		return nil, err
 	}
 
+	err = c.Watch(source.Kind(mgr.GetCache(), &v1alpha1.CephClusterConnection{}, cephClusterConnectionClassHandler(cl, log)))
+	if err != nil {
+		log.Error("unable to watch the CephClusterConnection events", logger.Err(err))
+		return nil, err
+	}
+
 	return c, nil
+}
+
+// cephClusterConnectionClassHandler enqueues the CephStorageClasses of a
+// CephClusterConnection that appears, goes away or changes its Ready
+// condition, so that WaitingForDependency of a class follows its connection.
+func cephClusterConnectionClassHandler(cl client.Client, log logger.Logger) handler.TypedEventHandler[*v1alpha1.CephClusterConnection, reconcile.Request] {
+	enqueueClassesOf := func(ctx context.Context, cc *v1alpha1.CephClusterConnection, q workqueue.TypedRateLimitingInterface[reconcile.Request]) {
+		classes := &v1alpha1.CephStorageClassList{}
+		if err := cl.List(ctx, classes); err != nil {
+			log.Error(fmt.Sprintf("unable to list CephStorageClasses for the CephClusterConnection %q", cc.Name), logger.Err(err))
+			return
+		}
+		for _, sc := range classes.Items {
+			if sc.Spec.ClusterConnectionName == cc.Name {
+				q.Add(reconcile.Request{NamespacedName: types.NamespacedName{Name: sc.Name}})
+			}
+		}
+	}
+
+	return handler.TypedFuncs[*v1alpha1.CephClusterConnection, reconcile.Request]{
+		CreateFunc: func(ctx context.Context, e event.TypedCreateEvent[*v1alpha1.CephClusterConnection], q workqueue.TypedRateLimitingInterface[reconcile.Request]) {
+			enqueueClassesOf(ctx, e.Object, q)
+		},
+		UpdateFunc: func(ctx context.Context, e event.TypedUpdateEvent[*v1alpha1.CephClusterConnection], q workqueue.TypedRateLimitingInterface[reconcile.Request]) {
+			oldReady := conditions.Get(cephClusterConnectionConditions(e.ObjectOld), v1alpha1.ConditionTypeReady)
+			newReady := conditions.Get(cephClusterConnectionConditions(e.ObjectNew), v1alpha1.ConditionTypeReady)
+			if e.ObjectOld.Generation != e.ObjectNew.Generation || !conditions.SemanticallyEqual(oldReady, newReady) {
+				enqueueClassesOf(ctx, e.ObjectNew, q)
+			}
+		},
+		DeleteFunc: func(ctx context.Context, e event.TypedDeleteEvent[*v1alpha1.CephClusterConnection], q workqueue.TypedRateLimitingInterface[reconcile.Request]) {
+			enqueueClassesOf(ctx, e.Object, q)
+		},
+	}
 }
 
 func RunStorageClassEventReconcile(ctx context.Context, cl client.Client, log logger.Logger, scList *v1.StorageClassList, vsClassList *snapshotv1.VolumeSnapshotClassList, cephSC *v1alpha1.CephStorageClass, controllerNamespace string, ignoredLabelPrefixes []string) (bool, string, error) {
@@ -232,7 +274,11 @@ func RunStorageClassEventReconcile(ctx context.Context, cl client.Client, log lo
 	}
 	log.Debug(fmt.Sprintf("finalizer %s was added to the CephStorageClass %s: %t", CephStorageClassControllerFinalizerName, cephSC.Name, added))
 
-	clusterID, err := getClusterID(ctx, cl, cephSC)
+	clusterConnection, clusterID, err := getClusterConnection(ctx, cl, cephSC)
+	var waitErr *waitingForConnectionError
+	if errors.As(err, &waitErr) {
+		return true, err.Error(), err
+	}
 	if err != nil {
 		err = fmt.Errorf("[RunStorageClassEventReconcile] unable to get clusterID for CephStorageClass %s: %w", cephSC.Name, err)
 		return true, err.Error(), err
@@ -280,6 +326,11 @@ func RunStorageClassEventReconcile(ctx context.Context, cl client.Client, log lo
 		if err != nil || shouldRequeue {
 			return shouldRequeue, msg, err
 		}
+	}
+
+	if err := connectionNotReady(clusterConnection); err != nil {
+		log.Info(fmt.Sprintf("CephStorageClass %s waits for its connection: %s", cephSC.Name, err))
+		return false, err.Error(), err
 	}
 
 	log.Debug(fmt.Sprintf("finish all reconciliations for CephStorageClass %q.", cephSC.Name))

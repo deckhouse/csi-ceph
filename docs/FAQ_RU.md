@@ -90,7 +90,7 @@ ceph fs subvolumegroup create myfs csi
 d8 k annotate cephstorageclass <name> storage.deckhouse.io/ext4-reserved-percent=5
 ```
 
-Значение — целое число процентов от 0 до 50; при некорректном значении CephStorageClass переходит в фазу `Failed` с причиной в conditions, а не ломает создание томов позже.
+Значение — целое число процентов от 0 до 50; при некорректном значении у CephStorageClass будет `Ready=False` с причиной в статусе, а не ломает создание томов позже.
 
 Резерв применяется только к томам, созданным после установки аннотации: уже существующие файловые системы сохраняют тот резерв, с которым были созданы. Аннотация имеет смысл только для RBD: тома CephFS — это подкаталоги уже существующей файловой системы, они не форматируются, поэтому на классе CephFS аннотация игнорируется. Не действует она и на тома с `defaultFSType: xfs` — XFS не резервирует блоки под суперпользователя.
 
@@ -114,7 +114,8 @@ d8 k get cephclusterconnection <имя> -o jsonpath='{.status.conditions[?(@.typ
 | Подключение, класс | `Pending` | Контроллер ещё не вынес вердикт. | Новый ресурс проходит это состояние за минуты. Если оно не проходит, проверьте, что под контроллера в пространстве имён `d8-csi-ceph` запущен. |
 | Подключение | `PersistentVolumesExist`, `VolumeSnapshotContentsExist` | Подключение удаляется и ждёт PersistentVolume или VolumeSnapshotContent, которым ещё нужен его секрет; сообщение их называет. | См. раздел [Почему не удаляется CephClusterConnection?](#почему-не-удаляется-cephclusterconnection) Алерты по этим причинам не срабатывают. |
 | Подключение | `ReconcileFailed` | Контроллер не смог записать секрет или запись CSI ConfigMap подключения. | Ошибка — в сообщении и в логе контроллера: `d8 k -n d8-csi-ceph logs deploy/controller -c controller`. |
-| Класс | `ReconcileFailed` | Не удалось создать или обновить StorageClass или VolumeSnapshotClass: подключения из `spec.clusterConnectionName` нет, StorageClass с тем же именем не управляется модулем или запрос к API завершился ошибкой. | Прочитайте сообщение. Создайте подключение или уберите мешающий StorageClass. |
+| Класс | `WaitingForDependency` | Подключения из `spec.clusterConnectionName` нет или оно не `Ready`. В сообщении — имя подключения и его причина. Пока подключение существует, StorageClass и VolumeSnapshotClass всё равно создаются и обновляются. | Сначала исправьте подключение: его собственная причина и алерт называют источник проблемы. Класс станет `Ready=True`, как только подключение станет `Ready=True`. |
+| Класс | `ReconcileFailed` | Не удалось создать или обновить StorageClass или VolumeSnapshotClass: StorageClass с тем же именем не управляется модулем или запрос к API завершился ошибкой. | Прочитайте сообщение. Уберите мешающий StorageClass. |
 
 ## Почему не удаляется CephClusterConnection?
 

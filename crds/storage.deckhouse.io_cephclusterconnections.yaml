@@ -152,17 +152,15 @@ spec:
                 format: int64
                 type: integer
               phase:
-                description: |-
-                  The current state of resources managed by the CephClusterConnection custom resource. Might be:
-                  - Failed (if the controller received incorrect resource configuration or some errors occurred during the operation)
-                  - Created (if everything went fine)
+                description: Deprecated. Derived from the `Ready` condition. `Created`
+                  while `Ready` is `True`, `Failed` while it is `False`, absent while
+                  it is `Unknown`. Read `status.conditions` instead.
                 enum:
                 - Failed
                 - Created
                 type: string
               reason:
-                description: Additional information about the resources managed by
-                  the CephClusterConnection custom resource.
+                description: Deprecated. Repeats the message of the `Ready` condition.
                 type: string
             type: object
         required:

@@ -87,13 +87,11 @@ type CephClusterConnectionSpecCephFS struct {
 // Displays current information about the resources managed by the CephClusterConnection custom resource.
 // +k8s:deepcopy-gen=true
 type CephClusterConnectionStatus struct {
-	// The current state of resources managed by the CephClusterConnection custom resource. Might be:
-	// - Failed (if the controller received incorrect resource configuration or some errors occurred during the operation)
-	// - Created (if everything went fine)
+	// Deprecated. Derived from the `Ready` condition. `Created` while `Ready` is `True`, `Failed` while it is `False`, absent while it is `Unknown`. Read `status.conditions` instead.
 	// +kubebuilder:validation:Enum=Failed;Created
 	Phase string `json:"phase,omitempty"`
 
-	// Additional information about the resources managed by the CephClusterConnection custom resource.
+	// Deprecated. Repeats the message of the `Ready` condition.
 	Reason string `json:"reason,omitempty"`
 
 	// The value of `metadata.generation` the controller has last acted on. When it trails

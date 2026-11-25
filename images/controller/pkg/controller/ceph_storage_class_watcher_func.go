@@ -18,6 +18,7 @@ package controller
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"slices"
@@ -28,6 +29,7 @@ import (
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v8/apis/volumesnapshot/v1"
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/storage/v1"
+	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -491,6 +493,10 @@ func updateCephStorageClassStatus(
 	if cond.Message == "" {
 		cond.Message = msg
 	}
+	var waitErr *waitingForConnectionError
+	if errors.As(reconcileErr, &waitErr) {
+		cond.Reason = conditions.ReasonWaitingForDependency
+	}
 
 	return conditions.UpdateStatus(ctx, cl, cephSC, func(sc *storagev1alpha1.CephStorageClass) {
 		if sc.Status == nil {
@@ -499,7 +505,7 @@ func updateCephStorageClassStatus(
 		sc.Status.ObservedGeneration = generation
 		conditions.Set(&sc.Status.Conditions, cond)
 		sc.Status.Phase = phaseFromReady(sc.Status.Conditions)
-		sc.Status.Reason = msg
+		sc.Status.Reason = cond.Message
 	}, conditions.WithEvents(recorder, cephStorageClassConditions))
 }
 
@@ -701,22 +707,25 @@ func validateCephStorageClassSpec(cephSC *storagev1alpha1.CephStorageClass) (boo
 	return validationPassed, failedMsgBuilder.String()
 }
 
-func getClusterID(ctx context.Context, cl client.Client, cephSC *storagev1alpha1.CephStorageClass) (string, error) {
+func getClusterConnection(ctx context.Context, cl client.Client, cephSC *storagev1alpha1.CephStorageClass) (*storagev1alpha1.CephClusterConnection, string, error) {
 	clusterConnectionName := cephSC.Spec.ClusterConnectionName
 	clusterConnection := &storagev1alpha1.CephClusterConnection{}
 	err := cl.Get(ctx, client.ObjectKey{Namespace: cephSC.Namespace, Name: clusterConnectionName}, clusterConnection)
+	if k8serr.IsNotFound(err) {
+		return nil, "", connectionMissing(clusterConnectionName)
+	}
 	if err != nil {
-		err = fmt.Errorf("[getClusterID] CephStorageClass %q: unable to get a CephClusterConnection %q: %w", cephSC.Name, clusterConnectionName, err)
-		return "", err
+		err = fmt.Errorf("[getClusterConnection] CephStorageClass %q: unable to get a CephClusterConnection %q: %w", cephSC.Name, clusterConnectionName, err)
+		return nil, "", err
 	}
 
 	clusterID := clusterConnection.Spec.ClusterID
 	if clusterID == "" {
-		err = fmt.Errorf("[getClusterID] CephStorageClass %q: the CephClusterConnection %q has an empty spec.clusterID field", cephSC.Name, clusterConnectionName)
-		return "", err
+		err = fmt.Errorf("[getClusterConnection] CephStorageClass %q: the CephClusterConnection %q has an empty spec.clusterID field", cephSC.Name, clusterConnectionName)
+		return nil, "", err
 	}
 
-	return clusterID, nil
+	return clusterConnection, clusterID, nil
 }
 
 func updateStorageClass(cephSC *storagev1alpha1.CephStorageClass, oldSC *v1.StorageClass, controllerNamespace, clusterID string, ignoredLabelPrefixes []string) (*v1.StorageClass, error) {

@@ -90,7 +90,7 @@ var _ = Describe(controller.CephStorageClassCtrlName, func() {
 
 		shouldRequeue, _, err := controller.RunStorageClassEventReconcile(ctx, cl, log, scList, vsClassList, csc, controllerNamespace, nil)
 		Expect(err).To(HaveOccurred())
-		Expect(err.Error()).To(ContainSubstring("unable to get a CephClusterConnection"))
+		Expect(err.Error()).To(Equal(`CephClusterConnection "not-existing" does not exist`))
 		Expect(shouldRequeue).To(BeTrue())
 
 		err = cl.Get(ctx, client.ObjectKey{Name: nameForCephSC}, csc)
@@ -126,6 +126,16 @@ var _ = Describe(controller.CephStorageClassCtrlName, func() {
 		err := cl.Create(ctx, cephClusterConnection)
 		Expect(err).NotTo(HaveOccurred())
 
+		cephClusterConnection.Status = &v1alpha1.CephClusterConnectionStatus{
+			Conditions: []metav1.Condition{{
+				Type:               v1alpha1.ConditionTypeReady,
+				Status:             metav1.ConditionTrue,
+				Reason:             "Reconciled",
+				ObservedGeneration: cephClusterConnection.Generation,
+			}},
+		}
+		err = cl.Status().Update(ctx, cephClusterConnection)
+		Expect(err).NotTo(HaveOccurred())
 	})
 
 	It("Create_ceph_sc_with_cephfs", func() {
